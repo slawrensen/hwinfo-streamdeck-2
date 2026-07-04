@@ -23,13 +23,17 @@ export type SensorTreePayload = {
 	groups: TreeGroup[];
 	/** Poller state at fetch time — lets the PI refetch after HWiNFO comes up. */
 	state: PollerStatus["state"];
-	/** Guidance sentence when data is unavailable; empty when ok. */
+	/** Active data source ("shared-memory" | "gadget"); absent when unavailable. */
+	source?: string;
+	/** Guidance sentence when data is unavailable; empty when ok via shared memory. */
 	hint: string;
 };
 
 export type PreviewPayload = {
 	event: "preview";
 	state: PollerStatus["state"];
+	/** Active data source ("shared-memory" | "gadget"); absent when unavailable. */
+	source?: string;
 	hint: string;
 	/** Selected reading's live numbers; absent when nothing valid is selected. */
 	reading?: {
@@ -69,7 +73,11 @@ export function buildSensorTree(status: PollerStatus): SensorTreePayload {
 			});
 		}
 	}
-	return { event: "sensorTree", groups, state: status.state, hint: statusSentence(status) };
+	const payload: SensorTreePayload = { event: "sensorTree", groups, state: status.state, hint: statusSentence(status) };
+	if (status.state !== "unavailable") {
+		payload.source = status.source;
+	}
+	return payload;
 }
 
 /** Live preview of the selected reading — pushed to the open PI every tick. */
@@ -80,6 +88,9 @@ export function buildPreview(status: PollerStatus, readingKey: string | undefine
 		hint: statusSentence(status),
 		missing: false
 	};
+	if (status.state !== "unavailable") {
+		payload.source = status.source;
+	}
 	if (status.state === "unavailable" || readingKey === undefined || readingKey === "") {
 		return payload;
 	}

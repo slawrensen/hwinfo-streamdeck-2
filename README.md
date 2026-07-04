@@ -29,6 +29,24 @@ archived [shayne/hwinfo-streamdeck](https://github.com/shayne/hwinfo-streamdeck)
    searchable list. The list groups readings by source (CPU, GPU, drives, …) and
    shows live values; type to filter.
 
+## Data sources: Shared Memory vs. Gadget
+
+The plugin can read HWiNFO through two interfaces and picks automatically
+(*Advanced → Data source*):
+
+| | **Shared Memory** (preferred) | **Gadget registry** (fallback) |
+| --- | --- | --- |
+| Sensor coverage | everything HWiNFO measures | only sensors you tick in HWiNFO |
+| Min / max / average | ✅ | — (current value only) |
+| Free version | auto-disables after **12 h** (Pro: unlimited) | ✅ no time limit |
+| Enable in HWiNFO | Settings → *Shared Memory Support* | sensor context menu / Gadget page → *Report value in Gadget* |
+
+In **Auto** mode the plugin uses Shared Memory whenever it's available and
+silently falls back to the Gadget registry (e.g. after the free version's 12-hour
+timer) — then upgrades back when Shared Memory returns. When running on the
+Gadget source, the settings panel shows a note, and min/max/avg modes display
+the current value.
+
 ## Sensor Reading (keys)
 
 | Setting | What it does |
@@ -59,9 +77,9 @@ The touchscreen shows the label, live value, session ▼min/▲max and a range b
 
 | Key shows | Meaning / fix |
 | --- | --- |
-| **Start HWiNFO** | HWiNFO isn't running (or sharing is off). Start it with Shared Memory Support enabled. |
-| **Shared Memory off** | HWiNFO reports sharing disabled — re-enable it in HWiNFO Settings. |
-| **Not updating** | Values frozen: HWiNFO's Sensors window was closed, or the free version's **12-hour shared-memory timer** expired — toggle Shared Memory Support back on (HWiNFO Pro removes the limit). |
+| **Start HWiNFO** | HWiNFO isn't publishing on either interface. Start it with Shared Memory Support (or Gadget reporting) enabled. |
+| **Shared Memory off** | HWiNFO reports sharing disabled — re-enable it in HWiNFO Settings (or enable Gadget reporting; Auto mode falls back to it by itself). |
+| **Not updating** | Values frozen: HWiNFO's Sensors window was closed, or the free version's **12-hour shared-memory timer** expired — toggle Shared Memory Support back on (HWiNFO Pro removes the limit), or rely on the Gadget fallback. |
 | **Access denied** | HWiNFO and Stream Deck run at different privilege levels — run both elevated or both normal. |
 | **Pick a sensor** | No sensor selected yet — open the key's settings. |
 | **Sensor missing** | The saved sensor isn't in HWiNFO's current output (hardware/driver change, or a renamed sensor profile) — pick it again. |
@@ -80,12 +98,14 @@ More notes:
 ## Building from source
 
 ```bash
-npm ci              # Node 20+
-npm run build       # bundles to com.lawrensen.hwinfo.sdPlugin/bin/plugin.js
-npm run probe       # standalone smoke test: dumps live readings, no Stream Deck needed
+npm ci                   # Node 20+
+npm run build            # bundles to com.lawrensen.hwinfo.sdPlugin/bin/plugin.js
+npm run probe            # standalone smoke test: dumps live readings (-- --gadget forces the registry backend)
 npm run lint && npm run typecheck
-npm run e2e         # drives the built plugin over a mock Stream Deck WebSocket
-npm run pack        # emits release/com.lawrensen.hwinfo.streamDeckPlugin
+npm run e2e              # drives the built plugin over a mock Stream Deck WebSocket
+npm run e2e:resilience   # forces every failure state via a synthetic shared-memory provider
+npm run e2e:gadget       # exercises the Gadget-registry fallback via a synthetic HKCU key
+npm run pack             # emits release/com.lawrensen.hwinfo.streamDeckPlugin
 ```
 
 Dev loop: `streamdeck dev` once, `streamdeck link com.lawrensen.hwinfo.sdPlugin`,

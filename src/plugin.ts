@@ -2,11 +2,12 @@ import streamDeck, { LogLevel } from "@elgato/streamdeck";
 
 import { SensorDialAction } from "./actions/sensor-dial";
 import { SensorReadingAction } from "./actions/sensor-reading";
-import { parsePollInterval, poller } from "./poller";
+import { parsePollInterval, parseSourceMode, poller } from "./poller";
 
 /** Plugin-wide settings (written by the PI's "Advanced" section). */
 type GlobalSettings = {
 	pollIntervalMs?: string;
+	source?: string;
 };
 
 streamDeck.logger.setLevel(LogLevel.INFO);
@@ -26,9 +27,11 @@ streamDeck.actions.registerAction(new SensorDialAction());
 
 streamDeck.settings.onDidReceiveGlobalSettings<GlobalSettings>((ev) => {
 	poller.setIntervalMs(parsePollInterval(ev.settings.pollIntervalMs));
+	poller.setSourceMode(parseSourceMode(ev.settings.source));
 });
 
 await streamDeck.connect();
 
 const globals = await streamDeck.settings.getGlobalSettings<GlobalSettings>();
 poller.setIntervalMs(parsePollInterval(globals.pollIntervalMs));
+poller.setSourceMode(parseSourceMode(globals.source));

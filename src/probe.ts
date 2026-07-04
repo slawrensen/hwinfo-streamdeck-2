@@ -1,23 +1,26 @@
 /**
- * Standalone smoke test for the HWiNFO shared-memory reader — run with
- * `npm run probe`. Requires no Stream Deck; prints live readings grouped by
- * sensor source, or a precise diagnostic when HWiNFO data is unavailable.
+ * Standalone smoke test for the HWiNFO readers — run with `npm run probe`.
+ * Requires no Stream Deck; prints live readings grouped by sensor source, or
+ * a precise diagnostic when HWiNFO data is unavailable. Prefers shared
+ * memory and falls back to the Gadget registry, exactly like the plugin.
  *
- *   npm run probe            summary + first readings of every source
- *   npm run probe -- --all   every reading
- *   npm run probe -- --json  full snapshot as JSON
+ *   npm run probe              summary + first readings of every source
+ *   npm run probe -- --all     every reading
+ *   npm run probe -- --json    full snapshot as JSON
+ *   npm run probe -- --gadget  force the Gadget registry backend
  */
-import { parseSnapshot } from "./hwinfo/reader";
-import { SharedMemorySession } from "./hwinfo/shared-memory";
+import { GadgetRegistryProvider } from "./hwinfo/gadget-registry";
+import { SharedMemoryProvider, type SnapshotProvider } from "./hwinfo/provider";
 import { HwinfoError, SensorType, type Reading, type SensorSnapshot } from "./hwinfo/types";
 
 const args = new Set(process.argv.slice(2));
 const showAll = args.has("--all");
 const asJson = args.has("--json");
+const forceGadget = args.has("--gadget");
 
 const GUIDANCE: Record<string, string> = {
 	"unsupported-platform": "HWiNFO only runs on Windows; this probe has nothing to read here.",
-	"not-running": "Start HWiNFO and enable Settings → 'Shared Memory Support' (Sensors window must be open, or run in Sensors-only mode).",
+	"not-running": "Start HWiNFO and enable Settings → 'Shared Memory Support' (Sensors window open, or Sensors-only mode) — or enable Gadget reporting and tick sensors (free, no 12-hour limit).",
 	"access-denied": "HWiNFO and this process run at different privilege levels. Run both elevated or both non-elevated.",
 	disabled: "Shared Memory Support is switched off in HWiNFO — re-enable it in Settings. On the free version it auto-disables after 12 hours; HWiNFO Pro removes that limit.",
 	invalid: "The shared-memory contents did not validate; HWiNFO may be mid-restart or an incompatible version. Try again in a few seconds."
@@ -34,28 +37,40 @@ function fmt(r: Reading): string {
 	return `${r.label.padEnd(38)} ${r.value.toFixed(2).padStart(12)} ${r.unit.padEnd(8)} (${stats})  [${SensorType[r.type]}]`;
 }
 
-function read(session: SharedMemorySession): SensorSnapshot {
-	const buf = session.read();
-	if (buf === null) {
+function read(provider: SnapshotProvider): SensorSnapshot {
+	const snapshot = provider.read();
+	if (snapshot === null) {
 		console.error("Could not acquire the HWiNFO mutex within 150 ms — trying once more...");
-		const retry = session.read();
+		const retry = provider.read();
 		if (retry === null) {
 			console.error("Still locked; giving up.");
 			process.exit(1);
 		}
-		return parseSnapshot(retry);
+		return retry;
 	}
-	return parseSnapshot(buf);
+	return snapshot;
 }
 
-let session: SharedMemorySession;
+let session: SnapshotProvider;
 try {
-	session = SharedMemorySession.open();
+	session = forceGadget ? GadgetRegistryProvider.open() : SharedMemoryProvider.open();
 } catch (err) {
-	if (err instanceof HwinfoError) {
+	if (!(err instanceof HwinfoError)) {
+		throw err;
+	}
+	if (forceGadget) {
 		bail(err);
 	}
-	throw err;
+	// Same fallback order as the plugin's "auto" mode.
+	try {
+		session = GadgetRegistryProvider.open();
+		console.error(`Shared memory unavailable [${err.reason}] — fell back to the Gadget registry.`);
+	} catch (gadgetErr) {
+		if (gadgetErr instanceof HwinfoError) {
+			bail(err); // shared memory's diagnosis is the actionable one
+		}
+		throw gadgetErr;
+	}
 }
 
 try {
@@ -74,7 +89,8 @@ try {
 	if (asJson) {
 		console.log(JSON.stringify({ ...snapshot, byKey: undefined, advancing }, null, 2));
 	} else {
-		console.log(`HWiNFO shared memory v${snapshot.version}.${snapshot.revision} — ${snapshot.sensors.length} sensors, ${snapshot.readings.length} readings`);
+		const label = session.source === "gadget" ? "Gadget registry" : `shared memory v${snapshot.version}.${snapshot.revision}`;
+		console.log(`HWiNFO ${label} — ${snapshot.sensors.length} sensors, ${snapshot.readings.length} readings [source: ${session.source}]`);
 		console.log(`last poll: ${new Date(snapshot.pollTime * 1000).toISOString()} (${ageSec}s ago) — advancing: ${advancing ? "yes" : "NO (previous poll " + first.pollTime + ")"}`);
 		console.log("");
 

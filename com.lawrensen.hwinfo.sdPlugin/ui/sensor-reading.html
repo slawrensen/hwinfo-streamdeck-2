@@ -69,6 +69,13 @@
 
 		<details>
 			<summary>Advanced</summary>
+			<sdpi-item label="Data source">
+				<sdpi-select setting="source" global default="auto">
+					<option value="auto">Auto (Shared Memory, else Gadget)</option>
+					<option value="shared-memory">Shared Memory only</option>
+					<option value="gadget">Gadget registry only</option>
+				</sdpi-select>
+			</sdpi-item>
 			<sdpi-item label="Poll every">
 				<sdpi-select setting="pollIntervalMs" global default="1000">
 					<option value="250">250 ms</option>

@@ -17,7 +17,9 @@ export function statusScreen(status: PollerStatus): StatusKeyOptions | null {
 		return null;
 	}
 	if (status.state === "stale") {
-		return { icon: "clock", accent: AMBER, lines: ["Not updating", "check HWiNFO", "Shared Memory"] };
+		return status.source === "gadget"
+			? { icon: "clock", accent: AMBER, lines: ["Not updating", "check HWiNFO", "Gadget report"] }
+			: { icon: "clock", accent: AMBER, lines: ["Not updating", "check HWiNFO", "Shared Memory"] };
 	}
 	switch (status.reason) {
 		case "not-running":
@@ -66,14 +68,16 @@ export function statusDialText(status: PollerStatus): { title: string; value: st
 /** Human sentence for PI hints. */
 export function statusSentence(status: PollerStatus): string {
 	if (status.state === "ok") {
-		return "";
+		return status.source === "gadget" ? "Reading via HWiNFO's Gadget registry (current values only, no min/max/avg). Enable Shared Memory Support for full data — HWiNFO Pro keeps it on permanently." : "";
 	}
 	if (status.state === "stale") {
-		return `HWiNFO stopped updating ${Math.round(status.staleForMs / 1000)}s ago — check that the Sensors window is open and Shared Memory Support is still enabled (the free version disables it after 12 hours).`;
+		return status.source === "gadget"
+			? `HWiNFO's Gadget registry stopped changing ${Math.round(status.staleForMs / 1000)}s ago — check that HWiNFO is still running with Gadget reporting enabled.`
+			: `HWiNFO stopped updating ${Math.round(status.staleForMs / 1000)}s ago — check that the Sensors window is open and Shared Memory Support is still enabled (the free version disables it after 12 hours).`;
 	}
 	switch (status.reason) {
 		case "not-running":
-			return "HWiNFO is not running (or Shared Memory Support is disabled). Start HWiNFO in Sensors-only mode with Shared Memory Support enabled.";
+			return "HWiNFO is not running, or it isn't publishing data. Start HWiNFO in Sensors-only mode with Shared Memory Support enabled — or, on the free version, enable Gadget reporting (no 12-hour limit) and tick the sensors you need.";
 		case "disabled":
 			return "HWiNFO reports Shared Memory Support as disabled. Re-enable it in HWiNFO Settings — on the free version it switches off after 12 hours.";
 		case "access-denied":

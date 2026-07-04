@@ -1,26 +1,33 @@
 /**
  * The single shared HWiNFO poller. Actions retain/release it as they appear
- * and disappear; it opens ONE shared-memory session regardless of how many
- * keys and dials are visible, and fans out a status on every tick.
+ * and disappear; it opens ONE data source regardless of how many keys and
+ * dials are visible, and fans out a status on every tick.
+ *
+ * Sources (see provider.ts): shared memory is preferred; in "auto" mode the
+ * Gadget registry is the fallback (free HWiNFO disables shared memory after
+ * 12 h — gadget reporting never expires), with periodic probes to upgrade
+ * back to shared memory when it returns.
  *
  * State machine:
- *   ok ──(pollTime frozen > 15 s)──▶ stale ──(mapping gone)──▶ unavailable
+ *   ok ──(pollTime frozen > 15 s)──▶ stale ──(backend gone)──▶ unavailable
  *    ▲                                 │ (probe re-open every 5 s)
  *    └────────(pollTime advances)──────┘
  * `unavailable` re-attempts a full open every tick (cheap: one failing
- * OpenFileMappingW), so recovery is automatic when HWiNFO comes back.
+ * OpenFileMappingW / RegOpenKeyExW), so recovery is automatic.
  */
 import streamDeck from "@elgato/streamdeck";
 import { EventEmitter } from "node:events";
 
-import { parseSnapshot } from "./hwinfo/reader";
-import { SharedMemorySession } from "./hwinfo/shared-memory";
+import { GadgetRegistryProvider } from "./hwinfo/gadget-registry";
+import { SharedMemoryProvider, type SnapshotProvider, type SnapshotSource } from "./hwinfo/provider";
 import { HwinfoError, type HwinfoUnavailableReason, type SensorSnapshot } from "./hwinfo/types";
 
 export type PollerStatus =
-	| { state: "ok"; snapshot: SensorSnapshot }
-	| { state: "stale"; snapshot: SensorSnapshot; staleForMs: number }
+	| { state: "ok"; snapshot: SensorSnapshot; source: SnapshotSource }
+	| { state: "stale"; snapshot: SensorSnapshot; source: SnapshotSource; staleForMs: number }
 	| { state: "unavailable"; reason: HwinfoUnavailableReason; message: string };
+
+export type SourceMode = "auto" | "shared-memory" | "gadget";
 
 export const DEFAULT_INTERVAL_MS = 1000;
 const MIN_INTERVAL_MS = 250;
@@ -29,8 +36,10 @@ const MAX_INTERVAL_MS = 60_000;
 // stale/unavailable transitions in seconds instead of minutes.
 /** pollTime frozen for longer than this ⇒ HWiNFO stopped sharing. */
 const STALE_AFTER_MS = Number(process.env.HWINFO_STALE_AFTER_MS ?? "") || 15_000;
-/** While stale, probe a fresh mapping open at most this often. */
+/** While stale, probe a fresh open at most this often. */
 const REOPEN_PROBE_MS = Number(process.env.HWINFO_REOPEN_PROBE_MS ?? "") || 5_000;
+/** While on the gadget fallback in auto mode, probe shared memory this often. */
+const UPGRADE_PROBE_MS = Number(process.env.HWINFO_UPGRADE_PROBE_MS ?? "") || 15_000;
 
 export function parsePollInterval(raw: unknown): number {
 	const n = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : Number.NaN;
@@ -40,15 +49,21 @@ export function parsePollInterval(raw: unknown): number {
 	return Math.min(MAX_INTERVAL_MS, Math.max(MIN_INTERVAL_MS, Math.round(n)));
 }
 
+export function parseSourceMode(raw: unknown): SourceMode {
+	return raw === "shared-memory" || raw === "gadget" ? raw : "auto";
+}
+
 class HwinfoPoller extends EventEmitter {
 	private readonly logger = streamDeck.logger.createScope("HwinfoPoller");
-	private session: SharedMemorySession | null = null;
+	private provider: SnapshotProvider | null = null;
 	private timer: NodeJS.Timeout | null = null;
 	private refs = 0;
 	private intervalMs = DEFAULT_INTERVAL_MS;
+	private mode: SourceMode = "auto";
 	private lastPollTime = -1;
 	private lastAdvanceAt = 0;
 	private lastReopenProbeAt = 0;
+	private lastUpgradeProbeAt = 0;
 	private status: PollerStatus = { state: "unavailable", reason: "not-running", message: "Not polled yet." };
 
 	/** Latest status; safe to read at any time (e.g. right after willAppear). */
@@ -88,6 +103,18 @@ class HwinfoPoller extends EventEmitter {
 		}
 	}
 
+	setSourceMode(mode: SourceMode): void {
+		if (mode === this.mode) {
+			return;
+		}
+		this.mode = mode;
+		this.logger.info(`Source mode set to ${mode}`);
+		this.dropProvider();
+		if (this.timer !== null) {
+			this.tick();
+		}
+	}
+
 	private start(): void {
 		if (this.timer !== null) {
 			return;
@@ -102,49 +129,67 @@ class HwinfoPoller extends EventEmitter {
 			clearInterval(this.timer);
 			this.timer = null;
 		}
-		this.dropSession();
+		this.dropProvider();
 		this.logger.debug("Stopped (no visible actions)");
 	}
 
-	private dropSession(): void {
-		this.session?.close();
-		this.session = null;
+	private dropProvider(): void {
+		this.provider?.close();
+		this.provider = null;
 		this.lastPollTime = -1;
+	}
+
+	/** Opens the preferred source; in auto mode shared memory wins, gadget is the fallback. */
+	private openProvider(): SnapshotProvider {
+		if (this.mode === "shared-memory") {
+			return SharedMemoryProvider.open();
+		}
+		if (this.mode === "gadget") {
+			return GadgetRegistryProvider.open();
+		}
+		try {
+			return SharedMemoryProvider.open();
+		} catch (primary) {
+			try {
+				return GadgetRegistryProvider.open();
+			} catch {
+				throw primary; // shared memory's diagnosis is the actionable one
+			}
+		}
 	}
 
 	private tick(): void {
 		try {
-			if (this.session === null) {
-				this.session = SharedMemorySession.open();
+			if (this.provider === null) {
+				this.provider = this.openProvider();
 				this.lastAdvanceAt = Date.now();
-				this.logger.info("Opened HWiNFO shared memory");
+				this.logger.info(`Opened HWiNFO data source: ${this.provider.source}`);
 			}
-			const buf = this.session.read();
-			let snapshot: SensorSnapshot | null = null;
-			if (buf !== null) {
-				snapshot = parseSnapshot(buf);
-				if (snapshot.pollTime !== this.lastPollTime) {
-					this.lastPollTime = snapshot.pollTime;
-					this.lastAdvanceAt = Date.now();
-				}
+			this.maybeUpgradeToSharedMemory();
+
+			const snapshot = this.provider.read();
+			if (snapshot !== null && snapshot.pollTime !== this.lastPollTime) {
+				this.lastPollTime = snapshot.pollTime;
+				this.lastAdvanceAt = Date.now();
 			}
-			// Freshness is judged even when the mutex was busy (buf === null) —
+			// Freshness is judged even when the read was skipped (mutex busy) —
 			// a consumer wedged on the mutex must not freeze us at "ok" forever.
 			const staleForMs = Date.now() - this.lastAdvanceAt;
 			if (staleForMs > STALE_AFTER_MS) {
-				// The mapping content is frozen. If HWiNFO exited we would never
-				// notice through our held handle — probe a fresh open.
+				// The data is frozen. If HWiNFO exited we would never notice through
+				// our held handles — probe a fresh open.
 				this.probeReopen();
+				const source = this.provider.source;
 				const last = snapshot ?? (this.status.state !== "unavailable" ? this.status.snapshot : null);
 				if (last !== null) {
-					this.status = { state: "stale", snapshot: last, staleForMs };
+					this.status = { state: "stale", snapshot: last, source, staleForMs };
 				}
 			} else if (snapshot !== null) {
-				this.status = { state: "ok", snapshot };
+				this.status = { state: "ok", snapshot, source: this.provider.source };
 			}
-			// Otherwise (mutex busy, still fresh): keep the previous status this tick.
+			// Otherwise (skipped read, still fresh): keep the previous status.
 		} catch (err) {
-			this.dropSession();
+			this.dropProvider();
 			if (err instanceof HwinfoError) {
 				if (this.status.state !== "unavailable" || this.status.reason !== err.reason) {
 					this.logger.warn(`HWiNFO unavailable [${err.reason}]: ${err.message}`);
@@ -158,7 +203,7 @@ class HwinfoPoller extends EventEmitter {
 		this.emit("tick", this.status);
 	}
 
-	/** While stale: swap to a freshly opened session (throws when HWiNFO is gone). */
+	/** While stale: swap to a freshly opened provider (throws when HWiNFO is gone). */
 	private probeReopen(): void {
 		const now = Date.now();
 		if (now - this.lastReopenProbeAt < REOPEN_PROBE_MS) {
@@ -168,9 +213,30 @@ class HwinfoPoller extends EventEmitter {
 		// Release our handles FIRST: a named section stays alive while any handle
 		// references it — including ours — so probing before closing would succeed
 		// even after HWiNFO died, making the stale→unavailable edge unreachable.
-		this.session?.close();
-		this.session = null;
-		this.session = SharedMemorySession.open(); // HwinfoError propagates to tick()
+		this.dropProvider();
+		this.provider = this.openProvider(); // HwinfoError propagates to tick()
+	}
+
+	/** On the gadget fallback in auto mode, switch back once shared memory returns. */
+	private maybeUpgradeToSharedMemory(): void {
+		if (this.mode !== "auto" || this.provider === null || this.provider.source !== "gadget") {
+			return;
+		}
+		const now = Date.now();
+		if (now - this.lastUpgradeProbeAt < UPGRADE_PROBE_MS) {
+			return;
+		}
+		this.lastUpgradeProbeAt = now;
+		try {
+			const upgraded = SharedMemoryProvider.open();
+			this.provider.close();
+			this.provider = upgraded;
+			this.lastPollTime = -1;
+			this.lastAdvanceAt = now;
+			this.logger.info("Shared memory returned — upgraded from the gadget registry");
+		} catch {
+			// Still unavailable — stay on the gadget registry.
+		}
 	}
 }
 

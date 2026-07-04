@@ -54,6 +54,13 @@
 			<sdpi-item label="Gestures">
 				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Rotate: next/previous reading of the same source · Push: reset session min/max · Touch: cycle current/min/max/avg · Long touch: back to current.</div>
 			</sdpi-item>
+			<sdpi-item label="Data source">
+				<sdpi-select setting="source" global default="auto">
+					<option value="auto">Auto (Shared Memory, else Gadget)</option>
+					<option value="shared-memory">Shared Memory only</option>
+					<option value="gadget">Gadget registry only</option>
+				</sdpi-select>
+			</sdpi-item>
 			<sdpi-item label="Poll every">
 				<sdpi-select setting="pollIntervalMs" global default="1000">
 					<option value="250">250 ms</option>
