@@ -111,6 +111,10 @@ const plugin = spawn(
 			...process.env,
 			HWINFO_SM2_NAME: MAPPING_NAME,
 			HWINFO_SM2_MUTEX_NAME: MUTEX_NAME,
+			// Isolate the gadget fallback too: with a real (possibly empty) VSB
+			// key on the host, auto mode would diagnose gadget-empty instead of
+			// this suite's expected not-running screens.
+			HWINFO_VSB_KEY: `Software\\HwinfoE2E_NoVSB_${process.pid}`,
 			HWINFO_STALE_AFTER_MS: "2500",
 			HWINFO_REOPEN_PROBE_MS: "1000"
 		},
@@ -130,6 +134,14 @@ try {
 	// 3. pollTime frozen → stale screen.
 	fake.stdin.write("freeze\n");
 	await expectFrame("values frozen → 'Not updating'", (svg) => svg.includes("Not updating"), 12000);
+
+	// 3b. Stale must STICK across reopen probes: a fresh provider must not
+	// reset the freshness baseline and flap back to showing frozen values as
+	// live (covers >3 probe rounds at these timings).
+	const staleMark = frames.length;
+	await sleep(3500);
+	const flapFrames = frames.slice(staleMark).filter((svg) => svg.includes("Test Temp"));
+	check("stale sticks across reopen probes (no ok↔stale flap)", flapFrames.length === 0, `${flapFrames.length} live frames while frozen`);
 
 	// 4. Resume → live again (stale → ok).
 	fake.stdin.write("alive\n");

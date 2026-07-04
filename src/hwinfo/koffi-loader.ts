@@ -12,12 +12,21 @@
 import { createRequire } from "node:module";
 
 import type koffiModule from "koffi";
-import { HwinfoError } from "./types";
+import { HwinfoError, type HwinfoUnavailableReason } from "./types";
 
 type Koffi = typeof koffiModule;
 
 let cached: Koffi | null = null;
-let failure: string | null = null;
+let failure: HwinfoError | null = null;
+
+/**
+ * A load failure on a SUPPORTED win32/x64 machine (AV-quarantined koffi.node,
+ * damaged install) is "invalid", not "unsupported-platform" — the status
+ * screens must not tell an x64 user their platform is wrong.
+ */
+function loadError(reason: HwinfoUnavailableReason, message: string): HwinfoError {
+	return new HwinfoError(reason, message);
+}
 
 /** Loads koffi once at startup; captures failure instead of throwing. */
 export async function initKoffi(): Promise<void> {
@@ -26,19 +35,20 @@ export async function initKoffi(): Promise<void> {
 	}
 	const incompatible = platformFailure();
 	if (incompatible !== null) {
-		failure = incompatible;
+		failure = loadError("unsupported-platform", incompatible);
 		return;
 	}
 	try {
 		cached = (await import("koffi")).default as Koffi;
 	} catch (err) {
-		failure = `The native FFI runtime failed to load on ${process.platform}/${process.arch}: ${String(err)}`;
+		failure = loadError("invalid", `The plugin's native FFI runtime failed to load — try reinstalling the plugin. (${String(err)})`);
 	}
 }
 
 /**
- * The loaded koffi module. Throws {@link HwinfoError} "unsupported-platform"
- * when {@link initKoffi} failed. Dev entries that skip initKoffi (probe,
+ * The loaded koffi module. Throws {@link HwinfoError} when {@link initKoffi}
+ * failed ("unsupported-platform" for wrong OS/arch, "invalid" for a damaged
+ * install on a supported machine). Dev entries that skip initKoffi (probe,
  * bench under tsx) fall back to a synchronous require — the full koffi
  * package in the repo's node_modules still has its CJS entry (the vendored
  * production copy does not, which is why production must init asynchronously).
@@ -48,17 +58,17 @@ export function getKoffi(): Koffi {
 		return cached;
 	}
 	if (failure !== null) {
-		throw new HwinfoError("unsupported-platform", failure);
+		throw failure;
 	}
 	const incompatible = platformFailure();
 	if (incompatible !== null) {
-		throw new HwinfoError("unsupported-platform", incompatible);
+		throw loadError("unsupported-platform", incompatible);
 	}
 	try {
 		cached = createRequire(import.meta.url)("koffi") as Koffi;
 		return cached;
 	} catch (err) {
-		throw new HwinfoError("unsupported-platform", `The native FFI runtime failed to load: ${String(err)}`);
+		throw loadError("invalid", `The plugin's native FFI runtime failed to load — try reinstalling the plugin. (${String(err)})`);
 	}
 }
 

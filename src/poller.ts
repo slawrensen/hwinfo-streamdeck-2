@@ -157,9 +157,14 @@ class HwinfoPoller extends EventEmitter {
 			} catch (fallback) {
 				// A present-but-empty gadget key means the user is set up for
 				// Gadget reporting and just needs to tick sensors — that beats
-				// shared memory's generic "not running". Anything else: shared
-				// memory's diagnosis is the actionable one.
-				if (fallback instanceof HwinfoError && fallback.reason === "gadget-empty") {
+				// shared memory's generic "not running", but must never mask a
+				// more specific primary diagnosis (access-denied, disabled).
+				if (
+					fallback instanceof HwinfoError &&
+					fallback.reason === "gadget-empty" &&
+					primary instanceof HwinfoError &&
+					primary.reason === "not-running"
+				) {
 					throw fallback;
 				}
 				throw primary;
@@ -222,8 +227,19 @@ class HwinfoPoller extends EventEmitter {
 		// Release our handles FIRST: a named section stays alive while any handle
 		// references it — including ours — so probing before closing would succeed
 		// even after HWiNFO died, making the stale→unavailable edge unreachable.
+		const prev = this.provider;
+		const prevPollTime = this.lastPollTime;
+		const prevAdvanceAt = this.lastAdvanceAt;
 		this.dropProvider();
 		this.provider = this.openProvider(); // HwinfoError propagates to tick()
+		// Preserve freshness across the swap: dropProvider resets lastPollTime
+		// and a fresh gadget provider resets its digest — either would let a
+		// frozen source pose as advancing for one stale window (ok↔stale flap).
+		if (prev instanceof GadgetRegistryProvider && this.provider instanceof GadgetRegistryProvider) {
+			this.provider.adoptFreshness(prev);
+		}
+		this.lastPollTime = prevPollTime;
+		this.lastAdvanceAt = prevAdvanceAt;
 	}
 
 	/** On the gadget fallback in auto mode, switch back once shared memory returns. */

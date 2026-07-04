@@ -85,8 +85,10 @@ export class GadgetRegistryProvider {
 	private constructor() {}
 
 	/**
-	 * Opens the backend, verifying the key exists AND currently has entries —
-	 * an empty/leftover key must not win over a useful "start HWiNFO" state.
+	 * Opens the backend, verifying the key exists AND currently has entries.
+	 * A present-but-empty key throws "gadget-empty" — the user has Gadget
+	 * reporting set up and needs to tick sensors, which (only) outranks a
+	 * generic "not-running" from shared memory in the poller's auto mode.
 	 */
 	static open(): GadgetRegistryProvider {
 		if (process.platform !== "win32") {
@@ -174,6 +176,16 @@ export class GadgetRegistryProvider {
 
 	close(): void {
 		// Nothing held between reads.
+	}
+
+	/**
+	 * Carries the staleness baseline across a poller reopen probe — a fresh
+	 * provider would otherwise treat a frozen registry as newly changed and
+	 * flap the status back to "ok" for another stale window.
+	 */
+	adoptFreshness(from: GadgetRegistryProvider): void {
+		this.lastDigest = from.lastDigest;
+		this.lastChangeSec = from.lastChangeSec;
 	}
 
 	private readSz(api: Advapi32, hkey: bigint, name: string): string | null {
