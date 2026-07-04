@@ -44,7 +44,15 @@ export interface Reading {
 	readonly valueAvg: number;
 }
 
-/** One consistent decode of the whole shared-memory region. */
+/**
+ * One consistent decode of the whole shared-memory region.
+ *
+ * Liveness: a provider may return the SAME snapshot instance on every tick
+ * with the value fields updated in place (the skeleton — keys, labels,
+ * units, sensors — is static per HWiNFO session). Read what you need when
+ * the tick arrives; copy scalars you want to keep. Do not cache `Reading`
+ * objects across ticks expecting historical values.
+ */
 export interface SensorSnapshot {
 	/** Unix seconds of HWiNFO's last sensor poll (its clock, same machine). */
 	readonly pollTime: number;

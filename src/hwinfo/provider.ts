@@ -9,7 +9,7 @@
  *
  * The poller prefers shared memory and can fall back to the gadget registry.
  */
-import { parseSnapshot } from "./reader";
+import { SnapshotParser } from "./reader";
 import { SharedMemorySession } from "./shared-memory";
 import type { SensorSnapshot } from "./types";
 
@@ -28,6 +28,10 @@ export interface SnapshotProvider {
 export class SharedMemoryProvider implements SnapshotProvider {
 	readonly source = "shared-memory";
 
+	// One parser per session: its cached skeleton dies with the mapping, so an
+	// HWiNFO restart (new provider) always starts from a full decode.
+	private readonly parser = new SnapshotParser();
+
 	private constructor(private readonly session: SharedMemorySession) {}
 
 	/** Throws {@link HwinfoError} when the mapping is unavailable. */
@@ -37,7 +41,7 @@ export class SharedMemoryProvider implements SnapshotProvider {
 
 	read(): SensorSnapshot | null {
 		const buf = this.session.read();
-		return buf === null ? null : parseSnapshot(buf);
+		return buf === null ? null : this.parser.parse(buf);
 	}
 
 	close(): void {

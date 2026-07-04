@@ -71,6 +71,8 @@ export class SharedMemorySession {
 	private closed = false;
 	private locked = false;
 	private scratch = Buffer.alloc(0);
+	/** Cached `scratch.subarray(0, total)` — recreated only when `total` moves. */
+	private scratchView = Buffer.alloc(0);
 	private readonly headerBuf = Buffer.alloc(HEADER_SIZE);
 
 	private constructor(
@@ -161,8 +163,11 @@ export class SharedMemorySession {
 			if (this.scratch.length < total) {
 				this.scratch = Buffer.alloc(total);
 			}
+			if (this.scratchView.length !== total || this.scratchView.buffer !== this.scratch.buffer) {
+				this.scratchView = this.scratch.subarray(0, total);
+			}
 			this.w.rtlMoveMemory(this.scratch, this.view, total);
-			return this.scratch.subarray(0, total);
+			return this.scratchView;
 		} finally {
 			this.unlock();
 		}
