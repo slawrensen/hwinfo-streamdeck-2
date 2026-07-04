@@ -3,10 +3,12 @@
 Live [HWiNFO](https://www.hwinfo.com) sensor readings on your Elgato Stream Deck —
 temperatures, clocks, fan speeds, usage, power and more. Keys show a value with
 optional warn/critical coloring and a sparkline; on Stream Deck + the dials get a
-touchscreen readout with rotate-to-switch and session min/max.
+touchscreen readout with rotate-to-switch and session min/max. Seven display
+themes (per key or deck-wide) keep the whole wall reading as one instrument.
 
 > **Windows only.** HWiNFO is a Windows application; this plugin reads its
-> shared-memory interface locally. No ads, no telemetry, MIT licensed.
+> shared-memory or Gadget-registry interface locally. No ads, no telemetry,
+> MIT licensed.
 
 A ground-up TypeScript rewrite on the official Elgato SDK, inspired by the
 archived [shayne/hwinfo-streamdeck](https://github.com/shayne/hwinfo-streamdeck)
@@ -15,8 +17,9 @@ archived [shayne/hwinfo-streamdeck](https://github.com/shayne/hwinfo-streamdeck)
 ## Requirements
 
 - Windows 10 or later, Stream Deck software **6.6+**
-- [HWiNFO](https://www.hwinfo.com/download/) (installer or portable) with
-  **Shared Memory Support** enabled
+- [HWiNFO](https://www.hwinfo.com/download/) (installer or portable) publishing
+  data on either interface: **Shared Memory Support** (preferred) or **Gadget
+  reporting** — the plugin picks automatically and falls back on its own
 
 ## Quick start
 
@@ -53,6 +56,7 @@ the current value.
 | --- | --- |
 | **Sensor** | Searchable picker over every reading HWiNFO publishes, with a live preview. |
 | **Label** | Custom key label; defaults to the sensor's (renamed) label. |
+| **Theme** | Preset gallery — this key only, or "Deck default" to follow the deck-wide theme. |
 | **Show** | Current value, or HWiNFO's min / max / average since it started. |
 | **Decimals** | Auto (magnitude-based, compacts 48 700 → `48.7k`) or fixed 0–3. |
 | **Unit** | Show temperatures in °F instead of °C. |
@@ -72,6 +76,37 @@ The touchscreen shows the label, live value, session ▼min/▲max and a range b
 - **Touch** — cycle current / session-min / session-max / session-avg
 - **Long touch** — back to the current value
 - **Bar range** — fixed min/max for the bar, or automatic from the session range
+
+Dials use the same themes as keys and take the same **Warn / Critical at**
+thresholds — the range bar's fill flips to the alert color while the rest of the
+face stays themed (the touchscreen slot is too small for a full field flip).
+
+## Themes
+
+Seven presets, chosen from a live gallery in any key's or dial's settings — per
+key, or once for the whole deck (*Advanced → Deck theme*):
+
+| Preset | Look |
+| --- | --- |
+| **Void** *(default)* | True black — pixels off, only the data glows. |
+| **Graphite** | Near-black slate: the plugin's original look, retuned. Existing installs stay here after updating. |
+| **Ultraviolet** | Deep violet cast with lavender signal. |
+| **Midnight** | Blue-black with ice-blue signal. |
+| **Forest** | Green-black with spring-green signal. |
+| **Ember** | Amber-on-black monochrome — VFD nostalgia. |
+| **Paper** | High-contrast light theme (ink on warm paper) for bright rooms and low vision. |
+
+**Type accents** (*Advanced → Type accents*, on by default) color each key's
+sparkline, badge and dial bar by sensor type — temperature rose, fan cyan, power
+gold, clock green, load violet, network blue, memory magenta. Only the accent
+changes; label, value and unit keep the theme's luminance rhythm. Paper ignores
+type accents (accents are ink there by design).
+
+**Alerts override everything.** At the warn threshold the whole key flips to a
+bright amber field with black text; at critical, a red field with white text —
+aviation-style master caution/warning. The two alert palettes are global, never
+tinted per theme, so warn and crit stay unmistakable on any theme and with any
+color-vision deficiency.
 
 ## Key states you might see
 
@@ -102,9 +137,11 @@ npm ci                   # Node 20+
 npm run build            # bundles to com.lawrensen.hwinfo.sdPlugin/bin/plugin.js
 npm run probe            # standalone smoke test: dumps live readings (-- --gadget forces the registry backend)
 npm run lint && npm run typecheck
+npm test                 # theme contrast invariants + renderer geometry (node:test)
 npm run e2e              # drives the built plugin over a mock Stream Deck WebSocket
 npm run e2e:resilience   # forces every failure state via a synthetic shared-memory provider
 npm run e2e:gadget       # exercises the Gadget-registry fallback via a synthetic HKCU key
+npm run contact-sheet -- out   # renders all 7 themes × normal/warn/crit + dials to out/contact-sheet.png
 npm run pack             # emits release/com.lawrensen.hwinfo.streamDeckPlugin
 ```
 
