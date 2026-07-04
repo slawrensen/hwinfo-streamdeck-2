@@ -16,6 +16,7 @@
 		"typecheck": "tsc --noEmit",
 		"probe": "tsx src/probe.ts",
 		"e2e": "node scripts/e2e-harness.mjs",
+		"e2e:resilience": "node scripts/e2e-resilience.mjs",
 		"icons": "node scripts/gen-icons.mjs",
 		"pack": "streamdeck pack com.lawrensen.hwinfo.sdPlugin --output release --force"
 	},

@@ -25,10 +25,12 @@ export type PollerStatus =
 export const DEFAULT_INTERVAL_MS = 1000;
 const MIN_INTERVAL_MS = 250;
 const MAX_INTERVAL_MS = 60_000;
+// Both timings are env-overridable so the resilience e2e can force the
+// stale/unavailable transitions in seconds instead of minutes.
 /** pollTime frozen for longer than this ⇒ HWiNFO stopped sharing. */
-const STALE_AFTER_MS = 15_000;
+const STALE_AFTER_MS = Number(process.env.HWINFO_STALE_AFTER_MS ?? "") || 15_000;
 /** While stale, probe a fresh mapping open at most this often. */
-const REOPEN_PROBE_MS = 5_000;
+const REOPEN_PROBE_MS = Number(process.env.HWINFO_REOPEN_PROBE_MS ?? "") || 5_000;
 
 export function parsePollInterval(raw: unknown): number {
 	const n = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : Number.NaN;

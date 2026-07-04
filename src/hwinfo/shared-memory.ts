@@ -22,6 +22,11 @@ const ERROR_ACCESS_DENIED = 5;
 /** How long to wait for HWiNFO's consistency mutex before skipping a tick. */
 const MUTEX_TIMEOUT_MS = 150;
 
+// Overridable so the resilience e2e can point the reader at a synthetic
+// mapping it controls (scripts/fake-hwinfo.mjs). Production uses the defaults.
+const EFFECTIVE_MAPPING_NAME = process.env.HWINFO_SM2_NAME ?? MAPPING_NAME;
+const EFFECTIVE_MUTEX_NAME = process.env.HWINFO_SM2_MUTEX_NAME ?? MUTEX_NAME;
+
 /** Opaque native pointer/handle as surfaced by koffi (bigint, or null for NULL). */
 type NativePtr = unknown;
 
@@ -85,11 +90,11 @@ export class SharedMemorySession {
 		}
 		const w = getWin32();
 
-		const hMap = w.openFileMappingW(FILE_MAP_READ, false, MAPPING_NAME);
+		const hMap = w.openFileMappingW(FILE_MAP_READ, false, EFFECTIVE_MAPPING_NAME);
 		if (isNullPtr(hMap)) {
 			const err = w.getLastError();
 			if (err === ERROR_ACCESS_DENIED) {
-				throw new HwinfoError("access-denied", `Opening ${MAPPING_NAME} was denied (Win32 error 5) — HWiNFO and Stream Deck are likely running at different privilege levels.`);
+				throw new HwinfoError("access-denied", `Opening ${EFFECTIVE_MAPPING_NAME} was denied (Win32 error 5) — HWiNFO and Stream Deck are likely running at different privilege levels.`);
 			}
 			throw new HwinfoError("not-running", `HWiNFO shared memory not found (Win32 error ${err}) — HWiNFO is not running, or Shared Memory Support is disabled.`);
 		}
@@ -102,7 +107,7 @@ export class SharedMemorySession {
 		}
 
 		// The consistency mutex is optional — read unguarded if it is absent.
-		const hMutex = w.openMutexW(SYNCHRONIZE, false, MUTEX_NAME);
+		const hMutex = w.openMutexW(SYNCHRONIZE, false, EFFECTIVE_MUTEX_NAME);
 		return new SharedMemorySession(w, hMap, view, isNullPtr(hMutex) ? null : hMutex);
 	}
 
