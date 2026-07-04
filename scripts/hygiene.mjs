@@ -74,6 +74,7 @@ const steps = [
 	["e2e", () => run("e2e", ["scripts/e2e-harness.mjs"])],
 	["e2e:resilience", () => run("e2e:resilience", ["scripts/e2e-resilience.mjs"])],
 	["e2e:gadget", () => run("e2e:gadget", ["scripts/e2e-gadget.mjs"])],
+	["e2e:load", () => run("e2e:load", ["scripts/e2e-load.mjs"], { env: { ...process.env, LOAD_SOAK_SEC: "45" } })],
 	["contact-sheet", () => run("contact-sheet", ["--import", "tsx", "scripts/contact-sheet.mjs", path.join(outRoot, "contact")])],
 	["marketplace-shots", () => run("marketplace-shots", ["--import", "tsx", "scripts/marketplace-shots.mjs", path.join(outRoot, "shots")])],
 	["pi-capture", runPiCapture]

@@ -211,3 +211,24 @@ toolchain; PNGs already optimal; sdpi-components keep). Parse path is
 incremental with full-rebuild invalidation on any header/identity change.
 Suites at DONE: lint ✓ typecheck ✓ 81 unit ✓ suite:full (e2e ×3 + all
 screenshot pipelines) ✓ zero orphans ✓.
+
+### 2026-07-04 22:25 — every-sensor load test (npm run e2e:load, v1.1.0)
+
+One key context for EVERY live reading (518) + 8 dials, 250 ms poll,
+12 appear/disappear churn waves (~260 contexts each) with settings variants
+and dial rotations, 45 s full-visibility soak, then idle + shutdown proofs:
+
+| Check | Result |
+| --- | --- |
+| every reading rendered (518 contexts) | PASS — 518 first frames |
+| all 8 dials rendered feedback | PASS |
+| invalid frames | 0 |
+| churn survival | PASS — 6,622 frames during churn |
+| RSS under 518-context 250 ms load | 128.0 → 128.7 MB peak (+0.7 MB over soak; 300 MB limit) |
+| poller idle after mass disappear | PASS — 0 late frames |
+| self-exit on socket close | PASS — exit 0 |
+
+Total: 7,278 key frames + 250 dial feedbacks, zero invalid. The load suite
+is part of `npm run suite:full` (45 s soak variant). On-device coverage:
+two injected "HWiNFO test" pages on the live deck hold one key per sensor
+source (all 21) across all seven themes with threshold/°F/stat variants.
