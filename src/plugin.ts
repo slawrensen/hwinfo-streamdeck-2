@@ -1,5 +1,6 @@
 import streamDeck, { LogLevel } from "@elgato/streamdeck";
 
+import { SensorDialAction } from "./actions/sensor-dial";
 import { SensorReadingAction } from "./actions/sensor-reading";
 import { parsePollInterval, poller } from "./poller";
 
@@ -11,6 +12,7 @@ type GlobalSettings = {
 streamDeck.logger.setLevel(LogLevel.DEBUG);
 
 streamDeck.actions.registerAction(new SensorReadingAction());
+streamDeck.actions.registerAction(new SensorDialAction());
 
 streamDeck.settings.onDidReceiveGlobalSettings<GlobalSettings>((ev) => {
 	poller.setIntervalMs(parsePollInterval(ev.settings.pollIntervalMs));

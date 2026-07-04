@@ -29,6 +29,24 @@ if (!fs.existsSync(nativeSrc)) {
 	process.exit(1);
 }
 
+// When the plugin is running, Windows locks the loaded koffi.node — skip the
+// copy entirely if the vendored version already matches (keeps `npm run
+// build` working while the plugin is live; a version bump needs
+// `streamdeck stop com.lawrensen.hwinfo` first).
+function vendoredVersion() {
+	try {
+		const raw = fs.readFileSync(path.join(destModules, "koffi", "package.json"), "utf8");
+		return JSON.parse(raw).version;
+	} catch {
+		return null;
+	}
+}
+const sourceVersion = JSON.parse(fs.readFileSync(path.join(koffiSrc, "package.json"), "utf8")).version;
+if (vendoredVersion() === sourceVersion) {
+	console.log(`Vendored koffi ${sourceVersion} already in place — skipped.`);
+	process.exit(0);
+}
+
 const EXCLUDED_DIRS = new Set(["doc", "vendor", "lib", "node_modules"]);
 const EXCLUDED_FILES = new Set(["cnoke.cjs", "CHANGELOG.md", "README.md", "CMakeLists.txt"]);
 const EXCLUDED_EXTS = new Set([".cc", ".hh", ".inc", ".def", ".lib"]);

@@ -98,7 +98,7 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 	const parts: string[] = [
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">`,
 		`<rect width="144" height="144" fill="${BG[level]}"/>`,
-		`<text x="72" y="30" text-anchor="middle" font-family="${FONT}" font-size="16" fill="${LABEL_FILL[level]}">${escapeXml(label)}</text>`,
+		`<text x="${statBadge === "" ? 72 : 62}" y="30" text-anchor="middle" font-family="${FONT}" font-size="16" fill="${LABEL_FILL[level]}">${escapeXml(label)}</text>`,
 		`<text x="72" y="${valueY}" text-anchor="middle" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="#ffffff">${escapeXml(valueText)}</text>`
 	];
 	if (unitText !== "") {

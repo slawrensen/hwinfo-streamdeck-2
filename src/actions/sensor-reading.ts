@@ -160,12 +160,13 @@ function compose(state: InstanceState, status: PollerStatus): string {
 	const live = convertUnit(reading.value, reading.unit, fahrenheit);
 	const decimals: DecimalsSetting = settings.decimals ?? "auto";
 
+	const badge = STAT_BADGE[mode];
 	return renderReadingKey({
-		label: keyLabel(settings.label, reading.label),
+		label: keyLabel(settings.label, reading.label, badge === "" ? 16 : 11),
 		valueText: formatValue(displayed.value, decimals),
 		unitText: displayed.unit,
 		level: alertLevel(live.value, parseThreshold(settings.warnValue), parseThreshold(settings.critValue), settings.alertBelow === true),
-		statBadge: STAT_BADGE[mode],
+		statBadge: badge,
 		history: settings.sparkline === true ? state.history : undefined
 	});
 }

@@ -85,8 +85,8 @@ export function statusSentence(status: PollerStatus): string {
 	}
 }
 
-/** Compact label used on key faces. */
-export function keyLabel(custom: string | undefined, fallback: string): string {
+/** Compact label used on key faces; tighter when a stat badge shares the row. */
+export function keyLabel(custom: string | undefined, fallback: string, maxLength = 16): string {
 	const label = custom !== undefined && custom.trim() !== "" ? custom.trim() : fallback;
-	return truncateLabel(label, 16);
+	return truncateLabel(label, maxLength);
 }
