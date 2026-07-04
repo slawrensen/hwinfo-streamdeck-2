@@ -118,23 +118,29 @@ class HwinfoPoller extends EventEmitter {
 				this.logger.info("Opened HWiNFO shared memory");
 			}
 			const buf = this.session.read();
+			let snapshot: SensorSnapshot | null = null;
 			if (buf !== null) {
-				const snapshot = parseSnapshot(buf);
+				snapshot = parseSnapshot(buf);
 				if (snapshot.pollTime !== this.lastPollTime) {
 					this.lastPollTime = snapshot.pollTime;
 					this.lastAdvanceAt = Date.now();
 				}
-				const staleForMs = Date.now() - this.lastAdvanceAt;
-				if (staleForMs > STALE_AFTER_MS) {
-					// The mapping content is frozen. If HWiNFO exited we would never
-					// notice through our held handle — probe a fresh open.
-					this.probeReopen();
-					this.status = { state: "stale", snapshot, staleForMs };
-				} else {
-					this.status = { state: "ok", snapshot };
-				}
 			}
-			// buf === null ⇒ mutex was busy; keep the previous status this tick.
+			// Freshness is judged even when the mutex was busy (buf === null) —
+			// a consumer wedged on the mutex must not freeze us at "ok" forever.
+			const staleForMs = Date.now() - this.lastAdvanceAt;
+			if (staleForMs > STALE_AFTER_MS) {
+				// The mapping content is frozen. If HWiNFO exited we would never
+				// notice through our held handle — probe a fresh open.
+				this.probeReopen();
+				const last = snapshot ?? (this.status.state !== "unavailable" ? this.status.snapshot : null);
+				if (last !== null) {
+					this.status = { state: "stale", snapshot: last, staleForMs };
+				}
+			} else if (snapshot !== null) {
+				this.status = { state: "ok", snapshot };
+			}
+			// Otherwise (mutex busy, still fresh): keep the previous status this tick.
 		} catch (err) {
 			this.dropSession();
 			if (err instanceof HwinfoError) {
@@ -157,9 +163,12 @@ class HwinfoPoller extends EventEmitter {
 			return;
 		}
 		this.lastReopenProbeAt = now;
-		const fresh = SharedMemorySession.open(); // HwinfoError propagates to tick()
+		// Release our handles FIRST: a named section stays alive while any handle
+		// references it — including ours — so probing before closing would succeed
+		// even after HWiNFO died, making the stale→unavailable edge unreachable.
 		this.session?.close();
-		this.session = fresh;
+		this.session = null;
+		this.session = SharedMemorySession.open(); // HwinfoError propagates to tick()
 	}
 }
 

@@ -25,6 +25,10 @@
 	color: #7f7f7f;
 }
 
+.hw-picker input.missing::placeholder {
+	color: #f5a623;
+}
+
 .hw-picker button {
 	background: #3d3d3d;
 	border: none;

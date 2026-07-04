@@ -12,7 +12,7 @@ import streamDeck, { action, SingletonAction, type DialDownEvent, type DialRotat
 import type { Reading } from "../hwinfo/types";
 import { buildPreview, buildSensorTree } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
-import { convertUnit, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, type DecimalsSetting, type StatMode } from "../ui/format";
+import { convertUnit, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
 import { statusDialText } from "../ui/state-screens";
 
 /** Persisted per-dial settings (written by the PI; all optional). */
@@ -48,12 +48,24 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 
 	constructor() {
 		super();
-		poller.onTick((status) => this.onPollerTick(status));
+		// Isolated so a rendering bug in one action class can't starve the other
+		// listeners on the shared "tick" event.
+		poller.onTick((status) => {
+			try {
+				this.onPollerTick(status);
+			} catch (err) {
+				streamDeck.logger.error("SensorDialAction tick failed", err);
+			}
+		});
 	}
 
 	override onWillAppear(ev: WillAppearEvent<DialSettings>): void {
+		// Stream Deck can replay willAppear for a context without an intervening
+		// willDisappear (reconnect, wake) — retain only on the first sighting.
+		if (!this.instances.has(ev.action.id)) {
+			poller.retain();
+		}
 		this.instances.set(ev.action.id, { settings: ev.payload.settings, stats: null, statMode: "current", lastFeedback: "" });
-		poller.retain();
 		this.renderAll(poller.getStatus());
 	}
 
@@ -184,7 +196,9 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 
 	private pushPreview(status: PollerStatus): void {
 		const pi = streamDeck.ui.current;
-		if (pi === undefined || pi.action.manifestId !== this.manifestId) {
+		// pi.action is typed non-optional but the SDK constructs it as undefined
+		// when the PI appears before the action's willAppear (restart races).
+		if (pi === undefined || (pi.action as typeof pi.action | undefined)?.manifestId !== this.manifestId) {
 			return;
 		}
 		const state = this.instances.get(pi.action.id);
@@ -193,7 +207,9 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 }
 
 type Feedback = {
-	title: string;
+	/** The layout item is deliberately NOT keyed "title" — that key is reserved
+	 * for the user-title mechanism and would ignore the layout's font styling. */
+	label: string;
 	value: string;
 	stats: string;
 	indicator: number;
@@ -202,16 +218,16 @@ type Feedback = {
 function composeFeedback(state: InstanceState, status: PollerStatus): Feedback {
 	const problem = statusDialText(status);
 	if (problem !== null) {
-		return { title: problem.title, value: problem.value, stats: "", indicator: 0 };
+		return { label: problem.title, value: problem.value, stats: "", indicator: 0 };
 	}
 	const { snapshot } = status as Extract<PollerStatus, { state: "ok" }>;
 	const settings = state.settings;
 	if (settings.readingKey === undefined || settings.readingKey === "") {
-		return { title: "HWiNFO", value: "rotate to pick", stats: "or use the settings panel", indicator: 0 };
+		return { label: "HWiNFO", value: "rotate to pick", stats: "or use the settings panel", indicator: 0 };
 	}
 	const reading = snapshot.byKey.get(settings.readingKey);
 	if (reading === undefined) {
-		return { title: "Sensor missing", value: "rotate to pick", stats: "", indicator: 0 };
+		return { label: "Sensor missing", value: "rotate to pick", stats: "", indicator: 0 };
 	}
 
 	const fahrenheit = settings.fahrenheit === true;
@@ -230,11 +246,11 @@ function composeFeedback(state: InstanceState, status: PollerStatus): Feedback {
 	const barMin = parseThreshold(settings.barMin) ?? min;
 	const barMax = parseThreshold(settings.barMax) ?? max;
 	const span = barMax - barMin;
-	const indicator = span > 0 ? Math.max(0, Math.min(100, ((live - barMin) / span) * 100)) : 50;
+	const indicator = span > 0 && Number.isFinite(live) ? Math.max(0, Math.min(100, ((live - barMin) / span) * 100)) : 50;
 
 	const label = settings.label !== undefined && settings.label.trim() !== "" ? settings.label.trim() : reading.label;
 	return {
-		title: label.length > 26 ? `${label.slice(0, 25)}…` : label,
+		label: truncateLabel(label, 26),
 		value: `${formatValue(shown.value, decimals)} ${shown.unit}${badge !== "" ? "  ·  " + badge : ""}`.trim(),
 		stats: `▼ ${formatValue(min, decimals)}   ▲ ${formatValue(max, decimals)}   session`,
 		indicator: Math.round(indicator)

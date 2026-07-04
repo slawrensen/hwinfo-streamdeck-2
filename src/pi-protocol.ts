@@ -21,6 +21,8 @@ export type TreeGroup = {
 export type SensorTreePayload = {
 	event: "sensorTree";
 	groups: TreeGroup[];
+	/** Poller state at fetch time — lets the PI refetch after HWiNFO comes up. */
+	state: PollerStatus["state"];
 	/** Guidance sentence when data is unavailable; empty when ok. */
 	hint: string;
 };
@@ -67,7 +69,7 @@ export function buildSensorTree(status: PollerStatus): SensorTreePayload {
 			});
 		}
 	}
-	return { event: "sensorTree", groups, hint: statusSentence(status) };
+	return { event: "sensorTree", groups, state: status.state, hint: statusSentence(status) };
 }
 
 /** Live preview of the selected reading — pushed to the open PI every tick. */

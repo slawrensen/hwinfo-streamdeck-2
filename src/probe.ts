@@ -59,6 +59,9 @@ try {
 }
 
 try {
+	// read()/parseSnapshot can throw HwinfoError too ("disabled" when the free
+	// version's 12 h timer wrote the DEAD magic, "invalid" mid-restart) — route
+	// those through the same guidance table instead of a raw stack trace.
 	const first = read(session);
 
 	// A second read ~2.6 s later proves values are actually flowing (HWiNFO
@@ -102,6 +105,11 @@ try {
 	}
 	// In JSON mode the snapshot itself is the result; `advancing` is in the payload.
 	process.exit(asJson || advancing ? 0 : 1);
+} catch (err) {
+	if (err instanceof HwinfoError) {
+		bail(err);
+	}
+	throw err;
 } finally {
 	session.close();
 }

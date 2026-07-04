@@ -40,12 +40,24 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 
 	constructor() {
 		super();
-		poller.onTick((status) => this.onPollerTick(status));
+		// Isolated so a rendering bug in one action class can't starve the other
+		// listeners on the shared "tick" event.
+		poller.onTick((status) => {
+			try {
+				this.onPollerTick(status);
+			} catch (err) {
+				streamDeck.logger.error("SensorReadingAction tick failed", err);
+			}
+		});
 	}
 
 	override onWillAppear(ev: WillAppearEvent<ReadingSettings>): void {
+		// Stream Deck can replay willAppear for a context without an intervening
+		// willDisappear (reconnect, wake) — retain only on the first sighting.
+		if (!this.instances.has(ev.action.id)) {
+			poller.retain();
+		}
 		this.instances.set(ev.action.id, { settings: ev.payload.settings, history: [], lastSvg: "" });
-		poller.retain();
 		this.renderAll(poller.getStatus());
 	}
 
@@ -101,6 +113,9 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 					continue;
 				}
 				const { value } = convertUnit(reading.value, reading.unit, state.settings.fahrenheit === true);
+				if (!Number.isFinite(value)) {
+					continue;
+				}
 				state.history.push(value);
 				if (state.history.length > HISTORY_LENGTH) {
 					state.history.shift();
@@ -131,7 +146,9 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 	/** Live numbers for the PI while it is open on one of our keys. */
 	private pushPreview(status: PollerStatus): void {
 		const pi = streamDeck.ui.current;
-		if (pi === undefined || pi.action.manifestId !== this.manifestId) {
+		// pi.action is typed non-optional but the SDK constructs it as undefined
+		// when the PI appears before the action's willAppear (restart races).
+		if (pi === undefined || (pi.action as typeof pi.action | undefined)?.manifestId !== this.manifestId) {
 			return;
 		}
 		const state = this.instances.get(pi.action.id);

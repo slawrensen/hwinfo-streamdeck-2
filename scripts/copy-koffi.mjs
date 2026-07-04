@@ -30,19 +30,23 @@ if (!fs.existsSync(nativeSrc)) {
 }
 
 // When the plugin is running, Windows locks the loaded koffi.node — skip the
-// copy entirely if the vendored version already matches (keeps `npm run
-// build` working while the plugin is live; a version bump needs
-// `streamdeck stop com.lawrensen.hwinfo` first).
-function vendoredVersion() {
+// copy entirely if the vendored copy already matches (keeps `npm run build`
+// working while the plugin is live; a version bump needs
+// `streamdeck stop com.lawrensen.hwinfo` first). BOTH halves must match: a
+// partial vendor (JS copied, native locked) must not satisfy the guard.
+function pkgVersion(...segments) {
 	try {
-		const raw = fs.readFileSync(path.join(destModules, "koffi", "package.json"), "utf8");
-		return JSON.parse(raw).version;
+		return JSON.parse(fs.readFileSync(path.join(destModules, ...segments, "package.json"), "utf8")).version;
 	} catch {
 		return null;
 	}
 }
 const sourceVersion = JSON.parse(fs.readFileSync(path.join(koffiSrc, "package.json"), "utf8")).version;
-if (vendoredVersion() === sourceVersion) {
+const vendoredComplete =
+	pkgVersion("koffi") === sourceVersion &&
+	pkgVersion("@koromix", "koffi-win32-x64") === sourceVersion &&
+	fs.existsSync(path.join(destModules, "@koromix", "koffi-win32-x64", "win32_x64", "koffi.node"));
+if (vendoredComplete) {
 	console.log(`Vendored koffi ${sourceVersion} already in place — skipped.`);
 	process.exit(0);
 }
@@ -70,7 +74,8 @@ vendor(nativeSrc, path.join(destModules, "@koromix", "koffi-win32-x64"));
 let total = 0;
 for (const file of fs.readdirSync(destModules, { recursive: true, withFileTypes: true })) {
 	if (file.isFile()) {
-		total += fs.statSync(path.join(file.parentPath, file.name)).size;
+		// Dirent.parentPath landed in Node 20.12; older 20.x expose .path.
+		total += fs.statSync(path.join(file.parentPath ?? file.path, file.name)).size;
 	}
 }
 console.log(`Vendored koffi runtime into ${path.relative(repoRoot, destModules)} (${(total / 1024 / 1024).toFixed(1)} MB)`);

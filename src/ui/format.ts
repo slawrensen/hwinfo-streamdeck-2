@@ -72,7 +72,8 @@ export function parseThreshold(raw: unknown): number | undefined {
 		return raw;
 	}
 	if (typeof raw === "string" && raw.trim() !== "") {
-		const n = Number(raw);
+		// The PI accepts locale decimal commas ("70,5") — Number() does not.
+		const n = Number(raw.trim().replace(",", "."));
 		return Number.isFinite(n) ? n : undefined;
 	}
 	return undefined;
@@ -96,7 +97,12 @@ export function alertLevel(current: number, warn: number | undefined, crit: numb
 	return "normal";
 }
 
-/** Truncates a label to fit a key, appending an ellipsis when cut. */
+/**
+ * Truncates a label to fit a key, appending an ellipsis when cut. Operates on
+ * code points, not UTF-16 units — slicing through a surrogate pair would leave
+ * a lone surrogate that makes encodeURIComponent throw on the rendered SVG.
+ */
 export function truncateLabel(label: string, max: number): string {
-	return label.length <= max ? label : `${label.slice(0, max - 1)}…`;
+	const chars = Array.from(label);
+	return chars.length <= max ? label : `${chars.slice(0, max - 1).join("")}…`;
 }

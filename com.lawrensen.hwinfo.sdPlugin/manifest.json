@@ -5,7 +5,7 @@
 	"Version": "1.0.0.0",
 	"Author": "Stephen Lawrensen",
 	"Description": "Live HWiNFO sensor readings on your Stream Deck — temperatures, clocks, fans, power and more, with thresholds, sparklines and dial support. Requires HWiNFO with Shared Memory Support enabled.",
-	"Category": "HWiNFO",
+	"Category": "HWiNFO Sensors",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Icon": "imgs/plugin/marketplace",
@@ -50,6 +50,7 @@
 			"Controllers": [
 				"Encoder"
 			],
+			"UserTitleEnabled": false,
 			"Encoder": {
 				"layout": "layouts/sensor-dial.json",
 				"Icon": "imgs/actions/dial/dial",

@@ -3,7 +3,7 @@
 	"id": "sensor-dial",
 	"items": [
 		{
-			"key": "title",
+			"key": "label",
 			"type": "text",
 			"rect": [8, 4, 184, 22],
 			"alignment": "left",

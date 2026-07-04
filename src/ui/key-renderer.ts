@@ -59,7 +59,7 @@ function valueFontSize(text: string): number {
 
 /** Maps a value series onto an SVG polyline within the given box. */
 function sparklinePoints(values: readonly number[], x: number, y: number, w: number, h: number): string {
-	if (values.length < 2) {
+	if (values.length < 2 || values.some((v) => !Number.isFinite(v))) {
 		return "";
 	}
 	let min = Number.POSITIVE_INFINITY;

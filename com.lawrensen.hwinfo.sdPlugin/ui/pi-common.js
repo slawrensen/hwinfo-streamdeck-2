@@ -22,9 +22,10 @@
 	const SENSOR_TYPE_NAMES = ["", "Temp", "Voltage", "Fan", "Current", "Power", "Clock", "Usage", ""];
 
 	let tree = null; // [{ name, readings: [{ key, label, unit, value, type }] }]
+	let treeFetchedOk = false; // last sensorTree arrived while HWiNFO was up
+	let treeRequestPending = false;
 	let selectedKey = "";
 	let listOpen = false;
-	let suppressNextFocusOpen = false;
 
 	// Immediate (non-debounced) persistence; third arg null disables debounce.
 	const [getReadingKey, setReadingKey] = useSettings(
@@ -61,11 +62,17 @@
 		const found = findSelected();
 		if (found !== null) {
 			searchEl.value = `${found.reading.label}  ·  ${found.group.name}`;
+			searchEl.placeholder = "Search sensors…";
 			searchEl.classList.remove("missing");
 		} else if (selectedKey !== "") {
-			searchEl.value = "⚠ selected sensor not present";
+			// Never put the warning into .value — it would act as a search filter.
+			searchEl.value = "";
+			searchEl.placeholder = "⚠ selected sensor not present — pick again";
+			searchEl.classList.add("missing");
 		} else {
 			searchEl.value = "";
+			searchEl.placeholder = "Search sensors…";
+			searchEl.classList.remove("missing");
 		}
 	}
 
@@ -175,18 +182,31 @@
 	}
 
 	function requestTree() {
+		treeRequestPending = true;
 		streamDeckClient.send("sendToPlugin", { event: "getSensorTree" });
+	}
+
+	function selectRow(row) {
+		if (!row || !row.dataset.key) return;
+		selectedKey = row.dataset.key;
+		setReadingKey(selectedKey);
+		closeList();
 	}
 
 	// --- wiring -------------------------------------------------------------
 
 	searchEl.addEventListener("focus", () => {
-		if (suppressNextFocusOpen) {
-			suppressNextFocusOpen = false;
-			return;
-		}
 		searchEl.select();
 		openList();
+	});
+
+	// After a selection the input keeps focus (the row's mousedown is
+	// preventDefault-ed), so no focus event fires — reopen on click too.
+	searchEl.addEventListener("mousedown", () => {
+		if (!listOpen && document.activeElement === searchEl) {
+			searchEl.select();
+			openList();
+		}
 	});
 
 	searchEl.addEventListener("input", () => {
@@ -198,9 +218,8 @@
 		if (ev.key === "Escape") {
 			closeList();
 			searchEl.blur();
-		} else if (ev.key === "Enter") {
-			const first = listEl.querySelector(".hw-row");
-			if (first) first.dispatchEvent(new MouseEvent("mousedown"));
+		} else if (ev.key === "Enter" && listOpen) {
+			selectRow(listEl.querySelector(".hw-row"));
 		}
 	});
 
@@ -209,10 +228,7 @@
 		const row = ev.target.closest(".hw-row");
 		if (!row) return;
 		ev.preventDefault();
-		selectedKey = row.dataset.key;
-		setReadingKey(selectedKey);
-		suppressNextFocusOpen = true;
-		closeList();
+		selectRow(row);
 	});
 
 	document.addEventListener("mousedown", (ev) => {
@@ -232,12 +248,19 @@
 		if (!p || typeof p !== "object") return;
 		if (p.event === "sensorTree") {
 			tree = p.groups;
+			treeFetchedOk = p.state === "ok";
+			treeRequestPending = false;
 			setHint(p.hint);
 			showSelection();
 			renderList();
 		} else if (p.event === "preview") {
 			renderPreview(p);
 			setHint(p.hint);
+			// The tree was fetched while HWiNFO was down — refresh it now that
+			// data is flowing, so the picker isn't stuck on "No sensors reported".
+			if (p.state === "ok" && !treeFetchedOk && !treeRequestPending) {
+				requestTree();
+			}
 		}
 	});
 
