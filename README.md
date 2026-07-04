@@ -142,8 +142,12 @@ npm run e2e              # drives the built plugin over a mock Stream Deck WebSo
 npm run e2e:resilience   # forces every failure state via a synthetic shared-memory provider
 npm run e2e:gadget       # exercises the Gadget-registry fallback via a synthetic HKCU key
 npm run contact-sheet -- out   # renders all 7 themes × normal/warn/crit + dials to out/contact-sheet.png
+npm run suite:full       # every suite + screenshot pipeline, fails on ANY leftover process
 npm run pack             # emits release/com.lawrensen.hwinfo.streamDeckPlugin
 ```
+
+Performance is tracked in [PERF.md](PERF.md) — `node scripts/perf-report.mjs`
+regenerates every number (sizes, live process, parse bench) in one command.
 
 Dev loop: `streamdeck dev` once, `streamdeck link com.lawrensen.hwinfo.sdPlugin`,
 then `npm run watch` (rebuilds and restarts the plugin on save).

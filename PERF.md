@@ -145,3 +145,69 @@ Irreducible rulings (numbers, not vibes):
 | Plugin process (new binary, fresh launch) | RSS | Private | CPU |
 | --- | ---: | ---: | ---: |
 | PID 25404 | 36.4 MB | 54.3 MB | 0.1 s @ 1 min |
+
+### 2026-07-04 21:15 — memory / hangs
+
+**RSS soak — PASS.** Live 12-key page (deck 20GBL9901, page 791A7BC8…),
+1 s poll, new binary (PID 25404), sampled every 5 min for 35 min:
+
+| local time | RSS MB | private MB | CPU s |
+| --- | ---: | ---: | ---: |
+| 13:37 | 36.71 | 54.88 | 0.2 |
+| 13:42 | 37.51 | 55.52 | 0.3 |
+| 13:47 | 38.99 | 57.07 | 0.5 |
+| 13:52 | 38.61 | 56.30 | 0.6 |
+| 13:57 | 38.77 | 56.88 | 0.9 |
+| 14:02 | 39.65 | 57.90 | 1.0 |
+| 14:07 | 37.52 | 57.75 | 1.2 |
+| 14:12 | 33.18 | 58.09 | 1.5 |
+
+Linear RSS slope: **−1.6 MB/30 min** (target < +1 MB/30 min) — RSS peaked
+at 39.65 MB and *fell* to 33.18 (GC compaction); no monotonic growth.
+Heap stability: gc→gc retention in the 1,000-tick bench is 3.5 KB total
+(≈ 3.5 B/tick, measurement noise). CPU over the soak: 1.5 s / 35 min =
+**0.07 %** vs the 0.23 % baseline (3.2× less).
+
+Leak-suspect audit: sparkline history capped at 36 samples with shift();
+the dial keeps no history; theme-store listeners are a Set populated once
+per singleton action class (bounded at 2); per-key state (incl. lastSvg) is
+deleted on willDisappear; the poller closes its provider when refs hit 0.
+
+**Zero orphans — PASS.** `npm run suite:full` (scripts/hygiene.mjs) runs
+e2e + e2e:resilience + e2e:gadget + contact-sheet + marketplace-shots +
+pi-harness/capture-pi and diffs all node.exe/chrome.exe processes
+before/after: `new: 0 (0 ours, 0 unrelated)` on both post-fix runs. Bugs it
+caught and their fixes: capture-pi held its CDP socket open (every run hung
+60 s until a watchdog that also leaked the chrome tree — socket now closed
+in finally, watchdog kills the tree, plus a pi-capture-profile sweep for
+chrome children that re-parent past `taskkill /T`); pi-harness orphaned its
+plugin child on Windows kill() (TerminateProcess skips signal handlers —
+now takes "exit" on stdin like fake-hwinfo).
+
+**Clean shutdown — PASS**, proven both ways:
+- e2e (hard checks, now part of `npm run e2e`): zero frames within 3 s of
+  every action disappearing; poller logs "Stopped (no visible actions)";
+  the plugin process **exits by itself** when the app socket closes —
+  nothing left holding the event loop.
+- Live: `Stop-Process -Name StreamDeck` → 0 plugin node processes
+  (verified twice, before and after the reader/footprint changes);
+  relaunch → exactly one attributed plugin process.
+
+### 2026-07-04 21:15 — DONE: v1.1 before/after
+
+| Metric | v1.0 baseline | v1.1 | Δ |
+| --- | ---: | ---: | --- |
+| parse tick (mean, 516 readings) | 361.2 µs | 5.8–6.7 µs | **54–62× faster** (target ≥5×) |
+| alloc/tick | 333,116 B | 466–993 B | **≈ measurement floor** |
+| retained per 1,000 ticks | 3,832 B | 3,512 B | flat (noise) |
+| .streamDeckPlugin pack | 561,887 B | 549,749 B | −12,138 B, zero behavior change |
+| bin/node_modules on disk | 1,108,849 B | 1,061,344 B | −47,505 B |
+| live CPU (12-key, 1 s poll) | ≈0.23 % | 0.07 % | 3.2× less |
+| RSS soak slope | (unmeasured) | −1.6 MB/30 min | PASS < 1 MB/30 min |
+| orphans after full suite | (unmeasured) | 0 | PASS, gated by suite:full |
+
+Every FOOTPRINT remainder is ruled irreducible above (koffi.node without a
+toolchain; PNGs already optimal; sdpi-components keep). Parse path is
+incremental with full-rebuild invalidation on any header/identity change.
+Suites at DONE: lint ✓ typecheck ✓ 81 unit ✓ suite:full (e2e ×3 + all
+screenshot pipelines) ✓ zero orphans ✓.
