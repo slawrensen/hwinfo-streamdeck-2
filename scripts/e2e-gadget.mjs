@@ -7,6 +7,7 @@
 //   values frozen       → "Not updating" (digest-based staleness)
 //   updates resume      → live again
 //   key deleted         → "Start HWiNFO"
+//   key exists, empty   → "Tick sensors" (gadget-empty, NOT "start HWiNFO")
 //
 // Run with `npm run e2e:gadget` (after `npm run build`).
 import { execSync, spawn } from "node:child_process";
@@ -151,6 +152,11 @@ try {
 	// 6. Key deleted → unavailable.
 	regDeleteKey();
 	await expectFrame("key deleted → 'Start HWiNFO'", (svg) => svg.includes("Start HWiNFO"), 10000);
+
+	// 7. Key present but EMPTY (gadget enabled, nothing ticked) — must NOT be
+	// diagnosed as "start HWiNFO"; the user needs to tick sensors instead.
+	execSync(`reg add "${REG_PATH}" /f`, { stdio: "ignore" });
+	await expectFrame("empty key → 'Tick sensors' (gadget-empty)", (svg) => svg.includes("Tick sensors"), 10000);
 } finally {
 	plugin.kill();
 	wss.close();

@@ -154,8 +154,15 @@ class HwinfoPoller extends EventEmitter {
 		} catch (primary) {
 			try {
 				return GadgetRegistryProvider.open();
-			} catch {
-				throw primary; // shared memory's diagnosis is the actionable one
+			} catch (fallback) {
+				// A present-but-empty gadget key means the user is set up for
+				// Gadget reporting and just needs to tick sensors — that beats
+				// shared memory's generic "not running". Anything else: shared
+				// memory's diagnosis is the actionable one.
+				if (fallback instanceof HwinfoError && fallback.reason === "gadget-empty") {
+					throw fallback;
+				}
+				throw primary;
 			}
 		}
 	}

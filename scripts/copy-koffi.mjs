@@ -46,8 +46,26 @@ const vendoredComplete =
 	pkgVersion("koffi") === sourceVersion &&
 	pkgVersion("@koromix", "koffi-win32-x64") === sourceVersion &&
 	fs.existsSync(path.join(destModules, "@koromix", "koffi-win32-x64", "win32_x64", "koffi.node"));
+/**
+ * Ships license/attribution in the pack: `streamdeck pack` only bundles the
+ * .sdPlugin directory, so without these copies the MIT license, koffi/sdpi
+ * attribution and the REALiX non-affiliation disclosure would never reach
+ * installed users. The native @koromix package has no license file of its
+ * own — koffi's MIT text covers both (same project). All copies gitignored.
+ */
+function stageLegalFiles() {
+	const sdPluginDir = path.join(repoRoot, "com.lawrensen.hwinfo.sdPlugin");
+	fs.copyFileSync(path.join(repoRoot, "LICENSE"), path.join(sdPluginDir, "LICENSE"));
+	fs.copyFileSync(path.join(repoRoot, "NOTICE.md"), path.join(sdPluginDir, "NOTICE.md"));
+	const koromixLicense = path.join(destModules, "@koromix", "koffi-win32-x64", "LICENSE.txt");
+	if (fs.existsSync(path.dirname(koromixLicense))) {
+		fs.copyFileSync(path.join(koffiSrc, "LICENSE.txt"), koromixLicense);
+	}
+}
+
 if (vendoredComplete) {
-	console.log(`Vendored koffi ${sourceVersion} already in place — skipped.`);
+	stageLegalFiles();
+	console.log(`Vendored koffi ${sourceVersion} already in place — skipped (legal files staged).`);
 	process.exit(0);
 }
 
@@ -75,6 +93,7 @@ function vendor(src, dest) {
 
 vendor(koffiSrc, path.join(destModules, "koffi"));
 vendor(nativeSrc, path.join(destModules, "@koromix", "koffi-win32-x64"));
+stageLegalFiles();
 
 let total = 0;
 for (const file of fs.readdirSync(destModules, { recursive: true, withFileTypes: true })) {

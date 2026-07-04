@@ -10,8 +10,9 @@
  * values keep changing the synthesized pollTime advances; when HWiNFO stops,
  * the digest freezes and the poller's normal staleness handling kicks in.
  */
-import koffi, { type KoffiFunc } from "koffi";
+import type { KoffiFunc } from "koffi";
 
+import { getKoffi } from "./koffi-loader";
 import { HwinfoError, SensorType, type Reading, type SensorSnapshot, type SensorSource } from "./types";
 
 /** Overridable so the gadget e2e can point at a synthetic key. */
@@ -33,7 +34,7 @@ let advapi32: Advapi32 | null = null;
 
 function getAdvapi32(): Advapi32 {
 	if (advapi32 === null) {
-		const lib = koffi.load("advapi32.dll");
+		const lib = getKoffi().load("advapi32.dll");
 		advapi32 = {
 			regOpenKeyExW: lib.func("__stdcall", "RegOpenKeyExW", "uint32", ["uint64", "str16", "uint32", "uint32", "_Out_ uint64*"]) as Advapi32["regOpenKeyExW"],
 			regQueryValueExW: lib.func("__stdcall", "RegQueryValueExW", "uint32", ["uint64", "str16", "void*", "_Out_ uint32*", "_Out_ uint8*", "_Inout_ uint32*"]) as Advapi32["regQueryValueExW"],
@@ -94,7 +95,9 @@ export class GadgetRegistryProvider {
 		const provider = new GadgetRegistryProvider();
 		const snapshot = provider.read();
 		if (snapshot.readings.length === 0) {
-			throw new HwinfoError("not-running", `No readings under HKCU\\${VSB_SUBKEY} — enable HWiNFO's Gadget reporting and tick "Report value in Gadget" for the sensors you need.`);
+			// The key existing but holding no readings means HWiNFO IS (or was)
+			// running with Gadget support — "start HWiNFO" would mislead here.
+			throw new HwinfoError("gadget-empty", `HKCU\\${VSB_SUBKEY} exists but holds no readings — in HWiNFO's sensor window, tick "Report value in Gadget" for the sensors you need.`);
 		}
 		return provider;
 	}

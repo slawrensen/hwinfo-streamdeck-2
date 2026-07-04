@@ -23,12 +23,14 @@ export function statusScreen(status: PollerStatus): StatusKeyOptions | null {
 	switch (status.reason) {
 		case "not-running":
 			return { icon: "power", accent: BLUE, lines: ["Start HWiNFO", "sensors app", "not detected"] };
+		case "gadget-empty":
+			return { icon: "target", accent: AMBER, lines: ["Tick sensors:", "'Report value", "in Gadget'"] };
 		case "disabled":
 			return { icon: "warning", accent: AMBER, lines: ["Shared Memory", "off — enable it", "in HWiNFO"] };
 		case "access-denied":
-			return { icon: "lock", accent: RED, lines: ["Access denied", "match privilege", "levels"] };
+			return { icon: "lock", accent: RED, lines: ["Access denied", "un-elevate", "HWiNFO"] };
 		case "unsupported-platform":
-			return { icon: "warning", accent: RED, lines: ["Windows only"] };
+			return { icon: "warning", accent: RED, lines: ["Needs x64", "Windows"] };
 		default:
 			return { icon: "warning", accent: RED, lines: ["HWiNFO error", "data unreadable"] };
 	}
@@ -53,12 +55,14 @@ export function statusDialText(status: PollerStatus): { title: string; value: st
 	switch (status.reason) {
 		case "not-running":
 			return { title: "Start HWiNFO", value: "not detected" };
+		case "gadget-empty":
+			return { title: "Gadget empty", value: "tick sensors" };
 		case "disabled":
 			return { title: "Shared Memory off", value: "enable in HWiNFO" };
 		case "access-denied":
-			return { title: "Access denied", value: "privilege mismatch" };
+			return { title: "Access denied", value: "un-elevate HWiNFO" };
 		case "unsupported-platform":
-			return { title: "Windows only", value: "—" };
+			return { title: "Needs x64 Windows", value: "—" };
 		default:
 			return { title: "HWiNFO error", value: "unreadable" };
 	}
@@ -77,12 +81,14 @@ export function statusSentence(status: PollerStatus): string {
 	switch (status.reason) {
 		case "not-running":
 			return "HWiNFO is not running, or it isn't publishing data. Start HWiNFO in Sensors-only mode with Shared Memory Support enabled — or, on the free version, enable Gadget reporting (no 12-hour limit) and tick the sensors you need.";
+		case "gadget-empty":
+			return "HWiNFO's Gadget registry is enabled but empty. In the HWiNFO sensor window, right-click each value you want on the deck and tick \"Report value in Gadget\".";
 		case "disabled":
 			return "HWiNFO reports Shared Memory Support as disabled. Re-enable it in HWiNFO Settings — on the free version it switches off after 12 hours.";
 		case "access-denied":
-			return "Windows denied access to HWiNFO's shared memory. Run HWiNFO and Stream Deck at the same privilege level.";
+			return "Windows denied access to HWiNFO's shared memory — HWiNFO is running elevated (\"Run as administrator\") while Stream Deck is not. Restart HWiNFO without elevation, or run both elevated. On the free version, Gadget reporting also works across privilege levels.";
 		case "unsupported-platform":
-			return "HWiNFO is Windows-only; this plugin has nothing to read on this system.";
+			return "This plugin needs 64-bit (x64) Windows — HWiNFO's interfaces aren't readable on this system (macOS and Windows-on-ARM are unsupported).";
 		default:
 			return "HWiNFO's shared memory did not validate; it may be mid-restart or an incompatible version.";
 	}

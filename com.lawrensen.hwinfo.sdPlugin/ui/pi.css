@@ -19,6 +19,21 @@ details > summary:hover {
 	color: #d8d8d8;
 }
 
+/* Collapsed first-run onboarding at the top of both property inspectors. */
+.hw-setup > summary {
+	color: #8ecbff;
+}
+
+.hw-setup > p {
+	margin: 4px 12px 8px;
+	padding: 6px 8px;
+	background: #353535;
+	border-left: 3px solid #2660aa;
+	color: #c8c8c8;
+	font-size: 8.5pt;
+	line-height: 1.45;
+}
+
 .hw-picker {
 	position: relative;
 	display: flex;

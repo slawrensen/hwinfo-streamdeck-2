@@ -2,6 +2,7 @@ import streamDeck, { LogLevel } from "@elgato/streamdeck";
 
 import { SensorDialAction } from "./actions/sensor-dial";
 import { SensorReadingAction } from "./actions/sensor-reading";
+import { initKoffi } from "./hwinfo/koffi-loader";
 import { parsePollInterval, parseSourceMode, poller } from "./poller";
 import { applyGlobalThemeSettings, decideLegacyDefault } from "./ui/theme-store";
 
@@ -26,6 +27,12 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (reason) => {
 	streamDeck.logger.error("Unhandled rejection", reason);
 });
+
+// Load the FFI runtime before anything can poll: on machines without a
+// koffi binary (e.g. Windows-on-ARM) this records the failure so the poller
+// shows the "unsupported" status screen instead of the process dying on a
+// top-level import.
+await initKoffi();
 
 streamDeck.actions.registerAction(new SensorReadingAction());
 streamDeck.actions.registerAction(new SensorDialAction());

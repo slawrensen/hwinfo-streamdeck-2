@@ -4,11 +4,12 @@
 	"Name": "HWiNFO Sensors",
 	"Version": "1.0.0.0",
 	"Author": "Stephen Lawrensen",
-	"Description": "Live HWiNFO sensor readings on your Stream Deck — temperatures, clocks, fans, power and more, with themes, thresholds, sparklines and dial support. Requires HWiNFO (Shared Memory Support or Gadget reporting).",
+	"Description": "Live HWiNFO sensor readings on your Stream Deck — temperatures, clocks, fan speeds, voltages, power and usage, rendered with seven display themes, sensor-type accents, warn/critical alert colors, sparklines and stat modes, plus Stream Deck + dial and touchscreen support. Requires HWiNFO with Shared Memory Support or Gadget reporting enabled; auto mode picks the best available source and recovers on its own when HWiNFO restarts.",
 	"Category": "HWiNFO Sensors",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Icon": "imgs/plugin/marketplace",
+	"URL": "https://github.com/slawrensen/hwinfo-streamdeck-2",
 	"SDKVersion": 2,
 	"Software": {
 		"MinimumVersion": "6.6"

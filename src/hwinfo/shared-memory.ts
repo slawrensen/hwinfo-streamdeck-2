@@ -7,8 +7,9 @@
  * region into a reusable Buffer while holding HWiNFO's consistency mutex.
  * Everything above this layer works on plain Buffers.
  */
-import koffi, { type KoffiFunc } from "koffi";
+import type { KoffiFunc } from "koffi";
 
+import { getKoffi } from "./koffi-loader";
 import { HEADER, HEADER_SIZE, MAGIC_ACTIVE, MAGIC_DEAD, MAPPING_NAME, MAX_ELEMENT_COUNT, MAX_REGION_BYTES, MUTEX_NAME } from "./layout";
 import { HwinfoError } from "./types";
 
@@ -47,7 +48,7 @@ let win32: Win32 | null = null;
 /** Lazily binds kernel32 so importing this module is safe off-Windows. */
 function getWin32(): Win32 {
 	if (win32 === null) {
-		const k32 = koffi.load("kernel32.dll");
+		const k32 = getKoffi().load("kernel32.dll");
 		win32 = {
 			openFileMappingW: k32.func("__stdcall", "OpenFileMappingW", "void*", ["uint32", "bool", "str16"]) as Win32["openFileMappingW"],
 			mapViewOfFile: k32.func("__stdcall", "MapViewOfFile", "void*", ["void*", "uint32", "uint32", "uint32", "size_t"]) as Win32["mapViewOfFile"],

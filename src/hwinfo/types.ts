@@ -70,6 +70,8 @@ export type HwinfoUnavailableReason =
 	| "unsupported-platform"
 	/** Mapping absent: HWiNFO isn't running, or Shared Memory Support is off. */
 	| "not-running"
+	/** Gadget registry exists but no sensor has "Report value in Gadget" ticked. */
+	| "gadget-empty"
 	/** Mapping exists but we may not read it (privilege mismatch). */
 	| "access-denied"
 	/** Header magic is "DEAD": shared-memory support was turned off (or the free-version 12 h timer expired). */

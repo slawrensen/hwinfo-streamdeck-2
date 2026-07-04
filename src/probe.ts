@@ -19,8 +19,9 @@ const asJson = args.has("--json");
 const forceGadget = args.has("--gadget");
 
 const GUIDANCE: Record<string, string> = {
-	"unsupported-platform": "HWiNFO only runs on Windows; this probe has nothing to read here.",
+	"unsupported-platform": "This probe needs 64-bit Windows (x64); HWiNFO's interfaces aren't readable here.",
 	"not-running": "Start HWiNFO and enable Settings → 'Shared Memory Support' (Sensors window open, or Sensors-only mode) — or enable Gadget reporting and tick sensors (free, no 12-hour limit).",
+	"gadget-empty": "The Gadget registry exists but is empty — in HWiNFO's sensor window, tick 'Report value in Gadget' for the sensors you need.",
 	"access-denied": "HWiNFO and this process run at different privilege levels. Run both elevated or both non-elevated.",
 	disabled: "Shared Memory Support is switched off in HWiNFO — re-enable it in Settings. On the free version it auto-disables after 12 hours; HWiNFO Pro removes that limit.",
 	invalid: "The shared-memory contents did not validate; HWiNFO may be mid-restart or an incompatible version. Try again in a few seconds."
