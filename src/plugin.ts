@@ -9,7 +9,17 @@ type GlobalSettings = {
 	pollIntervalMs?: string;
 };
 
-streamDeck.logger.setLevel(LogLevel.DEBUG);
+streamDeck.logger.setLevel(LogLevel.INFO);
+
+// A monitoring widget should log-and-continue rather than die silently; every
+// per-tick failure mode is already handled in the poller, so anything landing
+// here is unexpected and worth a trace.
+process.on("uncaughtException", (err) => {
+	streamDeck.logger.error("Uncaught exception", err);
+});
+process.on("unhandledRejection", (reason) => {
+	streamDeck.logger.error("Unhandled rejection", reason);
+});
 
 streamDeck.actions.registerAction(new SensorReadingAction());
 streamDeck.actions.registerAction(new SensorDialAction());

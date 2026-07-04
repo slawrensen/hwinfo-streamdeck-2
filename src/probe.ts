@@ -61,15 +61,15 @@ try {
 try {
 	const first = read(session);
 
-	// A second read ~1.2 s later proves values are actually flowing (HWiNFO
-	// polls every ~2 s by default, so poll time should advance within a tick or two).
-	await new Promise((resolve) => setTimeout(resolve, 1200));
+	// A second read ~2.6 s later proves values are actually flowing (HWiNFO
+	// polls every ~2 s by default, so poll time should advance within a cycle).
+	await new Promise((resolve) => setTimeout(resolve, 2600));
 	const snapshot = read(session);
 	const advancing = snapshot.pollTime > first.pollTime;
 	const ageSec = Math.round(Date.now() / 1000 - snapshot.pollTime);
 
 	if (asJson) {
-		console.log(JSON.stringify({ ...snapshot, byKey: undefined }, null, 2));
+		console.log(JSON.stringify({ ...snapshot, byKey: undefined, advancing }, null, 2));
 	} else {
 		console.log(`HWiNFO shared memory v${snapshot.version}.${snapshot.revision} — ${snapshot.sensors.length} sensors, ${snapshot.readings.length} readings`);
 		console.log(`last poll: ${new Date(snapshot.pollTime * 1000).toISOString()} (${ageSec}s ago) — advancing: ${advancing ? "yes" : "NO (previous poll " + first.pollTime + ")"}`);
@@ -100,7 +100,8 @@ try {
 			}
 		}
 	}
-	process.exit(advancing ? 0 : 1);
+	// In JSON mode the snapshot itself is the result; `advancing` is in the payload.
+	process.exit(asJson || advancing ? 0 : 1);
 } finally {
 	session.close();
 }
