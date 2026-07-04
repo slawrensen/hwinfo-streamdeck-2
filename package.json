@@ -19,7 +19,7 @@
 		"pack": "streamdeck pack com.lawrensen.hwinfo.sdPlugin --output release --force"
 	},
 	"dependencies": {
-		"@elgato/streamdeck": "^2.1.0",
+		"@elgato/streamdeck": "^1.4.1",
 		"koffi": "^3.1.0"
 	},
 	"devDependencies": {

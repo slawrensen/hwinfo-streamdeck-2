@@ -1,5 +1,5 @@
-import streamDeck from "@elgato/streamdeck";
+import streamDeck, { LogLevel } from "@elgato/streamdeck";
 
-streamDeck.logger.setLevel("debug");
+streamDeck.logger.setLevel(LogLevel.DEBUG);
 
 await streamDeck.connect();
