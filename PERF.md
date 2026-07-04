@@ -97,3 +97,51 @@ typical gadget sets are a handful of readings. Covered by e2e:gadget.
 
 Suites after change: lint ✓ typecheck ✓ 81 unit ✓ e2e ✓ e2e:resilience ✓
 e2e:gadget ✓ (all this session).
+
+### 2026-07-04 20:36 — footprint
+
+| Artifact | Bytes | gzip |
+| --- | ---: | ---: |
+| .streamDeckPlugin pack | 549,743 B | 520,365 B |
+| bin/plugin.js | 108,573 B | 32,242 B |
+| bin/node_modules (total) | 1,061,344 B (1036.5 KB) | |
+|   koffi.node | 1,045,504 B (1021.0 KB) | |
+| ui/ | 79,495 B (77.6 KB) | |
+| imgs/ | 37,257 B (36.4 KB) | |
+| layouts/ + manifest + themes | 3,823 B (3.7 KB) | |
+
+**Pack 561,887 → 549,743 B (−12,144 B, −2.2%) with zero behavior change**
+(lint/typecheck/81 unit/e2e/resilience/gadget all green after the trim; the
+vendored runtime was smoke-tested by loading kernel32 through it).
+
+KB won, per change:
+- koffi vendor trim −47,505 B raw (1,108,849 → 1,061,344): runtime loads
+  ONLY koffi/index.js → src/koffi/index.js → src/koffi/src/static.js →
+  @koromix/koffi-win32-x64 (verified by require.cache/import tracing); the
+  CJS twins, worker-thread `indirect` entry, index.d.ts and trampolines.cjs
+  never load in a pure-ESM plugin. Filter lives in scripts/copy-koffi.mjs.
+- terser passes:2 + comments:false −672 B raw on bin/plugin.js.
+- manifest: dropped `Nodejs.Debug: "enabled"` (debug artifact in release;
+  the inspector port has no place in a shipped pack).
+
+Irreducible rulings (numbers, not vibes):
+- **koffi.node 1,045,504 B (443,817 B in-pack)** — 79% of the pack. Trimming
+  requires rebuilding the N-API binary from source; the no-user-toolchain
+  ruling stands (koffi over node-gyp). Irreducible.
+- **marketplace PNGs 34,702 B** — lossless re-encode (sharp, zlib 9 +
+  adaptive filtering) comes out BIGGER (10,420 → 12,100; 24,282 → 26,366):
+  already optimally compressed. Palette quantization saves ~47% but is lossy
+  (max channel delta 113) — rejected, listing images must stay exact.
+- **ui/sdpi-components.js 55,823 B** — Elgato's PI component library, keep
+  ruling stands.
+- **ui/pi-common.js 11,651 B (2.8 KB in-pack)** — our readable PI source;
+  minifying would save ~1.3 KB packed at the cost of a second build
+  pipeline. Not worth it.
+- **action/category SVGs 2,555 B total** — minification would win < 1 KB
+  raw. Not worth it.
+- ws is bundled exactly once and the SDK is ESM (tree-shaken); no duplicate
+  to remove. No sourcemaps in release builds (watch-only).
+
+| Plugin process (new binary, fresh launch) | RSS | Private | CPU |
+| --- | ---: | ---: | ---: |
+| PID 25404 | 36.4 MB | 54.3 MB | 0.1 s @ 1 min |

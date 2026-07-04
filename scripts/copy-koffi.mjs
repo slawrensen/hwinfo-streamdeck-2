@@ -51,9 +51,14 @@ if (vendoredComplete) {
 	process.exit(0);
 }
 
+// Runtime loads ONLY the ESM chain: koffi/index.js → src/koffi/index.js →
+// src/koffi/src/static.js → @koromix/koffi-win32-x64/index.js → koffi.node
+// (verified via require.cache/import tracing; the plugin is pure ESM, so the
+// CJS twins, the worker-thread `indirect` entry and index.d.ts never load).
+// LICENSE.txt and package.json stay for attribution + module resolution.
 const EXCLUDED_DIRS = new Set(["doc", "vendor", "lib", "node_modules", "abi"]);
-const EXCLUDED_FILES = new Set(["cnoke.cjs", "CHANGELOG.md", "README.md", "CMakeLists.txt"]);
-const EXCLUDED_EXTS = new Set([".cc", ".hh", ".inc", ".def", ".lib", ".s", ".asm"]);
+const EXCLUDED_FILES = new Set(["cnoke.cjs", "CHANGELOG.md", "README.md", "CMakeLists.txt", "index.d.ts", "indirect.js"]);
+const EXCLUDED_EXTS = new Set([".cc", ".hh", ".inc", ".def", ".lib", ".s", ".asm", ".cjs"]);
 
 function includeEntry(src) {
 	const name = path.basename(src);

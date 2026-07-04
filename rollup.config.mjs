@@ -34,7 +34,11 @@ const config = {
 			preferBuiltins: true
 		}),
 		commonjs(),
-		!isWatching && terser(),
+		!isWatching &&
+			terser({
+				compress: { passes: 2 },
+				format: { comments: false }
+			}),
 		{
 			name: "emit-module-package-file",
 			generateBundle() {
