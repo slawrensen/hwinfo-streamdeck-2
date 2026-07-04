@@ -30,7 +30,9 @@
 			"Icon": "imgs/actions/reading/icon",
 			"Tooltip": "Display a live HWiNFO sensor reading on a key, with thresholds and sparkline.",
 			"PropertyInspectorPath": "ui/sensor-reading.html",
-			"Controllers": ["Keypad"],
+			"Controllers": [
+				"Keypad"
+			],
 			"UserTitleEnabled": false,
 			"States": [
 				{
@@ -45,7 +47,9 @@
 			"Icon": "imgs/actions/dial/icon",
 			"Tooltip": "Show a HWiNFO sensor on the touchscreen. Rotate to switch readings, press to reset session min/max.",
 			"PropertyInspectorPath": "ui/sensor-dial.html",
-			"Controllers": ["Encoder"],
+			"Controllers": [
+				"Encoder"
+			],
 			"Encoder": {
 				"layout": "layouts/sensor-dial.json",
 				"Icon": "imgs/actions/dial/dial",

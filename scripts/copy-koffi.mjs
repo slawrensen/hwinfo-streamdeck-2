@@ -47,16 +47,16 @@ if (vendoredVersion() === sourceVersion) {
 	process.exit(0);
 }
 
-const EXCLUDED_DIRS = new Set(["doc", "vendor", "lib", "node_modules"]);
+const EXCLUDED_DIRS = new Set(["doc", "vendor", "lib", "node_modules", "abi"]);
 const EXCLUDED_FILES = new Set(["cnoke.cjs", "CHANGELOG.md", "README.md", "CMakeLists.txt"]);
-const EXCLUDED_EXTS = new Set([".cc", ".hh", ".inc", ".def", ".lib"]);
+const EXCLUDED_EXTS = new Set([".cc", ".hh", ".inc", ".def", ".lib", ".s", ".asm"]);
 
 function includeEntry(src) {
 	const name = path.basename(src);
 	if (fs.statSync(src).isDirectory()) {
 		return !EXCLUDED_DIRS.has(name);
 	}
-	return !EXCLUDED_FILES.has(name) && !EXCLUDED_EXTS.has(path.extname(name));
+	return !EXCLUDED_FILES.has(name) && !EXCLUDED_EXTS.has(path.extname(name).toLowerCase());
 }
 
 function vendor(src, dest) {
