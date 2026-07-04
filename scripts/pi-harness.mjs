@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 
@@ -123,11 +124,24 @@ const plugin = spawn(process.execPath, ["bin/plugin.js", "-port", String(WS_PORT
 	cwd: pluginDir,
 	stdio: ["ignore", "inherit", "inherit"]
 });
+let shuttingDown = false;
 plugin.on("exit", (code) => {
-	console.error(`plugin exited with code ${code}`);
-	process.exit(1);
+	if (!shuttingDown) {
+		console.error(`plugin exited with code ${code}`);
+		process.exit(1);
+	}
 });
-process.on("SIGINT", () => {
+function shutdown() {
+	shuttingDown = true;
 	plugin.kill();
 	process.exit(0);
+}
+process.on("SIGINT", shutdown);
+// Windows kill() is TerminateProcess — handlers never run and the plugin
+// child would be orphaned. Automation writes "exit" to stdin instead (same
+// protocol as fake-hwinfo.mjs).
+readline.createInterface({ input: process.stdin }).on("line", (line) => {
+	if (line.trim() === "exit") {
+		shutdown();
+	}
 });

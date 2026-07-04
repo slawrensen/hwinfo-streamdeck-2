@@ -4,6 +4,7 @@
 // traffic that comes back. Requires HWiNFO running with shared memory —
 // values asserted are live. Run with `npm run e2e` (after `npm run build`).
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
@@ -12,6 +13,7 @@ const PORT = 28999;
 const READING_KEY = process.env.HW_E2E_KEY ?? "f0000501:0:1000000"; // CPU (Tctl/Tdie) on this machine
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pluginDir = path.join(repoRoot, "com.lawrensen.hwinfo.sdPlugin");
+const harnessStart = new Date();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = {
@@ -95,7 +97,29 @@ async function scenario(send) {
 	send({ event: "propertyInspectorDidAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1" });
 	send({ event: "sendToPlugin", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: { event: "getSensorTree" } });
 	await sleep(2600);
-	finish();
+
+	// Exit hygiene: with every action gone the poller must go idle (zero
+	// further frames) and the process must then exit on socket close alone.
+	send({ event: "propertyInspectorDidDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1" });
+	send({
+		event: "willDisappear",
+		action: "com.lawrensen.hwinfo.reading",
+		context: "ctx-key",
+		device: "dev1",
+		payload: { settings: { readingKey: READING_KEY, sparkline: true }, coordinates: { column: 0, row: 0 }, controller: "Keypad", isInMultiAction: false }
+	});
+	send({
+		event: "willDisappear",
+		action: "com.lawrensen.hwinfo.dial",
+		context: "ctx-dial",
+		device: "dev1",
+		payload: { settings: {}, coordinates: { column: 0, row: 0 }, controller: "Encoder", isInMultiAction: false }
+	});
+	await sleep(1200); // drain any in-flight tick
+	const framesAtIdle = results.images.length + results.feedbacks.length;
+	await sleep(3000); // three poll intervals of required silence
+	results.idleDelta = results.images.length + results.feedbacks.length - framesAtIdle;
+	await finish();
 }
 
 function decodeSvg(image) {
@@ -113,7 +137,53 @@ function check(name, ok, detail = "") {
 	}
 }
 
-function finish() {
+/** Closes the app-side sockets and waits for the plugin to exit BY ITSELF —
+ * the headless equivalent of "Stream Deck stopped". With the poller idle
+ * there must be nothing keeping the event loop alive. */
+function shutdownPlugin() {
+	return new Promise((resolve) => {
+		let settled = false;
+		const timer = setTimeout(() => {
+			if (!settled) {
+				settled = true;
+				plugin.kill();
+				resolve({ clean: false, detail: "still alive 5 s after socket close — killed" });
+			}
+		}, 5000);
+		plugin.once("exit", (code) => {
+			if (!settled) {
+				settled = true;
+				clearTimeout(timer);
+				resolve({ clean: true, detail: `self-exited (code ${code})` });
+			}
+		});
+		for (const client of wss.clients) {
+			client.close();
+		}
+		wss.close();
+	});
+}
+
+/** The harness instance rotated the logs on startup, so .0 is OURS: it must
+ * contain the poller's "Stopped (no visible actions)" from this run. */
+function pollerLoggedStop() {
+	try {
+		const log = fs.readFileSync(path.join(pluginDir, "logs", "com.lawrensen.hwinfo.0.log"), "utf8");
+		for (const line of log.split("\n")) {
+			if (line.includes("Stopped (no visible actions)")) {
+				const stamp = new Date(line.slice(0, 24));
+				if (!Number.isNaN(stamp.getTime()) && stamp >= harnessStart) {
+					return true;
+				}
+			}
+		}
+	} catch {
+		/* fall through */
+	}
+	return false;
+}
+
+async function finish() {
 	if (finished) {
 		return;
 	}
@@ -149,9 +219,13 @@ function finish() {
 	const preview = results.piPayloads.find((p) => p?.event === "preview" && p.reading);
 	check("PI got live preview for selected reading", preview !== undefined, preview ? `${preview.reading.label}=${preview.reading.value}` : "");
 
+	// Exit hygiene.
+	check("poller idles when no actions visible", results.idleDelta === 0, `frames in 3 s after willDisappear: ${results.idleDelta}`);
+	check("poller logged idle stop", pollerLoggedStop());
+	const shutdown = await shutdownPlugin();
+	check("plugin exits when the app socket closes", shutdown.clean, shutdown.detail);
+
 	console.log(results.errors.length === 0 ? "\nE2E: ALL CHECKS PASSED" : `\nE2E: ${results.errors.length} FAILURES`);
-	plugin.kill();
-	wss.close();
 	process.exit(results.errors.length === 0 ? 0 : 1);
 }
 
@@ -181,4 +255,4 @@ setTimeout(() => {
 		plugin.kill();
 		process.exit(1);
 	}
-}, 20000);
+}, 30000);

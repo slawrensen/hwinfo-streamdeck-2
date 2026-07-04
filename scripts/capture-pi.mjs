@@ -2,7 +2,7 @@
 // headless Chrome over CDP with real-time waits, so live WebSocket data and
 // the theme gallery are present. Two states: settings view and picker open.
 // Usage: node scripts/capture-pi.mjs <outDir>
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import WebSocket from "ws";
@@ -15,13 +15,6 @@ const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[capture] ${m}`);
 
-// Hard stop so a wedged CDP call can never hang the caller.
-const watchdog = setTimeout(() => {
-	console.error("[capture] watchdog: 60s elapsed — aborting");
-	process.exit(2);
-}, 60000);
-watchdog.unref();
-
 const chrome = spawn(CHROME, [
 	"--headless=new",
 	"--disable-gpu",
@@ -31,6 +24,39 @@ const chrome = spawn(CHROME, [
 	"about:blank"
 ], { stdio: "ignore" });
 
+/** chrome.kill() alone can strand renderer children — take down the tree,
+ * then sweep any stragglers that re-parented past /T by our profile dir. */
+function killChromeTree() {
+	try {
+		spawnSync("taskkill", ["/PID", String(chrome.pid), "/T", "/F"], { stdio: "ignore" });
+	} catch {
+		chrome.kill();
+	}
+	try {
+		spawnSync(
+			"powershell.exe",
+			[
+				"-NoProfile",
+				"-Command",
+				"Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Where-Object { $_.CommandLine -match 'pi-capture-profile' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+			],
+			{ stdio: "ignore", timeout: 15000 }
+		);
+	} catch {
+		/* best effort */
+	}
+}
+
+// Hard stop so a wedged CDP call can never hang the caller — but never at
+// the price of an orphaned chrome tree.
+const watchdog = setTimeout(() => {
+	console.error("[capture] watchdog: 60s elapsed — aborting");
+	killChromeTree();
+	process.exit(2);
+}, 60000);
+watchdog.unref();
+
+let cdpSocket = null;
 try {
 	let target = null;
 	for (let i = 0; i < 30 && target === null; i++) {
@@ -48,6 +74,7 @@ try {
 	log(`debugger target: ${target.title}`);
 
 	const ws = new WebSocket(target.webSocketDebuggerUrl, { maxPayload: 64 * 1024 * 1024 });
+	cdpSocket = ws;
 	await new Promise((resolve, reject) => {
 		ws.once("open", resolve);
 		ws.once("error", reject);
@@ -89,5 +116,8 @@ try {
 	writeFileSync(path.join(outDir, "pi-picker.png"), Buffer.from(shot2.data, "base64"));
 	console.log(`captured pi-settings.png + pi-picker.png to ${outDir}`);
 } finally {
-	chrome.kill();
+	// The open CDP socket would otherwise hold the event loop until the
+	// watchdog fires — close it, then take the browser tree down.
+	cdpSocket?.terminate();
+	killChromeTree();
 }

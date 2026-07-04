@@ -119,7 +119,7 @@ class HwinfoPoller extends EventEmitter {
 		if (this.timer !== null) {
 			return;
 		}
-		this.logger.debug("Starting");
+		this.logger.info(`Started (${this.intervalMs} ms interval)`);
 		this.timer = setInterval(() => this.tick(), this.intervalMs);
 		this.tick();
 	}
@@ -130,7 +130,9 @@ class HwinfoPoller extends EventEmitter {
 			this.timer = null;
 		}
 		this.dropProvider();
-		this.logger.debug("Stopped (no visible actions)");
+		// Info on purpose: the e2e exit-hygiene check greps for this line to
+		// prove the poller idles (timer cleared, provider closed) with no keys.
+		this.logger.info("Stopped (no visible actions)");
 	}
 
 	private dropProvider(): void {
