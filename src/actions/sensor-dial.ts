@@ -10,10 +10,13 @@
 import streamDeck, { action, SingletonAction, type DialDownEvent, type DialRotateEvent, type DidReceiveSettingsEvent, type JsonValue, type SendToPluginEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 
 import type { Reading } from "../hwinfo/types";
-import { buildPreview, buildSensorTree } from "../pi-protocol";
+import { buildPreview, buildSensorTree, buildThemesPayload } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
-import { convertUnit, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
+import { renderDial } from "../ui/dial-renderer";
+import { alertLevel, convertUnit, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, type DecimalsSetting, type StatMode } from "../ui/format";
 import { statusDialText } from "../ui/state-screens";
+import { decideLegacyDefault, getDeckTheme, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
+import { classifyTypeAccent, loadThemes, resolvePalette } from "../ui/themes";
 
 /** Persisted per-dial settings (written by the PI; all optional). */
 export type DialSettings = {
@@ -24,6 +27,11 @@ export type DialSettings = {
 	/** Manual range for the bar; session min/max is used when absent. */
 	barMin?: string;
 	barMax?: string;
+	warnValue?: string;
+	critValue?: string;
+	alertBelow?: boolean;
+	/** Per-dial theme override; empty/absent follows the deck default. */
+	theme?: string;
 };
 
 /** Session stats in the reading's NATIVE unit (converted at render time). */
@@ -57,6 +65,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 				streamDeck.logger.error("SensorDialAction tick failed", err);
 			}
 		});
+		onThemeChange(() => this.renderAll(poller.getStatus()));
 	}
 
 	override onWillAppear(ev: WillAppearEvent<DialSettings>): void {
@@ -65,6 +74,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		if (!this.instances.has(ev.action.id)) {
 			poller.retain();
 		}
+		decideLegacyDefault(Object.values(ev.payload.settings).some((v) => v !== undefined));
 		this.instances.set(ev.action.id, { settings: ev.payload.settings, stats: null, statMode: "current", lastFeedback: "" });
 		this.renderAll(poller.getStatus());
 	}
@@ -146,8 +156,13 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 
 	override onSendToPlugin(ev: SendToPluginEvent<JsonValue, DialSettings>): void {
 		const payload = ev.payload;
-		if (typeof payload === "object" && payload !== null && !Array.isArray(payload) && payload.event === "getSensorTree") {
+		if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+			return;
+		}
+		if (payload.event === "getSensorTree") {
 			void streamDeck.ui.current?.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
+		} else if (payload.event === "getThemes") {
+			void streamDeck.ui.current?.sendToPropertyInspector(buildThemesPayload());
 		}
 	}
 
@@ -185,11 +200,10 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			if (state === undefined) {
 				continue;
 			}
-			const feedback = composeFeedback(state, status);
-			const serialized = JSON.stringify(feedback);
-			if (serialized !== state.lastFeedback) {
-				state.lastFeedback = serialized;
-				void act.setFeedback(feedback);
+			const svg = composeDialSvg(state, status);
+			if (svg !== state.lastFeedback) {
+				state.lastFeedback = svg;
+				void act.setFeedback({ canvas: `data:image/svg+xml,${encodeURIComponent(svg)}` });
 			}
 		}
 	}
@@ -206,28 +220,25 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 	}
 }
 
-type Feedback = {
-	/** The layout item is deliberately NOT keyed "title" — that key is reserved
-	 * for the user-title mechanism and would ignore the layout's font styling. */
-	label: string;
-	value: string;
-	stats: string;
-	indicator: number;
-};
+function composeDialSvg(state: InstanceState, status: PollerStatus): string {
+	const settings = state.settings;
+	const config = loadThemes();
+	const themeId = settings.theme !== undefined && settings.theme !== "" ? settings.theme : getDeckTheme();
 
-function composeFeedback(state: InstanceState, status: PollerStatus): Feedback {
 	const problem = statusDialText(status);
 	if (problem !== null) {
-		return { label: problem.title, value: problem.value, stats: "", indicator: 0 };
+		const palette = resolvePalette(config, themeId, null, "normal");
+		return renderDial({ title: problem.title, valueText: problem.value, unitText: "", statsText: "", fraction: NaN, palette, barColor: palette.accent });
 	}
 	const { snapshot } = status as Extract<PollerStatus, { state: "ok" }>;
-	const settings = state.settings;
 	if (settings.readingKey === undefined || settings.readingKey === "") {
-		return { label: "HWiNFO", value: "rotate to pick", stats: "or use the settings panel", indicator: 0 };
+		const palette = resolvePalette(config, themeId, null, "normal");
+		return renderDial({ title: "HWiNFO", valueText: "rotate to pick", unitText: "", statsText: "or use the settings panel", fraction: NaN, palette, barColor: palette.accent });
 	}
 	const reading = snapshot.byKey.get(settings.readingKey);
 	if (reading === undefined) {
-		return { label: "Sensor missing", value: "rotate to pick", stats: "", indicator: 0 };
+		const palette = resolvePalette(config, themeId, null, "normal");
+		return renderDial({ title: "Sensor missing", valueText: "rotate to pick", unitText: "", statsText: "", fraction: NaN, palette, barColor: palette.accent });
 	}
 
 	const fahrenheit = settings.fahrenheit === true;
@@ -246,13 +257,22 @@ function composeFeedback(state: InstanceState, status: PollerStatus): Feedback {
 	const barMin = parseThreshold(settings.barMin) ?? min;
 	const barMax = parseThreshold(settings.barMax) ?? max;
 	const span = barMax - barMin;
-	const indicator = span > 0 && Number.isFinite(live) ? Math.max(0, Math.min(100, ((live - barMin) / span) * 100)) : 50;
+	const fraction = span > 0 && Number.isFinite(live) ? Math.max(0, Math.min(1, (live - barMin) / span)) : 0.5;
+
+	// Dials stay themed while alerting — only the bar fill flips to the alert
+	// field color (the touchscreen slot is too small for a full polarity flip).
+	const level = alertLevel(live, parseThreshold(settings.warnValue), parseThreshold(settings.critValue), settings.alertBelow === true);
+	const accent = typeAccentsEnabled() ? classifyTypeAccent(reading.type, reading.unit, reading.label) : null;
+	const palette = resolvePalette(config, themeId, accent, "normal");
 
 	const label = settings.label !== undefined && settings.label.trim() !== "" ? settings.label.trim() : reading.label;
-	return {
-		label: truncateLabel(label, 26),
-		value: `${formatValue(shown.value, decimals)} ${shown.unit}${badge !== "" ? "  ·  " + badge : ""}`.trim(),
-		stats: `▼ ${formatValue(min, decimals)}   ▲ ${formatValue(max, decimals)}   session`,
-		indicator: Math.round(indicator)
-	};
+	return renderDial({
+		title: label,
+		valueText: formatValue(shown.value, decimals),
+		unitText: `${shown.unit}${badge !== "" ? " · " + badge : ""}`.trim(),
+		statsText: `▼ ${formatValue(min, decimals)}   ▲ ${formatValue(max, decimals)}   session`,
+		fraction,
+		palette,
+		barColor: level !== "normal" ? config.alerts[level].bg : palette.accent
+	});
 }

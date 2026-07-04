@@ -2,30 +2,24 @@
  * Renders 144×144 SVG key faces (passed to `setImage` as raw SVG strings —
  * Stream Deck's renderer is not a browser: explicit x/y + text-anchor only,
  * no CSS blocks, no dominant-baseline, local fonts only).
+ *
+ * Geometry is locked by the display spec: anchors never move; only the value
+ * glyph size flexes with character count.
  */
-import type { AlertLevel } from "./format";
+import { truncateLabel } from "./format";
+import type { Palette } from "./themes";
 
 const FONT = "Segoe UI, Arial, sans-serif";
 
-const BG: Record<AlertLevel, string> = {
-	normal: "#1a1c22",
-	warn: "#b45309",
-	crit: "#c2251a"
-};
+/** Spark strip box: x 8–136, y 124–140. */
+const SPARK = { x: 8, y: 124, w: 128, h: 16 } as const;
+/** Accent polyline stroke; the spec's absolute minimum is 3. */
+const SPARK_STROKE = 4;
+const SPARK_SAMPLES = 36;
 
-const LABEL_FILL: Record<AlertLevel, string> = {
-	normal: "#8b8fa3",
-	warn: "#ffe3bd",
-	crit: "#ffd4cf"
-};
-
-const UNIT_FILL: Record<AlertLevel, string> = {
-	normal: "#6d7183",
-	warn: "#ffe3bd",
-	crit: "#ffd4cf"
-};
-
-const ACCENT = "#4cc2ff";
+/** Label lengths: 16 chars centred, 9 when a stat badge shares the row. */
+const LABEL_MAX = 16;
+const LABEL_MAX_WITH_BADGE = 9;
 
 export function escapeXml(text: string): string {
 	return text.replace(/[<>&'"]/g, (c) => {
@@ -44,23 +38,26 @@ export function escapeXml(text: string): string {
 	});
 }
 
-function valueFontSize(text: string): number {
-	if (text.length <= 3) {
+/**
+ * Value glyph size by rendered character count (digits, dot, sign — the unit
+ * is a separate element and never counts).
+ */
+export function valueFontSize(text: string): number {
+	const count = Array.from(text).length;
+	if (count <= 2) {
 		return 52;
 	}
-	if (text.length <= 5) {
-		return 44;
+	if (count >= 9) {
+		return 26;
 	}
-	if (text.length <= 7) {
-		return 34;
-	}
-	return 26;
+	// 3:48 4:44 5:40 6:36 7:32 8:28 — a straight −4 px per character ramp.
+	return 48 - (count - 3) * 4;
 }
 
-/** Maps a value series onto an SVG polyline within the given box. */
-function sparklinePoints(values: readonly number[], x: number, y: number, w: number, h: number): string {
+/** Maps a value series onto polyline points within the given box. */
+function sparklinePoints(values: readonly number[], x: number, y: number, w: number, h: number): Array<{ px: number; py: number }> {
 	if (values.length < 2 || values.some((v) => !Number.isFinite(v))) {
-		return "";
+		return [];
 	}
 	let min = Number.POSITIVE_INFINITY;
 	let max = Number.NEGATIVE_INFINITY;
@@ -69,48 +66,67 @@ function sparklinePoints(values: readonly number[], x: number, y: number, w: num
 		max = Math.max(max, v);
 	}
 	const span = max - min;
-	const points: string[] = [];
+	const points: Array<{ px: number; py: number }> = [];
 	for (let i = 0; i < values.length; i++) {
 		const px = x + (w * i) / (values.length - 1);
 		const norm = span === 0 ? 0.5 : ((values[i] as number) - min) / span;
 		const py = y + h - norm * h;
-		points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+		points.push({ px, py });
 	}
-	return points.join(" ");
+	return points;
 }
 
 export interface ReadingKeyOptions {
 	label: string;
 	valueText: string;
 	unitText: string;
-	level: AlertLevel;
 	/** "MIN" | "MAX" | "AVG" badge; empty for the live value. */
 	statBadge: string;
 	/** Recent values (display unit); rendered as a sparkline when 2+ points. */
 	history?: readonly number[];
+	/** Fully resolved tokens (alert override and type accent already applied). */
+	palette: Palette;
 }
 
 export function renderReadingKey(opts: ReadingKeyOptions): string {
-	const { label, valueText, unitText, level, statBadge, history } = opts;
-	const sparkline = history !== undefined && history.length >= 2;
-	const valueY = sparkline ? 84 : 92;
-	const unitY = sparkline ? 108 : 120;
+	const { valueText, unitText, statBadge, history, palette } = opts;
+	const hasBadge = statBadge !== "";
+	const label = truncateLabel(opts.label, hasBadge ? LABEL_MAX_WITH_BADGE : LABEL_MAX);
 	const parts: string[] = [
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">`,
-		`<rect width="144" height="144" fill="${BG[level]}"/>`,
-		`<text x="${statBadge === "" ? 72 : 62}" y="30" text-anchor="middle" font-family="${FONT}" font-size="16" fill="${LABEL_FILL[level]}">${escapeXml(label)}</text>`,
-		`<text x="72" y="${valueY}" text-anchor="middle" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="#ffffff">${escapeXml(valueText)}</text>`
+		`<rect width="144" height="144" fill="${palette.bg}"/>`
 	];
+	if (hasBadge) {
+		// Left-anchored label hard-clipped at x=92 (max 80 px) so it can never
+		// reach the end-anchored badge, which owns x≥96. The clip is an opaque
+		// bg-colored rect over the label band — clipPath is a reference-based
+		// SVG feature the Stream Deck engine isn't proven to honor; a solid
+		// fill is renderer-proof by construction.
+		parts.push(
+			`<text x="12" y="32" text-anchor="start" font-family="${FONT}" font-size="16" font-weight="600" fill="${palette.label}">${escapeXml(label)}</text>`,
+			`<rect x="92" y="14" width="52" height="24" fill="${palette.bg}"/>`,
+			`<text x="132" y="32" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${palette.accent}">${escapeXml(statBadge.toUpperCase())}</text>`
+		);
+	} else {
+		parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${palette.label}">${escapeXml(label)}</text>`);
+	}
+	parts.push(`<text x="72" y="94" text-anchor="middle" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="${palette.value}">${escapeXml(valueText)}</text>`);
 	if (unitText !== "") {
-		parts.push(`<text x="72" y="${unitY}" text-anchor="middle" font-family="${FONT}" font-size="17" fill="${UNIT_FILL[level]}">${escapeXml(unitText)}</text>`);
+		parts.push(`<text x="72" y="118" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${palette.unit}">${escapeXml(unitText)}</text>`);
 	}
-	if (statBadge !== "") {
-		parts.push(`<text x="136" y="24" text-anchor="end" font-family="${FONT}" font-size="13" font-weight="700" fill="${level === "normal" ? ACCENT : "#ffffff"}">${escapeXml(statBadge)}</text>`);
-	}
-	if (sparkline) {
-		const points = sparklinePoints(history, 14, 116, 116, 20);
-		if (points !== "") {
-			parts.push(`<polyline points="${points}" fill="none" stroke="${level === "normal" ? ACCENT : "rgba(255,255,255,0.85)"}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`);
+	if (history !== undefined) {
+		const samples = history.slice(-SPARK_SAMPLES);
+		const points = sparklinePoints(samples, SPARK.x, SPARK.y, SPARK.w, SPARK.h);
+		if (points.length > 0) {
+			const line = points.map((p) => `${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
+			const first = points[0] as { px: number; py: number };
+			const last = points[points.length - 1] as { px: number; py: number };
+			const bottom = SPARK.y + SPARK.h;
+			parts.push(
+				`<path d="M${first.px.toFixed(1)},${bottom} L${line.split(" ").join(" L")} L${last.px.toFixed(1)},${bottom} Z" fill="${palette.track}"/>`,
+				`<polyline points="${line}" fill="none" stroke="${palette.accent}" stroke-width="${SPARK_STROKE}" stroke-linejoin="round" stroke-linecap="round"/>`,
+				`<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="5" fill="${palette.accent}"/>`
+			);
 		}
 	}
 	parts.push("</svg>");
@@ -148,9 +164,11 @@ export function renderStatusKey(opts: StatusKeyOptions): string {
 	const startY = 88;
 	for (let i = 0; i < opts.lines.length && i < 3; i++) {
 		const line = opts.lines[i] as string;
-		const weight = i === 0 ? ` font-weight="700"` : "";
+		// Never regular weight at these physical sizes — strokes thin below one
+		// device pixel on the 72 px key.
+		const weight = i === 0 ? 700 : 600;
 		const fill = i === 0 ? "#ffffff" : "#8b8fa3";
-		parts.push(`<text x="72" y="${startY + i * 19}" text-anchor="middle" font-family="${FONT}" font-size="${i === 0 ? 17 : 14}"${weight} fill="${fill}">${escapeXml(line)}</text>`);
+		parts.push(`<text x="72" y="${startY + i * 19}" text-anchor="middle" font-family="${FONT}" font-size="${i === 0 ? 17 : 14}" font-weight="${weight}" fill="${fill}">${escapeXml(line)}</text>`);
 	}
 	parts.push("</svg>");
 	return parts.join("");

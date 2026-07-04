@@ -1,0 +1,91 @@
+{
+	"version": 1,
+	"defaultTheme": "void",
+	"legacyDefaultTheme": "graphite",
+	"typeAccentsDisabledOn": ["paper"],
+	"themes": {
+		"void": {
+			"bg": "#000000",
+			"label": "#7A8393",
+			"value": "#FFFFFF",
+			"unit": "#667082",
+			"accent": "#4CC2FF",
+			"track": "#161A21"
+		},
+		"graphite": {
+			"bg": "#1A1C22",
+			"label": "#8B93A3",
+			"value": "#F4F6FA",
+			"unit": "#757F91",
+			"accent": "#55C7FF",
+			"track": "#2A2F3A"
+		},
+		"ultraviolet": {
+			"bg": "#10061F",
+			"label": "#8F80AE",
+			"value": "#F3EDFF",
+			"unit": "#7C6C9F",
+			"accent": "#C08BFF",
+			"track": "#261544"
+		},
+		"midnight": {
+			"bg": "#071120",
+			"label": "#788CA9",
+			"value": "#EFF6FF",
+			"unit": "#627896",
+			"accent": "#6FCFFF",
+			"track": "#152238"
+		},
+		"forest": {
+			"bg": "#05130C",
+			"label": "#739181",
+			"value": "#ECFBF2",
+			"unit": "#5D7D6F",
+			"accent": "#3FE09A",
+			"track": "#12271B"
+		},
+		"ember": {
+			"bg": "#000000",
+			"label": "#A47632",
+			"value": "#FFB84D",
+			"unit": "#8A6326",
+			"accent": "#E0912F",
+			"track": "#1E1305"
+		},
+		"paper": {
+			"bg": "#E9E6DE",
+			"label": "#4A4740",
+			"value": "#14120D",
+			"unit": "#615D4F",
+			"accent": "#3B382E",
+			"track": "#CDC9BD"
+		}
+	},
+	"alerts": {
+		"warn": {
+			"bg": "#E8940D",
+			"value": "#1C1200",
+			"label": "#402C00",
+			"unit": "#553C00",
+			"accent": "#402C00",
+			"track": "#C67A06"
+		},
+		"crit": {
+			"bg": "#CB2114",
+			"value": "#FFFFFF",
+			"label": "#FFDCD6",
+			"unit": "#F8C2B9",
+			"accent": "#FFDCD6",
+			"track": "#A81A0C"
+		}
+	},
+	"typeAccents": {
+		"temperature": "#FF7E8E",
+		"fan": "#3FBEDD",
+		"power": "#D4AB33",
+		"clock": "#38CD89",
+		"load": "#B195FF",
+		"network": "#6FA7FF",
+		"memory": "#CE8BE0"
+	}
+}

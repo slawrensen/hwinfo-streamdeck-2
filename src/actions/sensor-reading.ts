@@ -5,11 +5,13 @@
  */
 import streamDeck, { action, SingletonAction, type DidReceiveSettingsEvent, type JsonValue, type KeyDownEvent, type SendToPluginEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 
-import { buildPreview, buildSensorTree } from "../pi-protocol";
+import { buildPreview, buildSensorTree, buildThemesPayload } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
 import { alertLevel, convertUnit, formatValue, isStatMode, parseThreshold, STAT_BADGE, STAT_MODES, statValue, type DecimalsSetting, type StatMode } from "../ui/format";
 import { renderReadingKey, renderStatusKey } from "../ui/key-renderer";
 import { keyLabel, missingReadingScreen, noSelectionScreen, statusScreen } from "../ui/state-screens";
+import { decideLegacyDefault, getDeckTheme, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
+import { classifyTypeAccent, loadThemes, resolvePalette } from "../ui/themes";
 
 /** Persisted per-key settings (written by the PI; all optional). */
 export type ReadingSettings = {
@@ -22,6 +24,8 @@ export type ReadingSettings = {
 	warnValue?: string;
 	critValue?: string;
 	alertBelow?: boolean;
+	/** Per-key theme override; empty/absent follows the deck default. */
+	theme?: string;
 };
 
 const HISTORY_LENGTH = 36;
@@ -49,6 +53,7 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 				streamDeck.logger.error("SensorReadingAction tick failed", err);
 			}
 		});
+		onThemeChange(() => this.renderAll(poller.getStatus()));
 	}
 
 	override onWillAppear(ev: WillAppearEvent<ReadingSettings>): void {
@@ -57,6 +62,7 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		if (!this.instances.has(ev.action.id)) {
 			poller.retain();
 		}
+		decideLegacyDefault(Object.values(ev.payload.settings).some((v) => v !== undefined));
 		this.instances.set(ev.action.id, { settings: ev.payload.settings, history: [], lastSvg: "" });
 		this.renderAll(poller.getStatus());
 	}
@@ -95,8 +101,13 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 
 	override onSendToPlugin(ev: SendToPluginEvent<JsonValue, ReadingSettings>): void {
 		const payload = ev.payload;
-		if (typeof payload === "object" && payload !== null && !Array.isArray(payload) && payload.event === "getSensorTree") {
+		if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+			return;
+		}
+		if (payload.event === "getSensorTree") {
 			void streamDeck.ui.current?.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
+		} else if (payload.event === "getThemes") {
+			void streamDeck.ui.current?.sendToPropertyInspector(buildThemesPayload());
 		}
 	}
 
@@ -177,13 +188,16 @@ function compose(state: InstanceState, status: PollerStatus): string {
 	const live = convertUnit(reading.value, reading.unit, fahrenheit);
 	const decimals: DecimalsSetting = settings.decimals ?? "auto";
 
+	const level = alertLevel(live.value, parseThreshold(settings.warnValue), parseThreshold(settings.critValue), settings.alertBelow === true);
+	const themeId = settings.theme !== undefined && settings.theme !== "" ? settings.theme : getDeckTheme();
+	const accent = typeAccentsEnabled() ? classifyTypeAccent(reading.type, reading.unit, reading.label) : null;
 	const badge = STAT_BADGE[mode];
 	return renderReadingKey({
-		label: keyLabel(settings.label, reading.label, badge === "" ? 16 : 11),
+		label: keyLabel(settings.label, reading.label),
 		valueText: formatValue(displayed.value, decimals),
 		unitText: displayed.unit,
-		level: alertLevel(live.value, parseThreshold(settings.warnValue), parseThreshold(settings.critValue), settings.alertBelow === true),
 		statBadge: badge,
-		history: settings.sparkline === true ? state.history : undefined
+		history: settings.sparkline === true ? state.history : undefined,
+		palette: resolvePalette(loadThemes(), themeId, accent, level)
 	});
 }

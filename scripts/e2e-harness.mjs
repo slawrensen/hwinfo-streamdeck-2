@@ -99,7 +99,7 @@ async function scenario(send) {
 }
 
 function decodeSvg(image) {
-	if (!image.startsWith("data:image/svg+xml,")) {
+	if (typeof image !== "string" || !image.startsWith("data:image/svg+xml,")) {
 		return null;
 	}
 	return decodeURIComponent(image.slice("data:image/svg+xml,".length));
@@ -135,12 +135,13 @@ function finish() {
 	check("keyDown cycled stat mode to MIN", minFrame !== undefined);
 	check("keyDown persisted statMode via setSettings", results.setSettings.some((s) => s.context === "ctx-key" && s.payload?.statMode === "min"));
 
-	const dialFeedbacks = results.feedbacks.filter((f) => f.context === "ctx-dial");
-	check("dial received feedback", dialFeedbacks.length > 0, `${dialFeedbacks.length} frames`);
-	check("dial idle state prompts for selection", dialFeedbacks.some((f) => String(f.payload?.value ?? "").includes("rotate")));
+	// The dial layout is a single full-canvas pixmap — feedback carries one SVG.
+	const dialSvgs = results.feedbacks.filter((f) => f.context === "ctx-dial").map((f) => decodeSvg(f.payload?.canvas)).filter((s) => s !== null);
+	check("dial received SVG canvas feedback", dialSvgs.length > 0, `${dialSvgs.length} frames`);
+	check("dial idle state prompts for selection", dialSvgs.some((s) => s.includes("rotate to pick")));
 	check("dialRotate adopted a reading + persisted it", results.setSettings.some((s) => s.context === "ctx-dial" && typeof s.payload?.readingKey === "string" && s.payload.readingKey.length > 0));
-	const liveDial = dialFeedbacks.find((f) => typeof f.payload?.indicator === "number" && /[▼▲]/.test(String(f.payload?.stats ?? "")));
-	check("dial shows live value + session stats + bar", liveDial !== undefined, JSON.stringify(liveDial?.payload ?? {}).slice(0, 140));
+	const liveDial = dialSvgs.find((s) => /[▼▲]/.test(s) && s.includes('y="84"'));
+	check("dial shows live value + session stats + bar", liveDial !== undefined, (liveDial ?? "").slice(0, 140));
 
 	const tree = results.piPayloads.find((p) => p?.event === "sensorTree");
 	check("PI got sensorTree", tree !== undefined);

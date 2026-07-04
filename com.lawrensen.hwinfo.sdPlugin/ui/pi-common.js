@@ -17,6 +17,7 @@
 	const previewValueEl = document.getElementById("preview-value");
 	const previewStatsEl = document.getElementById("preview-stats");
 	const hintEl = document.getElementById("status-hint");
+	const galleryEl = document.getElementById("theme-gallery");
 
 	const MAX_ROWS = 150;
 	const SENSOR_TYPE_NAMES = ["", "Temp", "Voltage", "Fan", "Current", "Power", "Clock", "Usage", ""];
@@ -243,9 +244,97 @@
 		});
 	}
 
+	// --- theme preset gallery -------------------------------------------------
+	// Tokens come from the plugin (parsed themes.json) over the message channel;
+	// the deck-wide default renders as the leading "Deck default" chip and the
+	// seven presets follow. Clicking writes the per-key "theme" setting ("" =
+	// follow deck default) — the key/dial re-renders immediately: live preview.
+
+	let themesConfig = null; // { defaultTheme, themes: { id: { bg, ... } } }
+	let themeOverride = "";
+	let deckTheme = "";
+
+	const setThemeOverride =
+		galleryEl === null
+			? null
+			: useSettings(
+					"theme",
+					(value) => {
+						themeOverride = typeof value === "string" ? value : "";
+						renderGallery();
+					},
+					null
+				)[1];
+
+	function themeChip(id, palette, name, selected) {
+		const chip = document.createElement("button");
+		chip.type = "button";
+		chip.className = "hw-theme" + (selected ? " selected" : "");
+		chip.dataset.theme = id;
+		chip.title = name;
+		const face = document.createElement("span");
+		face.className = "hw-theme-face";
+		face.style.background = palette.bg;
+		const value = document.createElement("span");
+		value.className = "hw-theme-value";
+		value.style.color = palette.value;
+		value.textContent = "64";
+		const spark = document.createElement("span");
+		spark.className = "hw-theme-spark";
+		spark.style.background = palette.accent;
+		face.append(value, spark);
+		const label = document.createElement("span");
+		label.className = "hw-theme-name";
+		label.textContent = name;
+		chip.append(face, label);
+		return chip;
+	}
+
+	function renderGallery() {
+		if (galleryEl === null || themesConfig === null) return;
+		const frag = document.createDocumentFragment();
+		const deckId = themesConfig.themes[deckTheme] ? deckTheme : themesConfig.defaultTheme;
+		frag.appendChild(themeChip("", themesConfig.themes[deckId], "Deck default", themeOverride === ""));
+		for (const [id, palette] of Object.entries(themesConfig.themes)) {
+			frag.appendChild(themeChip(id, palette, id.charAt(0).toUpperCase() + id.slice(1), themeOverride === id));
+		}
+		galleryEl.replaceChildren(frag);
+	}
+
+	if (galleryEl !== null) {
+		galleryEl.addEventListener("click", (ev) => {
+			const chip = ev.target.closest(".hw-theme");
+			if (!chip) return;
+			themeOverride = chip.dataset.theme;
+			setThemeOverride(themeOverride);
+			renderGallery();
+		});
+		// Track the deck-wide default so the "Deck default" chip previews it.
+		streamDeckClient.getGlobalSettings().then((res) => {
+			const settings = res && typeof res === "object" && res.settings ? res.settings : res;
+			if (settings && typeof settings.theme === "string") deckTheme = settings.theme;
+			renderGallery();
+		});
+		if (streamDeckClient.didReceiveGlobalSettings && typeof streamDeckClient.didReceiveGlobalSettings.subscribe === "function") {
+			streamDeckClient.didReceiveGlobalSettings.subscribe((ev) => {
+				const settings = ev && ev.payload && ev.payload.settings;
+				if (settings && typeof settings.theme === "string") {
+					deckTheme = settings.theme;
+					renderGallery();
+				}
+			});
+		}
+		streamDeckClient.send("sendToPlugin", { event: "getThemes" });
+	}
+
 	streamDeckClient.sendToPropertyInspector.subscribe((ev) => {
 		const p = ev && ev.payload;
 		if (!p || typeof p !== "object") return;
+		if (p.event === "themes") {
+			themesConfig = p;
+			renderGallery();
+			return;
+		}
 		if (p.event === "sensorTree") {
 			tree = p.groups;
 			treeFetchedOk = p.state === "ok";

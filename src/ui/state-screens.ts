@@ -1,6 +1,5 @@
 /** Maps poller/selection states to key art and short dial texts. */
 import type { PollerStatus } from "../poller";
-import { truncateLabel } from "./format";
 import type { StatusKeyOptions } from "./key-renderer";
 
 const BLUE = "#4cc2ff";
@@ -89,8 +88,7 @@ export function statusSentence(status: PollerStatus): string {
 	}
 }
 
-/** Compact label used on key faces; tighter when a stat badge shares the row. */
-export function keyLabel(custom: string | undefined, fallback: string, maxLength = 16): string {
-	const label = custom !== undefined && custom.trim() !== "" ? custom.trim() : fallback;
-	return truncateLabel(label, maxLength);
+/** Effective key label; spec truncation happens inside the renderer. */
+export function keyLabel(custom: string | undefined, fallback: string): string {
+	return custom !== undefined && custom.trim() !== "" ? custom.trim() : fallback;
 }

@@ -1,6 +1,24 @@
 /* Styling for the custom searchable sensor picker + live preview, matched to
    the sdpi-components dark look (#2d2d2d page, #3d3d3d inputs). */
 
+/* Bare elements (details/summary) fall back to the webview's serif default —
+   pin the app font for everything sdpi-components doesn't style itself. */
+body {
+	font-family: "Segoe UI", Arial, sans-serif;
+	color: #d8d8d8;
+}
+
+details > summary {
+	font-size: 9pt;
+	color: #969696;
+	cursor: pointer;
+	padding: 6px 12px 2px;
+}
+
+details > summary:hover {
+	color: #d8d8d8;
+}
+
 .hw-picker {
 	position: relative;
 	display: flex;
@@ -148,4 +166,72 @@
 
 .hw-hint[hidden] {
 	display: none;
+}
+
+/* Theme preset gallery: "Deck default" + the seven presets as mini key faces. */
+
+.hw-themes {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 6px;
+	padding: 2px 0;
+}
+
+.hw-theme {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+}
+
+.hw-theme-face {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 34px;
+	border-radius: 4px;
+	border: 1px solid #1f1f1f;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.hw-theme.selected .hw-theme-face {
+	outline: 2px solid #2660aa;
+	outline-offset: 1px;
+}
+
+.hw-theme-value {
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 13px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.hw-theme-spark {
+	position: absolute;
+	left: 4px;
+	right: 4px;
+	bottom: 4px;
+	height: 2px;
+	border-radius: 1px;
+}
+
+.hw-theme-name {
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 7.5pt;
+	color: #969696;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hw-theme.selected .hw-theme-name {
+	color: #d8d8d8;
 }

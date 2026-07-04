@@ -28,6 +28,10 @@
 			<sdpi-textfield setting="label" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
 		</sdpi-item>
 
+		<sdpi-item label="Theme">
+			<div class="hw-themes" id="theme-gallery"></div>
+		</sdpi-item>
+
 		<sdpi-item label="Show">
 			<sdpi-select setting="statMode" default="current">
 				<option value="current">Current value</option>
@@ -69,6 +73,23 @@
 
 		<details>
 			<summary>Advanced</summary>
+			<sdpi-item label="Deck theme">
+				<sdpi-select setting="theme" global default="void">
+					<option value="void">Void</option>
+					<option value="graphite">Graphite</option>
+					<option value="ultraviolet">Ultraviolet</option>
+					<option value="midnight">Midnight</option>
+					<option value="forest">Forest</option>
+					<option value="ember">Ember</option>
+					<option value="paper">Paper</option>
+				</sdpi-select>
+			</sdpi-item>
+			<sdpi-item label="Type accents">
+				<sdpi-select setting="typeAccents" global default="on">
+					<option value="on">On — accent color by sensor type</option>
+					<option value="off">Off — theme accent everywhere</option>
+				</sdpi-select>
+			</sdpi-item>
 			<sdpi-item label="Data source">
 				<sdpi-select setting="source" global default="auto">
 					<option value="auto">Auto (Shared Memory, else Gadget)</option>

@@ -28,6 +28,10 @@
 			<sdpi-textfield setting="label" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
 		</sdpi-item>
 
+		<sdpi-item label="Theme">
+			<div class="hw-themes" id="theme-gallery"></div>
+		</sdpi-item>
+
 		<sdpi-item label="Decimals">
 			<sdpi-select setting="decimals" default="auto">
 				<option value="auto">Auto</option>
@@ -49,10 +53,39 @@
 			<sdpi-textfield setting="barMax" pattern="^-?\d*([.,]\d+)?$" placeholder="max (auto: session high)"></sdpi-textfield>
 		</sdpi-item>
 
+		<sdpi-item label="Warn at">
+			<sdpi-textfield setting="warnValue" pattern="^-?\d*([.,]\d+)?$" placeholder="bar turns amber (display units)"></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item label="Critical at">
+			<sdpi-textfield setting="critValue" pattern="^-?\d*([.,]\d+)?$" placeholder="bar turns red (display units)"></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item label="Direction">
+			<sdpi-checkbox setting="alertBelow" label="Alert when value drops below thresholds"></sdpi-checkbox>
+		</sdpi-item>
+
 		<details>
 			<summary>Dial gestures &amp; advanced</summary>
 			<sdpi-item label="Gestures">
 				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Rotate: next/previous reading of the same source · Push: reset session min/max · Touch: cycle current/min/max/avg · Long touch: back to current.</div>
+			</sdpi-item>
+			<sdpi-item label="Deck theme">
+				<sdpi-select setting="theme" global default="void">
+					<option value="void">Void</option>
+					<option value="graphite">Graphite</option>
+					<option value="ultraviolet">Ultraviolet</option>
+					<option value="midnight">Midnight</option>
+					<option value="forest">Forest</option>
+					<option value="ember">Ember</option>
+					<option value="paper">Paper</option>
+				</sdpi-select>
+			</sdpi-item>
+			<sdpi-item label="Type accents">
+				<sdpi-select setting="typeAccents" global default="on">
+					<option value="on">On — accent color by sensor type</option>
+					<option value="off">Off — theme accent everywhere</option>
+				</sdpi-select>
 			</sdpi-item>
 			<sdpi-item label="Data source">
 				<sdpi-select setting="source" global default="auto">

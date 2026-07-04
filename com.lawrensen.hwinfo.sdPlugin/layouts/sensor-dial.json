@@ -3,47 +3,10 @@
 	"id": "sensor-dial",
 	"items": [
 		{
-			"key": "label",
-			"type": "text",
-			"rect": [8, 4, 184, 22],
-			"alignment": "left",
-			"color": "#8b8fa3",
-			"font": { "size": 15, "weight": 600 },
-			"text-overflow": "ellipsis",
-			"zOrder": 2
-		},
-		{
-			"key": "value",
-			"type": "text",
-			"rect": [8, 26, 184, 36],
-			"alignment": "left",
-			"color": "#ffffff",
-			"font": { "size": 28, "weight": 700 },
-			"text-overflow": "clip",
-			"zOrder": 3
-		},
-		{
-			"key": "stats",
-			"type": "text",
-			"rect": [8, 62, 184, 18],
-			"alignment": "left",
-			"color": "#6d7183",
-			"font": { "size": 12, "weight": 500 },
-			"text-overflow": "ellipsis",
-			"zOrder": 4
-		},
-		{
-			"key": "indicator",
-			"type": "gbar",
-			"rect": [8, 84, 184, 12],
-			"bar_h": 8,
-			"border_w": 0,
-			"subtype": 0,
-			"bar_bg_c": "#2c2f3a",
-			"bar_fill_c": "#4cc2ff",
-			"range": { "min": 0, "max": 100 },
-			"value": 0,
-			"zOrder": 5
+			"key": "canvas",
+			"type": "pixmap",
+			"rect": [0, 0, 200, 100],
+			"zOrder": 1
 		}
 	]
 }

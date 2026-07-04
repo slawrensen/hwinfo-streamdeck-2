@@ -12,8 +12,10 @@
 	"scripts": {
 		"build": "rollup -c && node scripts/copy-koffi.mjs",
 		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.lawrensen.hwinfo\"",
-		"lint": "eslint src scripts --max-warnings 0",
+		"lint": "eslint src scripts test --max-warnings 0",
 		"typecheck": "tsc --noEmit",
+		"test": "tsx --test test/themes.test.ts test/key-renderer.test.ts test/dial-renderer.test.ts",
+		"contact-sheet": "tsx scripts/contact-sheet.mjs",
 		"probe": "tsx src/probe.ts",
 		"e2e": "node scripts/e2e-harness.mjs",
 		"e2e:resilience": "node scripts/e2e-resilience.mjs",

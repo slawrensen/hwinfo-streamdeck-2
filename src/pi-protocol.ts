@@ -2,8 +2,11 @@
  * Message shapes exchanged with the property inspector pages (ui/pi-common.js).
  * All are `type` aliases (not interfaces) so they satisfy the SDK's JsonValue.
  */
+import type { JsonValue } from "@elgato/streamdeck";
+
 import type { PollerStatus } from "./poller";
 import { statusSentence } from "./ui/state-screens";
+import { loadThemes } from "./ui/themes";
 
 export type TreeReading = {
 	key: string;
@@ -49,6 +52,15 @@ export type PreviewPayload = {
 	/** True when a reading is selected but absent from the current snapshot. */
 	missing: boolean;
 };
+
+/**
+ * The theme tokens for the PI's preset gallery — served over the message
+ * channel because the PI webview cannot reliably fetch local files. The
+ * plugin's schema-validated themes.json stays the single source of truth.
+ */
+export function buildThemesPayload(): JsonValue {
+	return JSON.parse(JSON.stringify({ event: "themes", ...loadThemes() })) as JsonValue;
+}
 
 /** The full sensor list, grouped by source — sent on PI request. */
 export function buildSensorTree(status: PollerStatus): SensorTreePayload {
