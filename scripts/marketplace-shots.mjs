@@ -1,6 +1,9 @@
-// Marketplace listing screenshots (1920×1080), composed from the plugin's own
-// renderers with live HWiNFO values — the marketing art IS the product output.
-// Usage: npx tsx scripts/marketplace-shots.mjs <outputDir>
+// Marketplace listing stills (1920×960 per Elgato's product guidelines:
+// thumbnail + gallery are 1920×960 PNG; 1920×1080 is the VIDEO spec), composed
+// from the plugin's own renderers with live HWiNFO values — the marketing art
+// IS the product output. Emits gallery shots 1/2/4 (+3 with a capture dir)
+// and a dedicated thumbnail.png.
+// Usage: npx tsx scripts/marketplace-shots.mjs <outputDir> [piCaptureDir]
 import path from "node:path";
 import sharp from "sharp";
 
@@ -71,6 +74,10 @@ async function roundedKey(svg, size, radius, rim) {
 		.toBuffer();
 }
 
+/** Still-image canvas per current Elgato marketplace guidelines. */
+const W = 1920;
+const H = 960;
+
 const PAGE_BG = "#0B0C0E";
 const CARD_BG = "#101116";
 const CARD_BORDER = "#1D2026";
@@ -128,7 +135,8 @@ async function hero() {
 		face({ key: K.cpuLoad, label: "CPU Load", forceValue: 87.4 }),
 		face({ key: K.memLoad, label: "Memory Load", spark: false }),
 		face({ key: K.gpuTemp, label: "GPU Temp", level: "warn", forceValue: 84.6 }),
-		face({ key: K.gpuHot, label: "GPU Hot Spot", level: "crit", forceValue: 106.2, statBadge: "MAX" }),
+		// "GPU Hot" fits the badge-shortened label band without truncation.
+		face({ key: K.gpuHot, label: "GPU Hot", level: "crit", forceValue: 106.2, statBadge: "MAX" }),
 		face({ key: K.gpuPower, label: "GPU Power", forceValue: 316.4 }),
 		face({ key: K.gpuLoad, label: "GPU Load", forceValue: 98 }),
 		face({ key: K.vram, label: "VRAM Alloc", spark: false, forceValue: 14206 }),
@@ -144,16 +152,16 @@ async function hero() {
 	const PAD = 42;
 	const deckW = 5 * KEY + 4 * GAP + 2 * PAD;
 	const deckH = 3 * KEY + 2 * GAP + 2 * PAD;
-	const deckX = 1920 - deckW - 96;
-	const deckY = Math.round((1080 - deckH) / 2);
+	const deckX = W - deckW - 96;
+	const deckY = Math.round((H - deckH) / 2);
 
 	const chrome = [
 		`<rect x="${deckX}" y="${deckY}" width="${deckW}" height="${deckH}" rx="34" fill="#131418" stroke="#26282E" stroke-width="1.5"/>`,
-		`<text x="96" y="452" font-family="${FONT}" font-size="66" font-weight="700" fill="${HEADLINE}">HWiNFO Sensors</text>`,
-		`<text x="96" y="506" font-family="${FONT}" font-size="26" font-weight="400" fill="${BODY}">Live hardware telemetry on your Stream Deck.</text>`,
-		`<text x="96" y="582" font-family="${MONO}" font-size="17" fill="${CYAN}">temperatures · clocks · fans · power · load · network</text>`,
-		`<text x="96" y="620" font-family="${MONO}" font-size="17" fill="${MUTED}">7 themes · type accents · sparklines · aviation-style alerts</text>`,
-		`<text x="96" y="1008" font-family="${MONO}" font-size="15" fill="${MUTED}">every key face above is real plugin output — Ryzen 9 9950X3D + RTX 4090</text>`
+		`<text x="96" y="392" font-family="${FONT}" font-size="66" font-weight="700" fill="${HEADLINE}">HWiNFO Sensors</text>`,
+		`<text x="96" y="446" font-family="${FONT}" font-size="26" font-weight="400" fill="${BODY}">Live hardware telemetry on your Stream Deck.</text>`,
+		`<text x="96" y="522" font-family="${MONO}" font-size="17" fill="${CYAN}">temperatures · clocks · fans · power · load · network</text>`,
+		`<text x="96" y="560" font-family="${MONO}" font-size="17" fill="${MUTED}">7 themes · type accents · sparklines · aviation-style alerts</text>`,
+		`<text x="96" y="912" font-family="${MONO}" font-size="15" fill="${MUTED}">every key face above is real plugin output — Ryzen 9 9950X3D + RTX 4090</text>`
 	];
 
 	const composites = [];
@@ -166,7 +174,7 @@ async function hero() {
 			top: deckY + PAD + row * (KEY + GAP)
 		});
 	}
-	await sharp(Buffer.from(pageBase(1920, 1080, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-1-hero.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-1-hero.png"));
 }
 
 // ---------- shot 2: themes ----------
@@ -175,13 +183,13 @@ async function themes() {
 	const KEY = 196;
 	const GAP = 22;
 	const totalW = names.length * KEY + (names.length - 1) * GAP;
-	const startX = Math.round((1920 - totalW) / 2);
-	const rowY = [318, 318 + KEY + 58];
+	const startX = Math.round((W - totalW) / 2);
+	const rowY = [246, 246 + KEY + 54];
 
 	const chrome = [
-		`<text x="960" y="120" text-anchor="middle" font-family="${FONT}" font-size="52" font-weight="700" fill="${HEADLINE}">Seven themes. One instrument.</text>`,
-		`<text x="960" y="168" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">Per key or deck-wide — anchors never move, only the palette changes.</text>`,
-		`<text x="960" y="${rowY[1] + KEY + 76}" text-anchor="middle" font-family="${FONT}" font-size="21" fill="${BODY}">Alerts are global and never themed: amber field with black text at warn, red with white at critical.</text>`
+		`<text x="960" y="96" text-anchor="middle" font-family="${FONT}" font-size="52" font-weight="700" fill="${HEADLINE}">Seven themes. One instrument.</text>`,
+		`<text x="960" y="142" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">Per key or deck-wide — anchors never move, only the palette changes.</text>`,
+		`<text x="960" y="${rowY[1] + KEY + 64}" text-anchor="middle" font-family="${FONT}" font-size="21" fill="${BODY}">Alerts are global and never themed: amber field with black text at warn, red with white at critical.</text>`
 	];
 
 	const composites = [];
@@ -194,15 +202,15 @@ async function themes() {
 	}
 
 	// centered warn/crit pair under the wall
-	const pairY = rowY[1] + KEY + 108;
+	const pairY = rowY[1] + KEY + 92;
 	const pair = [
 		face({ key: K.gpuTemp, label: "GPU Temp", level: "warn", forceValue: 84.6 }),
-		face({ key: K.gpuHot, label: "GPU Hot Spot", level: "crit", forceValue: 106.2, statBadge: "MAX" })
+		face({ key: K.gpuHot, label: "GPU Hot", level: "crit", forceValue: 106.2, statBadge: "MAX" })
 	];
 	for (let i = 0; i < 2; i++) {
 		composites.push({ input: await roundedKey(pair[i], 150, 17, "#26282E"), left: 960 - 160 + i * 170, top: pairY });
 	}
-	await sharp(Buffer.from(pageBase(1920, 1080, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-2-themes.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-2-themes.png"));
 }
 
 // ---------- shot 4: dials (Stream Deck +) ----------
@@ -245,19 +253,19 @@ async function dials() {
 	const deckW = Math.max(4 * KEY + 3 * GAP, stripW) + 2 * PAD;
 	const keysW = 4 * KEY + 3 * GAP;
 	const deckH = PAD + 2 * KEY + GAP + 26 + 148 + 100 + PAD;
-	const deckX = 1920 - deckW - 110;
-	const deckY = Math.round((1080 - deckH) / 2);
+	const deckX = W - deckW - 110;
+	const deckY = Math.round((H - deckH) / 2);
 
 	const chrome = [
 		`<rect x="${deckX}" y="${deckY}" width="${deckW}" height="${deckH}" rx="34" fill="#131418" stroke="#26282E" stroke-width="1.5"/>`,
-		`<text x="110" y="420" font-family="${FONT}" font-size="56" font-weight="700" fill="${HEADLINE}">Dials, themed too.</text>`,
-		`<text x="110" y="478" font-family="${FONT}" font-size="24" fill="${BODY}">Stream Deck + touchscreen slots</text>`,
-		`<text x="110" y="514" font-family="${FONT}" font-size="24" fill="${BODY}">with live value, session range and</text>`,
-		`<text x="110" y="550" font-family="${FONT}" font-size="24" fill="${BODY}">a bar that flips to the alert color</text>`,
-		`<text x="110" y="586" font-family="${FONT}" font-size="24" fill="${BODY}">when a threshold trips.</text>`,
-		`<text x="110" y="650" font-family="${MONO}" font-size="16" fill="${MUTED}">rotate · switch reading</text>`,
-		`<text x="110" y="682" font-family="${MONO}" font-size="16" fill="${MUTED}">push · reset session</text>`,
-		`<text x="110" y="714" font-family="${MONO}" font-size="16" fill="${MUTED}">touch · cycle stat</text>`
+		`<text x="110" y="360" font-family="${FONT}" font-size="56" font-weight="700" fill="${HEADLINE}">Dials, themed too.</text>`,
+		`<text x="110" y="418" font-family="${FONT}" font-size="24" fill="${BODY}">Stream Deck + touchscreen slots</text>`,
+		`<text x="110" y="454" font-family="${FONT}" font-size="24" fill="${BODY}">with live value, session range and</text>`,
+		`<text x="110" y="490" font-family="${FONT}" font-size="24" fill="${BODY}">a bar that flips to the alert color</text>`,
+		`<text x="110" y="526" font-family="${FONT}" font-size="24" fill="${BODY}">when a threshold trips.</text>`,
+		`<text x="110" y="590" font-family="${MONO}" font-size="16" fill="${MUTED}">rotate · switch reading</text>`,
+		`<text x="110" y="622" font-family="${MONO}" font-size="16" fill="${MUTED}">push · reset session</text>`,
+		`<text x="110" y="654" font-family="${MONO}" font-size="16" fill="${MUTED}">touch · cycle stat</text>`
 	];
 
 	const composites = [];
@@ -286,7 +294,7 @@ async function dials() {
 			top: stripY + 148 + 22
 		});
 	}
-	await sharp(Buffer.from(pageBase(1920, 1080, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-4-dials.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-4-dials.png"));
 }
 
 // ---------- shot 3: settings panel (from capture-pi.mjs screenshots) ----------
@@ -296,15 +304,15 @@ async function settings(piDir) {
 		{ file: "pi-settings.png", title: "Themes, thresholds and sparkline per key" }
 	];
 	const CROP_H = 1150; // content ends at the Advanced fold (2× captures are 800px wide)
-	const SCALE_H = 760;
+	const SCALE_H = 700;
 	const w = Math.round(800 * (SCALE_H / CROP_H));
 	const gap = 96;
-	const startX = Math.round((1920 - (2 * w + gap)) / 2);
-	const top = 216;
+	const startX = Math.round((W - (2 * w + gap)) / 2);
+	const top = 178;
 
 	const chrome = [
-		`<text x="960" y="112" text-anchor="middle" font-family="${FONT}" font-size="50" font-weight="700" fill="${HEADLINE}">Set up in seconds.</text>`,
-		`<text x="960" y="160" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">The real settings panel — search 500+ readings with live values, pick a theme, set thresholds.</text>`
+		`<text x="960" y="84" text-anchor="middle" font-family="${FONT}" font-size="50" font-weight="700" fill="${HEADLINE}">Set up in seconds.</text>`,
+		`<text x="960" y="130" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">The real settings panel — search 500+ readings with live values, pick a theme, set thresholds.</text>`
 	];
 	const composites = [];
 	for (let i = 0; i < panels.length; i++) {
@@ -316,16 +324,63 @@ async function settings(piDir) {
 		);
 		composites.push({ input: img, left: x, top });
 	}
-	await sharp(Buffer.from(pageBase(1920, 1080, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-3-settings.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-3-settings.png"));
+}
+
+// ---------- thumbnail (dedicated 1920×960 listing card) ----------
+async function thumbnail() {
+	// Purpose-built per the guidelines: depicts real functionality with large
+	// legible text — one row of real key faces + a real dial slot.
+	const KEY = 220;
+	const GAP = 18;
+	const faces = [
+		face({ key: K.cpuTemp, label: "CPU Temp", forceValue: 71.4 }),
+		face({ key: K.gpuTemp, label: "GPU Temp", level: "warn", forceValue: 84.6 }),
+		face({ key: K.cpuPower, label: "CPU Power", forceValue: 142.8 }),
+		face({ key: K.gpuLoad, label: "GPU Load", forceValue: 98 }),
+		face({ key: K.pump, label: "Pump" })
+	];
+	const rowW = faces.length * KEY + (faces.length - 1) * GAP;
+	const rowX = Math.round((W - rowW) / 2);
+	const rowY = 404;
+
+	const r = byKey(K.gpuHot);
+	const palette = resolvePalette(config, "void", classifyTypeAccent(r.type, r.unit, r.label), "normal");
+	const dial = renderDial({
+		title: "GPU Hot Spot",
+		valueText: formatValue(106.2, "auto"),
+		unitText: "°C · MAX",
+		statsText: `▼ ${formatValue(r.valueMin, "auto")}   ▲ 106.2   session`,
+		fraction: 0.97,
+		palette,
+		barColor: config.alerts.crit.bg
+	});
+
+	const chrome = [
+		`<text x="960" y="180" text-anchor="middle" font-family="${FONT}" font-size="86" font-weight="700" fill="${HEADLINE}">HWiNFO Sensors</text>`,
+		`<text x="960" y="248" text-anchor="middle" font-family="${FONT}" font-size="32" fill="${BODY}">Live hardware telemetry on keys and dials</text>`,
+		`<text x="960" y="322" text-anchor="middle" font-family="${MONO}" font-size="22" fill="${CYAN}">temperatures · clocks · fans · power · load · network</text>`,
+		`<text x="960" y="878" text-anchor="middle" font-family="${MONO}" font-size="20" fill="${MUTED}">7 themes · sparklines · warn/critical alerts · Stream Deck +</text>`
+	];
+	const composites = [];
+	for (let i = 0; i < faces.length; i++) {
+		composites.push({ input: await roundedKey(faces[i], KEY, 24, "#26282E"), left: rowX + i * (KEY + GAP), top: rowY });
+	}
+	// centered dial slot under the key row
+	const dialPng = await rasterize(dial, 1.6, 200, 100);
+	const dialMask = Buffer.from(`<svg width="320" height="160"><rect width="320" height="160" rx="12" fill="#fff"/></svg>`);
+	composites.push({ input: await sharp(dialPng).composite([{ input: dialMask, blend: "dest-in" }]).png().toBuffer(), left: 960 - 160, top: rowY + KEY + 44 });
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "thumbnail.png"));
 }
 
 await hero();
 await themes();
 await dials();
+await thumbnail();
 const piDir = process.argv[3];
 if (piDir !== undefined) {
 	await settings(piDir);
-	console.log(`Rendered shots 1-4 to ${outDir}/`);
+	console.log(`Rendered thumbnail + shots 1-4 (${W}x${H}) to ${outDir}/`);
 } else {
-	console.log(`Rendered shots 1, 2, 4 to ${outDir}/ (pass a capture dir with pi-settings.png + pi-picker.png for shot 3)`);
+	console.log(`Rendered thumbnail + shots 1, 2, 4 (${W}x${H}) to ${outDir}/ (pass a capture dir with pi-settings.png + pi-picker.png for shot 3)`);
 }
