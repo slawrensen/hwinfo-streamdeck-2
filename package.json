@@ -1,0 +1,41 @@
+{
+	"name": "hwinfo-streamdeck",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Elgato Stream Deck plugin that displays live HWiNFO sensor readings on keys and dials",
+	"author": "Stephen Lawrensen",
+	"license": "MIT",
+	"engines": {
+		"node": ">=20"
+	},
+	"scripts": {
+		"build": "rollup -c && node scripts/copy-koffi.mjs",
+		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.lawrensen.hwinfo\"",
+		"lint": "eslint src scripts --max-warnings 0",
+		"typecheck": "tsc --noEmit",
+		"probe": "tsx src/probe.ts",
+		"icons": "node scripts/gen-icons.mjs",
+		"pack": "streamdeck pack com.lawrensen.hwinfo.sdPlugin --output release --force"
+	},
+	"dependencies": {
+		"@elgato/streamdeck": "^2.1.0",
+		"koffi": "^3.1.0"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"@rollup/plugin-commonjs": "^29.0.3",
+		"@rollup/plugin-node-resolve": "^16.0.3",
+		"@rollup/plugin-terser": "^1.0.0",
+		"@rollup/plugin-typescript": "^12.3.0",
+		"@types/node": "^26.1.0",
+		"eslint": "^10.6.0",
+		"globals": "^17.7.0",
+		"rollup": "^4.62.2",
+		"sharp": "^0.35.3",
+		"tslib": "^2.8.1",
+		"tsx": "^4.23.0",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.62.1"
+	}
+}

@@ -1,0 +1,65 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"UUID": "com.lawrensen.hwinfo",
+	"Name": "HWiNFO Sensors",
+	"Version": "1.0.0.0",
+	"Author": "Stephen Lawrensen",
+	"Description": "Live HWiNFO sensor readings on your Stream Deck — temperatures, clocks, fans, power and more, with thresholds, sparklines and dial support. Requires HWiNFO with Shared Memory Support enabled.",
+	"Category": "HWiNFO",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 2,
+	"Software": {
+		"MinimumVersion": "6.6"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"Actions": [
+		{
+			"Name": "Sensor Reading",
+			"UUID": "com.lawrensen.hwinfo.reading",
+			"Icon": "imgs/actions/reading/icon",
+			"Tooltip": "Display a live HWiNFO sensor reading on a key, with thresholds and sparkline.",
+			"PropertyInspectorPath": "ui/sensor-reading.html",
+			"Controllers": ["Keypad"],
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/reading/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
+			"Name": "Sensor Dial",
+			"UUID": "com.lawrensen.hwinfo.dial",
+			"Icon": "imgs/actions/dial/icon",
+			"Tooltip": "Show a HWiNFO sensor on the touchscreen. Rotate to switch readings, press to reset session min/max.",
+			"PropertyInspectorPath": "ui/sensor-dial.html",
+			"Controllers": ["Encoder"],
+			"Encoder": {
+				"layout": "layouts/sensor-dial.json",
+				"TriggerDescription": {
+					"Rotate": "Cycle readings in group",
+					"Push": "Reset session min/max",
+					"Touch": "Cycle stat mode",
+					"LongTouch": "Back to current value"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/actions/dial/icon"
+				}
+			]
+		}
+	]
+}
