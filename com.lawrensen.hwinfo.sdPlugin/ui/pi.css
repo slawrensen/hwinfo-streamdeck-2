@@ -1,0 +1,147 @@
+/* Styling for the custom searchable sensor picker + live preview, matched to
+   the sdpi-components dark look (#2d2d2d page, #3d3d3d inputs). */
+
+.hw-picker {
+	position: relative;
+	display: flex;
+	gap: 4px;
+}
+
+.hw-picker input {
+	flex: 1;
+	box-sizing: border-box;
+	background: #3d3d3d;
+	border: none;
+	border-radius: 0;
+	color: #d8d8d8;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 9pt;
+	padding: 4px 6px;
+	outline: none;
+	min-width: 0;
+}
+
+.hw-picker input::placeholder {
+	color: #7f7f7f;
+}
+
+.hw-picker button {
+	background: #3d3d3d;
+	border: none;
+	color: #969696;
+	cursor: pointer;
+	font-size: 9pt;
+	padding: 0 8px;
+}
+
+.hw-picker button:hover {
+	color: #d8d8d8;
+}
+
+.hw-picker-list {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	z-index: 50;
+	max-height: 280px;
+	overflow-y: auto;
+	background: #383838;
+	border: 1px solid #1f1f1f;
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 9pt;
+}
+
+.hw-picker-list[hidden] {
+	display: none;
+}
+
+.hw-group {
+	position: sticky;
+	top: 0;
+	background: #2f2f2f;
+	color: #8ecbff;
+	font-weight: 600;
+	padding: 4px 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.hw-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 3px 8px 3px 14px;
+	color: #d8d8d8;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.hw-row:hover {
+	background: #4a4a4a;
+}
+
+.hw-row.selected {
+	background: #2660aa;
+	color: #ffffff;
+}
+
+.hw-row .hw-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.hw-row .hw-val {
+	color: #9a9a9a;
+	flex-shrink: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.hw-row.selected .hw-val {
+	color: #cfe3ff;
+}
+
+.hw-more {
+	padding: 4px 8px;
+	color: #8a8a8a;
+	font-style: italic;
+}
+
+.hw-preview {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	font-family: "Segoe UI", Arial, sans-serif;
+	color: #d8d8d8;
+	padding: 2px 0;
+	min-height: 22px;
+}
+
+#preview-value {
+	font-size: 14pt;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+#preview-stats {
+	font-size: 8pt;
+	color: #969696;
+	font-variant-numeric: tabular-nums;
+}
+
+.hw-hint {
+	margin: 6px 12px;
+	padding: 6px 8px;
+	background: #4a3a1e;
+	border-left: 3px solid #f5a623;
+	color: #ffd996;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 8.5pt;
+	line-height: 1.35;
+}
+
+.hw-hint[hidden] {
+	display: none;
+}

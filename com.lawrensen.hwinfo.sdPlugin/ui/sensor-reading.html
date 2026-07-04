@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Sensor Reading settings</title>
+		<script src="sdpi-components.js"></script>
+		<link rel="stylesheet" href="pi.css" />
+	</head>
+	<body>
+		<sdpi-item label="Sensor">
+			<div class="hw-picker">
+				<input id="picker-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
+				<button id="picker-refresh" type="button" title="Reload sensor list">⟳</button>
+				<div class="hw-picker-list" id="picker-list" hidden></div>
+			</div>
+		</sdpi-item>
+
+		<sdpi-item label="Live value">
+			<div class="hw-preview">
+				<span id="preview-value">—</span>
+				<span id="preview-stats"></span>
+			</div>
+		</sdpi-item>
+
+		<div class="hw-hint" id="status-hint" hidden></div>
+
+		<sdpi-item label="Label">
+			<sdpi-textfield setting="label" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item label="Show">
+			<sdpi-select setting="statMode" default="current">
+				<option value="current">Current value</option>
+				<option value="min">Minimum (since HWiNFO start)</option>
+				<option value="max">Maximum (since HWiNFO start)</option>
+				<option value="avg">Average (since HWiNFO start)</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Decimals">
+			<sdpi-select setting="decimals" default="auto">
+				<option value="auto">Auto</option>
+				<option value="0">0</option>
+				<option value="1">1</option>
+				<option value="2">2</option>
+				<option value="3">3</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Unit">
+			<sdpi-checkbox setting="fahrenheit" label="Show temperatures in °F"></sdpi-checkbox>
+		</sdpi-item>
+
+		<sdpi-item label="Sparkline">
+			<sdpi-checkbox setting="sparkline" label="Show recent history"></sdpi-checkbox>
+		</sdpi-item>
+
+		<sdpi-item label="Warn at">
+			<sdpi-textfield setting="warnValue" pattern="^-?\d*([.,]\d+)?$" placeholder="key turns amber (display units)"></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item label="Critical at">
+			<sdpi-textfield setting="critValue" pattern="^-?\d*([.,]\d+)?$" placeholder="key turns red (display units)"></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item label="Direction">
+			<sdpi-checkbox setting="alertBelow" label="Alert when value drops below thresholds"></sdpi-checkbox>
+		</sdpi-item>
+
+		<details>
+			<summary>Advanced</summary>
+			<sdpi-item label="Poll every">
+				<sdpi-select setting="pollIntervalMs" global default="1000">
+					<option value="250">250 ms</option>
+					<option value="500">500 ms</option>
+					<option value="1000">1 second</option>
+					<option value="2000">2 seconds</option>
+					<option value="5000">5 seconds</option>
+				</sdpi-select>
+			</sdpi-item>
+			<sdpi-item label="Tip">
+				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Pressing the key cycles current → min → max → avg.</div>
+			</sdpi-item>
+		</details>
+
+		<script src="pi-common.js"></script>
+	</body>
+</html>

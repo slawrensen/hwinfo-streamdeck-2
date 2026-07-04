@@ -48,6 +48,7 @@
 			"Controllers": ["Encoder"],
 			"Encoder": {
 				"layout": "layouts/sensor-dial.json",
+				"Icon": "imgs/actions/dial/dial",
 				"TriggerDescription": {
 					"Rotate": "Cycle readings in group",
 					"Push": "Reset session min/max",
@@ -57,7 +58,7 @@
 			},
 			"States": [
 				{
-					"Image": "imgs/actions/dial/icon"
+					"Image": "imgs/actions/dial/dial"
 				}
 			]
 		}
