@@ -232,3 +232,22 @@ Total: 7,278 key frames + 250 dial feedbacks, zero invalid. The load suite
 is part of `npm run suite:full` (45 s soak variant). On-device coverage:
 two injected "HWiNFO test" pages on the live deck hold one key per sensor
 source (all 21) across all seven themes with threshold/°F/stat variants.
+
+### 2026-07-04 18:15 — live page-cycling proof (real Stream Deck app)
+
+Full 13-key pages of each HWiNFO plugin cycled against an empty page in the
+REAL app (page clicks via the app UI, verified on screen; 10 s process
+sampling; competitor plugins installed side by side):
+
+| Phase | ours CPU / RSS | shayne CPU / RSS | 5e CPU / RSS |
+| --- | --- | --- | --- |
+| own page visible | 0.08 % / 37.8 MB | 1.44 % / 43.9 MB | 0.67 % / 41.6 MB |
+| everything hidden | **0.00 % / 37.3 MB** | 1.90–2.15 % / 44.2→47.0 MB | 0.59 % / 44.6 MB |
+| 10 min later | flat / 38.3 MB | 2.03 % / 44.9 MB (never released) | 0.68 % / 44.4 MB (never released) |
+
+Ours is the only plugin that goes to zero CPU with flat RSS when its keys
+leave the screen — poller log "Stopped (no visible actions)"/"Started"
+timestamps match every page click. Both competitors keep polling forever
+after first render and hold peak RSS; shayne burns more CPU hidden than
+visible. (Headless 5-min controlled run, same day: ours 0.10 % CPU / 57 MB /
+6-of-6 keys vs shayne 0.90 % / 72 MB / 5-of-6 vs 5e 0.20 % / 55.5 MB / 6-of-6.)
