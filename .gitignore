@@ -10,9 +10,17 @@ com.lawrensen.hwinfo.sdPlugin/NOTICE.md
 # Stream Deck runtime logs
 com.lawrensen.hwinfo.sdPlugin/logs/
 
-# Packaged plugin
-release/
+# Packaged plugin (root output dir only)
+/release/
 *.streamDeckPlugin
+
+# Internal working docs and machine-local agent config. Kept on disk and in
+# backups, never in the public repo. Do not git add -f these.
+/MARKETPLACE.md
+/design/
+/CLAUDE.md
+/.claude/
+/docs/release/
 
 # Misc
 *.log
