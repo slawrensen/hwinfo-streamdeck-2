@@ -34,6 +34,23 @@ process.on("unhandledRejection", (reason) => {
 // top-level import.
 await initKoffi();
 
+// The Stream Deck app reaps plugin processes through its job object, but if
+// it ever dies without that teardown (hard crash), the poller's interval
+// would keep this process alive — polling for nobody. Watch the parent and
+// leave when it does. SDK 1.4.1 exposes no connection-close event, and the
+// watchdog also covers closes the socket never sees. unref'd so the timer
+// itself never holds the event loop open.
+const parentPid = process.ppid;
+const PARENT_CHECK_MS = Number(process.env.HWINFO_PARENT_CHECK_MS ?? "") || 30_000;
+setInterval(() => {
+	try {
+		process.kill(parentPid, 0); // signal 0 = existence probe
+	} catch {
+		streamDeck.logger.info("Parent process gone — exiting.");
+		process.exit(0);
+	}
+}, PARENT_CHECK_MS).unref();
+
 streamDeck.actions.registerAction(new SensorReadingAction());
 streamDeck.actions.registerAction(new SensorDialAction());
 

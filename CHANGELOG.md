@@ -2,6 +2,14 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.1.0 — 2026-07-04
+
+- Hardening: the plugin now watches its parent process and exits if the
+  Stream Deck app dies without cleaning up (hard-crash scenario found during
+  competitive benchmarking — previously the poller could keep the process
+  alive with nobody to render for; normal operation already relied on the
+  app's job object). No functional changes.
+
 ## 1.1.0.0 — 2026-07-04 (initial Marketplace release)
 
 First public release. Tag: `v1.1.0`.

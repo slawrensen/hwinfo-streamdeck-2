@@ -299,3 +299,15 @@ plugin process under the app, ring 42 pages, suite:full ALL GREEN with
 zero orphans, no VSB key, poller live on shared memory. To reproduce the
 benchmark: packs at the URLs in the 3-way entries above; shayne settings
 schema + VSB-bridge pattern documented in the session ledger.
+
+### 2026-07-04 21:40 — 1.1.1.0: parent-liveness watchdog
+
+Hardening from the benchmark finding: an unref'd 30 s interval probes the
+parent PID (signal 0); if the Stream Deck app dies without its job-object
+teardown, the plugin exits instead of polling for nobody. Proven: ephemeral
+parent spawned the built plugin (1.5 s check interval), key visible and
+rendering, parent died → plugin self-exited within one interval; 8 s
+survivor check clean. Ruling: socket-close-while-parent-alive still lingers
+by design — that state only occurs during app-initiated restarts, where the
+app kills the process itself. All suites green (96 unit, e2e ×3, load).
+Pack 1.1.1.0: 554,076 B, SHA d710959… (+94 B for the watchdog).
