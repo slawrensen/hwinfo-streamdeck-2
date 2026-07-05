@@ -10,10 +10,10 @@
 		<details class="hw-setup">
 			<summary>First time? HWiNFO setup</summary>
 			<p>
-				1. Install and start <b>HWiNFO</b> (hwinfo.com) in Sensors mode.<br />
-				2. In HWiNFO Settings, enable <b>Shared Memory Support</b> — or on the free
-				version, right-click sensors and tick <b>“Report value in Gadget”</b>
-				(no 12-hour limit).<br />
+				1. Install and start <b>HWiNFO</b> (hwinfo.com) in Sensors-only mode.<br />
+				2. In HWiNFO Settings, enable <b>Shared Memory Support</b>. On the free
+				version you can instead right-click sensors and tick <b>“Report value in
+				Gadget”</b> (no 12-hour limit).<br />
 				3. Pick a sensor below. That's it.
 			</p>
 		</details>
@@ -80,7 +80,7 @@
 		<details>
 			<summary>Dial gestures &amp; advanced</summary>
 			<sdpi-item label="Gestures">
-				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Rotate: next/previous reading of the same source · Push: reset session min/max · Touch: cycle current/min/max/avg · Long touch: back to current.</div>
+				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Rotate: next/previous reading of the same sensor · Push: reset session min/max · Touch: cycle current/min/max/avg · Long touch: back to current.</div>
 			</sdpi-item>
 			<sdpi-item label="Deck theme">
 				<sdpi-select setting="theme" global default="void">
@@ -93,11 +93,11 @@
 					<option value="paper">Paper</option>
 				</sdpi-select>
 			</sdpi-item>
-			<div class="hw-help">Fallback for keys and dials set to “Deck default”. Ones with their own theme keep it.</div>
+			<div class="hw-help">Fallback for keys and dials set to “Deck default”. Keys and dials with their own theme keep it.</div>
 			<sdpi-item label="Type accents">
 				<sdpi-select setting="typeAccents" global default="on">
-					<option value="on">On — accent color by sensor type</option>
-					<option value="off">Off — theme accent everywhere</option>
+					<option value="on">On (accent color by sensor type)</option>
+					<option value="off">Off (theme accent everywhere)</option>
 				</sdpi-select>
 			</sdpi-item>
 			<sdpi-item label="Data source">

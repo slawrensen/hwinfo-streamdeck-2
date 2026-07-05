@@ -1,5 +1,5 @@
 /**
- * Standalone smoke test for the HWiNFO readers — run with `npm run probe`.
+ * Standalone smoke test for the HWiNFO readers; run with `npm run probe`.
  * Requires no Stream Deck; prints live readings grouped by sensor source, or
  * a precise diagnostic when HWiNFO data is unavailable. Prefers shared
  * memory and falls back to the Gadget registry, exactly like the plugin.
@@ -20,10 +20,10 @@ const forceGadget = args.has("--gadget");
 
 const GUIDANCE: Record<string, string> = {
 	"unsupported-platform": "This probe needs 64-bit Windows (x64); HWiNFO's interfaces aren't readable here.",
-	"not-running": "Start HWiNFO and enable Settings → 'Shared Memory Support' (Sensors window open, or Sensors-only mode) — or enable Gadget reporting and tick sensors (free, no 12-hour limit).",
-	"gadget-empty": "The Gadget registry exists but is empty — in HWiNFO's sensor window, tick 'Report value in Gadget' for the sensors you need.",
+	"not-running": "Start HWiNFO and enable Settings → 'Shared Memory Support' (Sensors window open, or Sensors-only mode), or enable Gadget reporting and tick sensors (free, no 12-hour limit).",
+	"gadget-empty": "The Gadget registry exists but is empty. In HWiNFO's sensor window, tick 'Report value in Gadget' for the sensors you need.",
 	"access-denied": "HWiNFO and this process run at different privilege levels. Run both elevated or both non-elevated.",
-	disabled: "Shared Memory Support is switched off in HWiNFO — re-enable it in Settings. On the free version it auto-disables after 12 hours; HWiNFO Pro removes that limit.",
+	disabled: "Shared Memory Support is switched off in HWiNFO. Re-enable it in Settings; the free version auto-disables it after 12 hours and HWiNFO Pro removes that limit.",
 	invalid: "The shared-memory contents did not validate; HWiNFO may be mid-restart or an incompatible version. Try again in a few seconds."
 };
 
@@ -41,7 +41,7 @@ function fmt(r: Reading): string {
 function read(provider: SnapshotProvider): SensorSnapshot {
 	const snapshot = provider.read();
 	if (snapshot === null) {
-		console.error("Could not acquire the HWiNFO mutex within 150 ms — trying once more...");
+		console.error("Could not acquire the HWiNFO mutex within 150 ms; trying once more...");
 		const retry = provider.read();
 		if (retry === null) {
 			console.error("Still locked; giving up.");
@@ -65,7 +65,7 @@ try {
 	// Same fallback order as the plugin's "auto" mode.
 	try {
 		session = GadgetRegistryProvider.open();
-		console.error(`Shared memory unavailable [${err.reason}] — fell back to the Gadget registry.`);
+		console.error(`Shared memory unavailable [${err.reason}]; fell back to the Gadget registry.`);
 	} catch (gadgetErr) {
 		if (gadgetErr instanceof HwinfoError) {
 			bail(err); // shared memory's diagnosis is the actionable one
@@ -76,7 +76,7 @@ try {
 
 try {
 	// read()/parseSnapshot can throw HwinfoError too ("disabled" when the free
-	// version's 12 h timer wrote the DEAD magic, "invalid" mid-restart) — route
+	// version's 12 h timer wrote the DEAD magic, "invalid" mid-restart); route
 	// those through the same guidance table instead of a raw stack trace.
 	const first = read(session);
 
@@ -91,8 +91,8 @@ try {
 		console.log(JSON.stringify({ ...snapshot, byKey: undefined, advancing }, null, 2));
 	} else {
 		const label = session.source === "gadget" ? "Gadget registry" : `shared memory v${snapshot.version}.${snapshot.revision}`;
-		console.log(`HWiNFO ${label} — ${snapshot.sensors.length} sensors, ${snapshot.readings.length} readings [source: ${session.source}]`);
-		console.log(`last poll: ${new Date(snapshot.pollTime * 1000).toISOString()} (${ageSec}s ago) — advancing: ${advancing ? "yes" : "NO (previous poll " + first.pollTime + ")"}`);
+		console.log(`HWiNFO ${label}: ${snapshot.sensors.length} sensors, ${snapshot.readings.length} readings [source: ${session.source}]`);
+		console.log(`last poll: ${new Date(snapshot.pollTime * 1000).toISOString()} (${ageSec}s ago), advancing: ${advancing ? "yes" : "NO (previous poll " + first.pollTime + ")"}`);
 		console.log("");
 
 		const bySensor = new Map<number, Reading[]>();
@@ -115,7 +115,7 @@ try {
 				printed++;
 			}
 			if (printed >= limit && !showAll) {
-				console.log(`\n…truncated at ${limit} readings — rerun with --all for everything.`);
+				console.log(`\n…truncated at ${limit} readings; rerun with --all for everything.`);
 				break;
 			}
 		}

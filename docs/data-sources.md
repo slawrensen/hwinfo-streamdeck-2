@@ -3,7 +3,7 @@ title: Data sources
 nav_order: 8
 ---
 
-The plugin reads HWiNFO through one of two local interfaces. It picks the best one automatically, so most people never touch this — but knowing the trade-offs explains why some keys can't show min/max/avg, and why readings keep working after HWiNFO's free 12-hour timer.
+The plugin reads HWiNFO through one of two local interfaces. It picks the best one automatically, so most people never touch this, but knowing the trade-offs explains why some keys can't show min/max/avg, and why readings keep working after HWiNFO's free 12-hour timer.
 
 ## Shared Memory vs. Gadget registry
 
@@ -11,9 +11,9 @@ The plugin reads HWiNFO through one of two local interfaces. It picks the best o
 | --- | --- | --- |
 | What it reads | `Global\HWiNFO_SENS_SM2` mapping | `HKCU\Software\HWiNFO64\VSB` registry key |
 | Sensor coverage | **everything** HWiNFO measures (~500+ readings) | only the sensors you tick in HWiNFO |
-| Min / max / average | ✅ full stats since HWiNFO started | — current value only (min/max/avg **show the current value**) |
+| Min / max / average | ✅ full stats since HWiNFO started | current value only (min/max/avg **show the current value**) |
 | Free version | auto-disables after **12 hours** (HWiNFO Pro: unlimited) | ✅ no time limit |
-| Works across privilege levels | usually — fails only when HWiNFO is elevated and Stream Deck is not (see [Troubleshooting](troubleshooting.md)) | ✅ yes |
+| Works across privilege levels | usually: fails only when HWiNFO is elevated and Stream Deck is not (see [Troubleshooting](troubleshooting.md)) | ✅ yes |
 | Enable in HWiNFO | Settings → **Shared Memory Support** | sensor right-click → **Report value in Gadget** |
 
 Shared Memory is richer in every way except licensing: on the free version it switches itself off after 12 hours of runtime. The Gadget registry has none of that time pressure but only carries the current value of the specific readings you ticked, with no historical min/max/avg.
@@ -26,14 +26,14 @@ In HWiNFO → **Settings** → tick **Shared Memory Support**. This is the recom
 
 ### Enabling Gadget reporting
 
-In HWiNFO's Sensors window, right-click each reading you want and tick **Report value in Gadget**. Only ticked readings appear to the plugin — an enabled-but-empty Gadget key surfaces a **Tick sensors / in Gadget** screen on the key.
+In HWiNFO's Sensors window, right-click each reading you want and tick **Report value in Gadget**. Only ticked readings appear to the plugin; an enabled-but-empty Gadget key surfaces a **Tick sensors / in Gadget** screen on the key.
 
 ## Auto mode
 
 The **Data source** setting defaults to **Auto**, and it's what most setups should stay on. In Auto mode the plugin:
 
 1. Uses **Shared Memory** whenever it's available.
-2. **Silently falls back to the Gadget registry** when Shared Memory isn't usable — for example after the free version's 12-hour timer expires, or if you turned Shared Memory Support off but still have Gadget reporting on.
+2. **Silently falls back to the Gadget registry** when Shared Memory isn't usable, for example after the free version's 12-hour timer expires, or if you turned Shared Memory Support off but still have Gadget reporting on.
 3. **Upgrades back to Shared Memory** on its own once it returns (probed roughly every 15 seconds while on the fallback), so restarting HWiNFO or re-enabling sharing quietly restores full stats with no clicks.
 
 There's one exception to the "prefer Shared Memory" rule: if Shared Memory is simply not running *and* you have Gadget reporting enabled but no sensors ticked, the plugin shows the more helpful **Tick sensors / in Gadget** guidance rather than a generic "Start HWiNFO".
@@ -44,7 +44,7 @@ The plugin runs **one reader** for the whole deck regardless of how many keys an
 
 ## Advanced settings
 
-Both the Sensor Reading (key) and Sensor Dial actions expose the same two data-source controls under **Advanced**. They are **global** — one setting for the whole plugin, not per key.
+Both the Sensor Reading (key) and Sensor Dial actions expose the same two data-source controls under **Advanced** (on dials the section is labelled **Dial gestures & advanced**). They are **global**: one setting for the whole plugin, not per key.
 
 ### Data source
 
@@ -58,9 +58,9 @@ Both the Sensor Reading (key) and Sensor Dial actions expose the same two data-s
 
 How often the plugin reads the source, from **250 ms** to **5 seconds** (default **1 second**). One reader serves every visible key and dial, so this is the plugin's total read rate, not per-key.
 
-> **Note:** HWiNFO updates its own sensors on a separate poll cycle (default **2 seconds**, set in HWiNFO's own settings). That cycle is the real ceiling on how fast values and sparklines change — polling the plugin faster than HWiNFO refreshes just re-reads the same numbers. Match or slightly under-run HWiNFO's interval for the freshest data without wasted reads. A slower plugin poll is a fine way to trim CPU further if you don't need sub-second updates.
+> **Note:** HWiNFO updates its own sensors on a separate poll cycle (default **2 seconds**, set in HWiNFO's own settings). That cycle is the real ceiling on how fast values and sparklines change; polling the plugin faster than HWiNFO refreshes just re-reads the same numbers. Match or slightly under-run HWiNFO's interval for the freshest data without wasted reads. A slower plugin poll is a fine way to trim CPU further if you don't need sub-second updates.
 
 ## How this shows up elsewhere
 
-- On the Gadget source, key **Show: Min/Max/Average** modes and the dial's session bar still work from live values, but there's no HWiNFO-provided historical min/max/avg to draw on — see [Sensor Reading](sensor-reading.md) and [Sensor Dial](sensor-dial.md).
-- If the current source stops updating (HWiNFO's Sensors window closed, or the shared-memory timer expired), keys switch to a **Not updating** screen whose second line matches the source — **check sharing** on Shared Memory, **check Gadget** on the Gadget registry. Full list in [Troubleshooting](troubleshooting.md).
+- On the Gadget source, key **Show: Min/Max/Average** modes and the dial's session bar still work from live values, but there's no HWiNFO-provided historical min/max/avg to draw on; see [Sensor Reading](sensor-reading.md) and [Sensor Dial](sensor-dial.md).
+- If the current source stops updating (HWiNFO's Sensors window closed, or HWiNFO stopped polling), keys switch to a **Not updating** screen whose second line matches the source: **check sharing** on Shared Memory, **check Gadget** on the Gadget registry. The free version's 12-hour expiry is different: it shows **Shared Memory off**, or Auto mode falls back to Gadget on its own. Full list in [Troubleshooting](troubleshooting.md).

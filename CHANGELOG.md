@@ -2,14 +2,23 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
-## 1.1.6.0 — 2026-07-05
+## 1.1.7.0 - 2026-07-05
+
+- Copy pass over everything a user reads, ahead of the Marketplace
+  submission: manifest description, settings-panel text, status-screen and
+  probe wording, README and docs. Plain punctuation throughout. No
+  functional changes.
+- Repo: added `npm run release:validate` (lint, typecheck, tests, plus a
+  copy/manifest/asset/version validator).
+
+## 1.1.6.0 - 2026-07-05
 
 - Sparklines now persist across page changes. The recent-history graph used to
   reset to empty every time a key reappeared (switching pages, waking the
   machine, the app reconnecting) and had to rebuild from scratch. History now
   lives with the poller and survives those, so switching away and back keeps
   the graph drawn. It also survives a °C/°F toggle now (same data, just
-  relabelled), and a frozen HWiNFO no longer flattens the line — it holds its
+  relabelled), and a frozen HWiNFO no longer flattens the line; it holds its
   last real shape. (A graph on a page you haven't viewed in a while still
   rebuilds, and fills at HWiNFO's own update rate.)
 - Redesigned the status screens (Start HWiNFO, Shared Memory off, Not updating,
@@ -17,12 +26,12 @@ Every Marketplace submission corresponds to one entry here and one git tag.
   grey, two lines of soft-white text instead of three lines of hard white. Same
   guidance, much less glare.
 
-## 1.1.5.0 — 2026-07-05
+## 1.1.5.0 - 2026-07-05
 
 - Theme gallery: the "Deck default" chip is now **structurally** distinct from
   the preset it resolves to. It keeps its truthful resolved-palette face but
   wears a dashed accent border and a small link/follow badge, so it can never
-  be mistaken for the Void (or any) preset chip at a glance — even when the
+  be mistaken for the Void (or any) preset chip at a glance, even when the
   deck theme it follows happens to render an identical palette. (v1.1.3/v1.1.4
   tried text-only cues that still failed the eye.)
 - Fixed a data-source fallback bug: when free HWiNFO disables shared memory
@@ -38,20 +47,20 @@ Every Marketplace submission corresponds to one entry here and one git tag.
   dial is reading from the Gadget registry, matching the key screen and PI hint
   instead of always pointing at Shared Memory.
 
-## 1.1.4.0 — 2026-07-04
+## 1.1.4.0 - 2026-07-04
 
 - Theme gallery: the "Deck default" chip face now reads "auto" (in the
   resolved theme's colors) instead of a sample value, so it no longer looks
   like a duplicate of the theme it currently resolves to.
 
-## 1.1.3.0 — 2026-07-04
+## 1.1.3.0 - 2026-07-04
 
 - Fixed the theme gallery layout: the longer "Deck default" label introduced
   in 1.1.2.0 blew its grid column wide (CSS grid min-width:auto). Chips are
   equal-width again; the resolved deck theme now appears in the help line
   under the gallery ("currently Void") and in the chip tooltip.
 
-## 1.1.2.0 — 2026-07-04
+## 1.1.2.0 - 2026-07-04
 
 - Theme system truthfulness: the settings panel's "Deck default" chip now
   shows the plugin's actual resolved deck theme (labelled with its name,
@@ -64,28 +73,28 @@ Every Marketplace submission corresponds to one entry here and one git tag.
   can no longer overwrite a theme the user picked concurrently.
 - The effective deck theme is now logged at startup and on every change.
 
-## 1.1.1.0 — 2026-07-04
+## 1.1.1.0 - 2026-07-04
 
 - Hardening: the plugin now watches its parent process and exits if the
   Stream Deck app dies without cleaning up (hard-crash scenario found during
-  competitive benchmarking — previously the poller could keep the process
+  competitive benchmarking; previously the poller could keep the process
   alive with nobody to render for; normal operation already relied on the
   app's job object). No functional changes.
 
-## 1.1.0.0 — 2026-07-04 (initial Marketplace release)
+## 1.1.0.0 - 2026-07-04 (initial Marketplace release)
 
 First public release. Tag: `v1.1.0`.
 
 **Features**
 
 - Live HWiNFO sensor readings on Stream Deck keys: value, unit, custom label,
-  sparkline history, stat modes (current/min/max/avg — key press cycles).
+  sparkline history, stat modes (current/min/max/avg; a key press cycles).
 - Stream Deck + dial/touchscreen action: live value with session min/max and
   a range bar; rotate to switch readings, push to reset session stats, touch
   to cycle stat modes.
 - Seven display themes (per key or deck-wide) with sensor-type accent colors
-  and aviation-style alerting: amber/black at warn, red/white at critical —
-  alert colors are global and never themed.
+  and aviation-style alerting: amber/black at warn, red/white at critical.
+  Alert colors are global and never themed.
 - Searchable sensor picker in the settings panel with live values for all
   ~500+ readings, grouped by source.
 - Dual data source with auto-fallback: HWiNFO Shared Memory (full stats)
@@ -99,7 +108,7 @@ First public release. Tag: `v1.1.0`.
 **Performance** (measured, see PERF.md)
 
 - Incremental shared-memory decoder: ~6 µs and near-zero allocation per poll
-  tick for ~516 readings (62× faster than the naive decode).
+  tick for ~516 readings (up to 62× faster than the naive decode).
 - ~0.07 % average CPU with a 12-key live page at a 1-second poll.
 - Memory-stable under a 35-minute soak (RSS slope negative); the plugin
   process exits cleanly when Stream Deck stops and idles when no keys are

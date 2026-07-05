@@ -5,15 +5,15 @@ nav_order: 2
 
 Getting the plugin running is three things: the Stream Deck plugin itself, a working copy of HWiNFO, and a one-time toggle in HWiNFO so the plugin can read its sensors. This page covers all three.
 
-> **Windows only.** HWiNFO is a Windows application and this plugin reads its shared-memory or Gadget-registry interface locally. There is no macOS or Windows-on-ARM build — the plugin needs 64-bit (x64) Windows. No ads, no telemetry, MIT licensed.
+> **Windows only.** HWiNFO is a Windows application and this plugin reads its shared-memory or Gadget-registry interface locally. There is no macOS or Windows-on-ARM build; the plugin needs 64-bit (x64) Windows. No ads, no telemetry, MIT licensed.
 
 ## System requirements
 
 | Requirement | Notes |
 | --- | --- |
-| **Windows 10 or later**, 64-bit (x64) | Windows-on-ARM and macOS are not supported — the plugin shows a clear "Needs x64 Windows" screen on those. |
+| **Windows 10 or later**, 64-bit (x64) | Windows-on-ARM and macOS are not supported; the plugin shows a clear "Needs x64 Windows" screen on those. |
 | **Stream Deck software 6.6+** | The Elgato desktop app that hosts plugins. Update it from within the app if you are on an older build. |
-| **HWiNFO** (free or Pro) | Installer or portable. Download from [hwinfo.com](https://www.hwinfo.com/download/). The plugin does not bundle HWiNFO — you run it yourself. |
+| **HWiNFO** (free or Pro) | Installer or portable. Download from [hwinfo.com](https://www.hwinfo.com/download/). The plugin does not bundle HWiNFO; you run it yourself. |
 
 Any Stream Deck hardware works for the **Sensor Reading** key action. The **Sensor Dial** action needs a Stream Deck + (the model with dials and a touchscreen).
 
@@ -29,18 +29,18 @@ There are two ways to install, depending on where you got the plugin.
 
 **From the Elgato Marketplace**
 
-Once the plugin is approved on the Marketplace, you can install it from there in one click — the Marketplace hands the same package to the Stream Deck app. Use whichever channel you prefer; the plugin is identical.
+Once the plugin is approved on the Marketplace, you can install it from there in one click; the Marketplace hands the same package to the Stream Deck app. Use whichever channel you prefer; the plugin is identical.
 
-> **Note:** No admin rights are needed to install the plugin. If a key later shows **Access denied**, that is a privilege *mismatch* between HWiNFO and Stream Deck, not a permission you granted at install — see [Troubleshooting](troubleshooting.md).
+> **Note:** No admin rights are needed to install the plugin. If a key later shows **Access denied**, that is a privilege *mismatch* between HWiNFO and Stream Deck, not a permission you granted at install. See [Troubleshooting](troubleshooting.md).
 
 ### Updating and removing
 
-- **Update** — double-click a newer `.streamDeckPlugin` (or install the newer version from the Marketplace) and the Stream Deck app replaces the old copy **in place**. Your keys keep their sensors, themes and thresholds.
-- **Uninstall** — in the Stream Deck app, right-click the **HWiNFO Sensors** category (or any of its keys) in the actions list on the right and choose **Uninstall**, or manage it under the app's **Preferences → Plugins**. HWiNFO is a separate program — remove it on its own if you no longer need it.
+- **Update:** double-click a newer `.streamDeckPlugin` (or install the newer version from the Marketplace) and the Stream Deck app replaces the old copy **in place**. Your keys keep their sensors, themes and thresholds.
+- **Uninstall:** in the Stream Deck app, right-click the **HWiNFO Sensors** category (or any of its keys) in the actions list on the right and choose **Uninstall**, or manage it under the app's **Preferences → Plugins**. HWiNFO is a separate program; remove it on its own if you no longer need it.
 
 ## One-time HWiNFO setup
 
-The plugin reads HWiNFO through one of two interfaces. You only need to enable **one** — the plugin picks the best available source automatically and falls back on its own (see [Data sources](data-sources.md)).
+The plugin reads HWiNFO through one of two interfaces. You only need to enable **one**; the plugin picks the best available source automatically and falls back on its own (see [Data sources](data-sources.md)).
 
 ### Recommended: Shared Memory Support
 
@@ -50,12 +50,12 @@ Shared Memory exposes **every** reading HWiNFO measures, with min / max / averag
 2. Open **Settings** (the gear icon).
 3. Turn on **Shared Memory Support**.
 4. Recommended, so HWiNFO is always feeding the deck without a window in your way:
-   - **Auto Start** — HWiNFO launches with Windows.
-   - **Minimize Sensors on Startup** — the Sensors window starts minimized.
+   - **Auto Start**: HWiNFO launches with Windows.
+   - **Minimize Sensors on Startup**: the Sensors window starts minimized.
    - (Combined with Sensors-only, HWiNFO runs quietly in the background.)
 5. Click **OK**.
 
-> **Free version — 12-hour limit.** On free HWiNFO, Shared Memory Support switches itself **off after 12 hours** (HWiNFO Pro removes the limit). When that happens the plugin automatically falls back to the Gadget registry if you have it enabled, and upgrades back to Shared Memory the next time it returns. To keep full Shared Memory data indefinitely on the free version, re-enable it (or restart HWiNFO); to remove the limit entirely, use HWiNFO Pro.
+> **Free version: 12-hour limit.** On free HWiNFO, Shared Memory Support switches itself **off after 12 hours** (HWiNFO Pro removes the limit). When that happens the plugin automatically falls back to the Gadget registry if you have it enabled, and upgrades back to Shared Memory the next time it returns. To keep full Shared Memory data indefinitely on the free version, re-enable it (or restart HWiNFO); to remove the limit entirely, use HWiNFO Pro.
 
 ### Free path: Gadget reporting
 
@@ -67,7 +67,7 @@ Gadget reporting never expires on the free version, but it only exposes the sens
 
 The plugin reads these from `HKCU\Software\HWiNFO64\VSB`. If you enable Gadget reporting but don't tick any sensors, keys show **Tick sensors / in Gadget** until you do.
 
-You can enable **both** interfaces — with the data source left on **Auto**, the plugin uses Shared Memory while it's available and quietly falls back to Gadget when it isn't.
+You can enable **both** interfaces: with the data source left on **Auto**, the plugin uses Shared Memory while it's available and quietly falls back to Gadget when it isn't.
 
 ## Portable HWiNFO caveats
 
@@ -80,14 +80,14 @@ The portable build of HWiNFO works identically, but there is no installer to wir
 ## Verify it works
 
 1. Drag **HWiNFO Sensors → Sensor Reading** onto a key.
-2. In the settings panel (property inspector), open the **Sensor** picker and choose a reading. The list groups readings by source (CPU, GPU, drives, …) and shows live values — type to filter.
+2. In the settings panel (property inspector), open the **Sensor** picker and choose a reading. The list groups readings by source (CPU, GPU, drives, …) and shows live values; type to filter.
 3. The key should immediately show the live value.
 
-If instead the key shows a status screen like **Start HWiNFO** or **Shared Memory off**, HWiNFO isn't publishing yet — recheck the setup above, or see [Troubleshooting](troubleshooting.md) for what each screen means and how to fix it.
+If instead the key shows a status screen like **Start HWiNFO** or **Shared Memory off**, HWiNFO isn't publishing yet; recheck the setup above, or see [Troubleshooting](troubleshooting.md) for what each screen means and how to fix it.
 
 ## Next steps
 
-- [Sensor Reading (keys)](sensor-reading.md) — every key setting: label, theme, stat mode, decimals, sparkline, thresholds.
-- [Sensor Dial (Stream Deck +)](sensor-dial.md) — the dial and touchscreen action.
-- [Data sources](data-sources.md) — Shared Memory vs. Gadget, and how auto-fallback works.
-- [Themes](themes.md) — the seven presets, type accents, and alert colors.
+- [Sensor Reading (keys)](sensor-reading.md): every key setting (label, theme, stat mode, decimals, sparkline, thresholds).
+- [Sensor Dial (Stream Deck +)](sensor-dial.md): the dial and touchscreen action.
+- [Data sources](data-sources.md): Shared Memory vs. Gadget, and how auto-fallback works.
+- [Themes](themes.md): the seven presets, type accents, and alert colors.

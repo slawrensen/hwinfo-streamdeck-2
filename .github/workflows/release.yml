@@ -49,7 +49,7 @@ jobs:
           $tag = "${{ github.ref_name }}".TrimStart('v')            # v1.1.7 -> 1.1.7
           $ver = $manifest.Version                                  # 1.1.7.0
           if (-not $ver.StartsWith("$tag.") -and $ver -ne $tag) {
-            Write-Error "manifest Version $ver does not match tag $tag — bump manifest.json before tagging"
+            Write-Error "manifest Version $ver does not match tag $tag; bump manifest.json before tagging"
             exit 1
           }
           Write-Output "manifest $ver matches tag $tag"

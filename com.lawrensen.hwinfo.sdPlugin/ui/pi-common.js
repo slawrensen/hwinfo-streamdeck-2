@@ -66,9 +66,9 @@
 			searchEl.placeholder = "Search sensors…";
 			searchEl.classList.remove("missing");
 		} else if (selectedKey !== "") {
-			// Never put the warning into .value — it would act as a search filter.
+			// Never put the warning into .value; it would act as a search filter.
 			searchEl.value = "";
-			searchEl.placeholder = "⚠ selected sensor not present — pick again";
+			searchEl.placeholder = "⚠ selected sensor not present. Pick again";
 			searchEl.classList.add("missing");
 		} else {
 			searchEl.value = "";
@@ -150,13 +150,13 @@
 		if (shown === 0) {
 			const none = document.createElement("div");
 			none.className = "hw-more";
-			none.textContent = tokens.length > 0 ? "No sensors match." : "No sensors reported.";
+			none.textContent = tokens.length > 0 ? "No sensors match." : "No sensors reported. Check HWiNFO's sensor window.";
 			frag.appendChild(none);
 		}
 		if (hidden > 0) {
 			const more = document.createElement("div");
 			more.className = "hw-more";
-			more.textContent = `…${hidden} more — refine the search.`;
+			more.textContent = `…${hidden} more. Refine the search.`;
 			frag.appendChild(more);
 		}
 		listEl.replaceChildren(frag);
@@ -202,7 +202,7 @@
 	});
 
 	// After a selection the input keeps focus (the row's mousedown is
-	// preventDefault-ed), so no focus event fires — reopen on click too.
+	// preventDefault-ed), so no focus event fires; reopen on click too.
 	searchEl.addEventListener("mousedown", () => {
 		if (!listOpen && document.activeElement === searchEl) {
 			searchEl.select();
@@ -222,7 +222,7 @@
 		} else if (ev.key === "Enter" && listOpen) {
 			// Only treat Enter as "pick the top row" when the user actually typed
 			// a filter (same condition renderList uses). With the box still showing
-			// the current selection — or the ⚠ missing-sensor placeholder — the list
+			// the current selection (or the ⚠ missing-sensor placeholder), the list
 			// is the full unfiltered tree, whose top row is unrelated; picking it
 			// would silently swap the user's saved sensor. Just close instead.
 			const raw = searchEl.value;
@@ -259,7 +259,7 @@
 	// Tokens come from the plugin (parsed themes.json) over the message channel;
 	// the deck-wide default renders as the leading "Deck default" chip and the
 	// seven presets follow. Clicking writes the per-key "theme" setting ("" =
-	// follow deck default) — the key/dial re-renders immediately: live preview.
+	// follow deck default); the key/dial re-renders immediately: live preview.
 
 	let themesConfig = null; // { defaultTheme, effectiveDeckTheme, themes: { id: { bg, ... } } }
 	let themeOverride = "";
@@ -287,7 +287,7 @@
 	function themeChip(id, palette, name, selected) {
 		// The leading chip (id "") follows the deck-wide theme. It must preview
 		// the resolved palette truthfully yet never read as a twin of the preset
-		// it currently resolves to — so it gets a dashed frame + link badge
+		// it currently resolves to, so it gets a dashed frame + link badge
 		// (structure, not typography). It follows; it doesn't pin.
 		const isDeck = id === "";
 		const chip = document.createElement("button");
@@ -323,7 +323,7 @@
 		if (galleryEl === null || themesConfig === null) return;
 		const frag = document.createDocumentFragment();
 		// The plugin resolves the effective deck default (theme store, incl.
-		// legacy migration) — never guess it from raw global settings here.
+		// legacy migration); never guess it from raw global settings here.
 		const deckId = themesConfig.themes[themesConfig.effectiveDeckTheme] ? themesConfig.effectiveDeckTheme : themesConfig.defaultTheme;
 		const deckDisplay = deckId.charAt(0).toUpperCase() + deckId.slice(1);
 		const deckChip = themeChip("", themesConfig.themes[deckId], "Deck default", themeOverride === "");
@@ -348,7 +348,7 @@
 			renderGallery();
 		});
 		// The plugin pushes a fresh themes payload (with effectiveDeckTheme)
-		// whenever the deck theme changes — no global-settings guessing here.
+		// whenever the deck theme changes; no global-settings guessing here.
 		streamDeckClient.send("sendToPlugin", { event: "getThemes" });
 	}
 
@@ -370,7 +370,7 @@
 		} else if (p.event === "preview") {
 			renderPreview(p);
 			setHint(p.hint);
-			// The tree was fetched while HWiNFO was down — refresh it now that
+			// The tree was fetched while HWiNFO was down; refresh it now that
 			// data is flowing, so the picker isn't stuck on "No sensors reported".
 			if (p.state === "ok" && !treeFetchedOk && !treeRequestPending) {
 				requestTree();

@@ -5,7 +5,7 @@ nav_order: 11
 
 This page is the deep symptom → cause → fix guide. For quick answers see the [FAQ](faq.md); for the two interfaces the plugin reads, see [Data sources](data-sources.md).
 
-Every claim here matches the plugin's actual behaviour. HWiNFO must be running on the same Windows machine — this is a **Windows-only** plugin with **no telemetry**; nothing here phones home or needs the internet.
+Every claim here matches the plugin's actual behaviour. HWiNFO must be running on the same Windows machine: this is a **Windows-only** plugin with **no telemetry**; nothing here phones home or needs the internet.
 
 > **First check, always:** is **HWiNFO** running, and is it publishing on at least one interface (**Shared Memory Support** *or* **Gadget reporting**)? Most status screens trace back to this. See [Data sources](data-sources.md).
 
@@ -17,15 +17,15 @@ When a key can't show live data it renders a two-line, true-black status screen 
 | --- | --- | --- |
 | **Start HWiNFO** / not detected | Start HWiNFO / not detected | Nothing found on either interface. |
 | **Shared Memory** / is off | Shared Memory off / enable in HWiNFO | Mapping exists but HWiNFO marked it disabled. |
-| **Not updating** / check sharing *(or)* check Gadget | HWiNFO stalled / check sharing *(or)* check Gadget | Values frozen — the sub-line names the source in use. |
+| **Not updating** / check sharing *(or)* check Gadget | HWiNFO stalled / check sharing *(or)* check Gadget | Values frozen; the sub-line names the source in use. |
 | **Access denied** / un-elevate | Access denied / un-elevate HWiNFO | Privilege mismatch between HWiNFO and Stream Deck. |
 | **Tick sensors** / in Gadget | Gadget empty / tick sensors | Gadget reporting is on but no sensors are ticked. |
 | **Pick a sensor** / in settings | HWiNFO / rotate to pick | No sensor selected on this key/dial yet. |
 | **Sensor missing** / pick again | Sensor missing / rotate to pick | The saved sensor isn't in HWiNFO's current output. |
-| **Needs x64** / Windows | Needs x64 Windows | 32-bit or Windows-on-ARM — unsupported. |
-| **HWiNFO error** / unreadable | HWiNFO error / unreadable | Header didn't validate (mid-restart or incompatible build). |
+| **Needs x64** / Windows | Needs x64 Windows | 32-bit or Windows-on-ARM: unsupported. |
+| **HWiNFO error** / restart HWiNFO | HWiNFO error / restart HWiNFO | Header didn't validate (mid-restart or incompatible build). |
 
-![A row of Stream Deck keys each showing a different two-line status screen: "Start HWiNFO /]({{ '/assets/img/status-screens.png' | relative_url }})
+![The plugin's status screens rendered as clean OLED-black key faces, each with a two-line message: Start HWiNFO, Shared Memory off, Access denied, Tick sensors in Gadget, Not updating, Pick a sensor, and Sensor missing.]({{ '/assets/img/status-screens.png' | relative_url }})
 
 ---
 
@@ -34,10 +34,10 @@ When a key can't show live data it renders a two-line, true-black status screen 
 The plugin found HWiNFO on **neither** interface. In order of likelihood:
 
 1. **HWiNFO isn't running.** Start it. If you use the free version, run it in **Sensors-only** mode.
-2. **HWiNFO is running but publishing on neither interface.** Open **HWiNFO → Settings** and tick **Shared Memory Support**. On the free version you can instead right-click sensors and tick **"Report value in Gadget"** (no 12-hour limit) — see [Data sources](data-sources.md).
+2. **HWiNFO is running but publishing on neither interface.** Open **HWiNFO → Settings** and tick **Shared Memory Support**. On the free version you can instead right-click sensors and tick **"Report value in Gadget"** (no 12-hour limit); see [Data sources](data-sources.md).
 3. **Portable HWiNFO window was closed.** The portable build only publishes while its window is open, and nothing auto-starts it. Reopen it (and add it to autostart yourself if you want it always on).
 4. **Wrong bitness.** This plugin reads 64-bit HWiNFO. Use `HWiNFO64`, not the 32-bit build, on 64-bit Windows.
-5. **HWiNFO just launched.** It can take a few seconds after start to create the shared-memory mapping. Wait, then the key recovers on its own — the plugin re-probes every tick.
+5. **HWiNFO just launched.** It can take a few seconds after start to create the shared-memory mapping. Wait, then the key recovers on its own; the plugin re-probes every tick.
 
 ## Keys show "Shared Memory off"
 
@@ -54,13 +54,13 @@ HWiNFO's shared-memory mapping exists but its header is flagged **disabled** (in
 The reading stopped changing for more than ~15 seconds, so the plugin flags it stale. The sub-line names the source: **check sharing** (shared memory) or **check Gadget** (Gadget registry).
 
 1. **HWiNFO's Sensors window was closed or HWiNFO was minimised to tray without sensor polling.** Reopen the Sensors window; HWiNFO must keep polling to update either interface.
-2. **Free version's 12-hour shared-memory timer expired** while a key was live — the last values freeze. Toggle Shared Memory Support back on, or rely on Gadget fallback in Auto mode. (Pro removes the limit.)
+2. **Not the free version's 12-hour timer.** Expiry doesn't freeze values: it marks the shared-memory mapping `DEAD`, which shows **"Shared Memory off"** or silently falls back to the Gadget registry in Auto mode. (Pro removes the limit.)
 3. **HWiNFO itself crashed or hung.** Restart it. The plugin re-probes a fresh handle every 5 seconds while stale and recovers automatically.
-4. **Confusing a slow refresh for a freeze.** HWiNFO updates on its own poll cycle (default ~2 s). If your plugin poll interval is *faster* than HWiNFO's, you'll see the same number repeat between HWiNFO updates — that's normal, not a freeze. The plugin only calls it stale after 15 s of no change.
+4. **Confusing a slow refresh for a freeze.** HWiNFO updates on its own poll cycle (default ~2 s). If your plugin poll interval is *faster* than HWiNFO's, you'll see the same number repeat between HWiNFO updates; that's normal, not a freeze. The plugin only calls it stale after 15 s of no change.
 
 ## Keys show "Access denied"
 
-Windows refused to open HWiNFO's shared memory. This is **always** a privilege mismatch — specifically **HWiNFO is running elevated ("Run as administrator") while Stream Deck is not**.
+Windows refused to open HWiNFO's shared memory. This is **always** a privilege mismatch: specifically **HWiNFO is running elevated ("Run as administrator") while Stream Deck is not**.
 
 The fix is to make the two match:
 
@@ -79,10 +79,10 @@ Easiest fix: **restart HWiNFO without "Run as administrator."** If you genuinely
 
 A sensor *is* selected, but it isn't in HWiNFO's current output. The saved identity (`sensor-id : instance : reading-id`) no longer resolves. Causes:
 
-1. **Hardware or driver change** — you added/removed a GPU, drive, or peripheral, or a driver update renamed the sensor.
+1. **Hardware or driver change**: you added/removed a GPU, drive, or peripheral, or a driver update renamed the sensor.
 2. **You renamed the sensor or its reading in HWiNFO** (custom labels change the resolved identity on the Gadget source).
 3. **HWiNFO profile / config change**, or you switched between shared memory and Gadget sources (the two expose different sensor sets).
-4. **The sensor simply isn't present yet** — e.g. a GPU that's asleep, or a drive that spun down.
+4. **The sensor simply isn't present yet**, e.g. a GPU that's asleep, or a drive that spun down.
 
 **Fix:** open the key's settings and **pick the sensor again**. On a dial, **rotate** to pick a reading from a source that is present.
 
@@ -91,11 +91,11 @@ A sensor *is* selected, but it isn't in HWiNFO's current output. The saved ident
 The settings-panel sensor list is populated live from whatever source is active:
 
 1. **HWiNFO isn't up yet.** Start HWiNFO, then click the **⟳ refresh** button next to the search box.
-2. **On the Gadget source with nothing ticked** — the key shows **"Tick sensors / in Gadget."** In HWiNFO's sensor window, right-click each value you want and tick **"Report value in Gadget."** The registry key exists but is empty until you do.
-3. **Shared memory is disabled/expired** and you're forced to **Gadget only** — same fix as above.
+2. **On the Gadget source with nothing ticked**: the key shows **"Tick sensors / in Gadget."** In HWiNFO's sensor window, right-click each value you want and tick **"Report value in Gadget."** The registry key exists but is empty until you do.
+3. **Shared memory is disabled/expired** and you're forced to **Gadget only**; same fix as above.
 4. **Search filter too narrow.** Clear the search box; the list groups readings by source (CPU, GPU, drives…).
 
-![The settings-panel sensor picker open, showing the search box, the ⟳ refresh button, and g]({{ '/assets/img/sensor-picker.png' | relative_url }})
+![The settings-panel sensor picker open, showing the search box, the ⟳ refresh button, and the list of readings grouped by source.]({{ '/assets/img/sensor-picker.png' | relative_url }})
 
 ## Plugin shows nothing at all / the action is missing
 
@@ -106,24 +106,24 @@ The settings-panel sensor list is populated live from whatever source is active:
 
 ## Temperatures show the wrong unit
 
-Each key/dial has a per-key **Unit** checkbox: **"Show temperatures in °F."** It only affects `°C` readings (the only meaningful conversion in HWiNFO data). If a temperature reads in the wrong unit, toggle that checkbox on the specific key. Sparkline shape is unaffected — it's stored in native units and just relabelled.
+Each key/dial has a per-key **Unit** checkbox: **"Show temperatures in °F."** It only affects `°C` readings (the only meaningful conversion in HWiNFO data). If a temperature reads in the wrong unit, toggle that checkbox on the specific key. Sparkline shape is unaffected; it's stored in native units and just relabelled.
 
 ## Thresholds (warn/critical) don't fire
 
 Two gotchas cause almost all of these:
 
 1. **Thresholds are in *display* units.** The warn/critical fields are compared against the value **as shown on the key**. If you enabled **°F**, enter the threshold in °F (e.g. `176`), not °C (`80`). The placeholder text says "display units" for exactly this reason.
-2. **Wrong direction.** By default the key alerts when the value goes **at or above** the threshold. For things where *low* is bad — fan RPM, free disk space, remaining battery — tick **Direction → "Alert when value drops below thresholds."**
+2. **Wrong direction.** By default the key alerts when the value goes **at or above** the threshold. For things where *low* is bad (fan RPM, free disk space, remaining battery), tick **Direction → "Alert when value drops below thresholds."**
 
 Other notes:
 - Alerts always track the **live** value, even while the key is showing MIN/MAX/AVG (a key press cycles the *displayed* stat, not what's tested).
-- On **dials**, only the range bar's fill flips to the alert color — the touchscreen slot is too small for a full field flip. On **keys**, the whole key flips (amber field at warn, red field at critical).
+- On **dials**, only the range bar's fill flips to the alert color; the touchscreen slot is too small for a full field flip. On **keys**, the whole key flips (amber field at warn, red field at critical).
 - Leave a field blank to disable that level. Both accept a locale decimal comma (`70,5`).
 
 ## Dial gestures do nothing
 
 1. **You're on a plain Stream Deck, not a Stream Deck +.** The **Sensor Dial** action needs a Stream Deck + encoder (dial + touchscreen). Regular keys use the **Sensor Reading** action instead.
-2. **No sensor picked yet** — a fresh dial shows **"rotate to pick."** Rotate to select a reading, or pick one in the settings panel.
+2. **No sensor picked yet**: a fresh dial shows **"rotate to pick."** Rotate to select a reading, or pick one in the settings panel.
 
 Dial gesture reference: **rotate** cycles readings of the same sensor source · **push** resets session min/max/avg · **touch** cycles current/min/max/avg · **long touch** returns to the live value.
 
@@ -161,19 +161,19 @@ Files rotate as `com.lawrensen.hwinfo.0.log` (newest) through `.9.log`. Each lin
 
 Useful lines to look for:
 
-- `Opened HWiNFO data source: shared-memory` / `gadget` — which interface is actually in use.
-- `Shared memory returned — upgraded from the gadget registry` — auto-fallback recovered.
-- `HWiNFO unavailable [<reason>]: …` — the exact failure reason (`not-running`, `disabled`, `access-denied`, `gadget-empty`, `invalid`, `unsupported-platform`).
-- `Deck theme = … (source: …)` — the resolved deck-wide theme.
-- `Stopped (no visible actions)` — the poller correctly idled (no leak).
+- `Opened HWiNFO data source: shared-memory` / `gadget`: which interface is actually in use.
+- A `Shared memory returned` line: auto-fallback recovered and upgraded from the gadget registry.
+- `HWiNFO unavailable [<reason>]: …` names the exact failure reason (`not-running`, `disabled`, `access-denied`, `gadget-empty`, `invalid`, `unsupported-platform`).
+- `Deck theme = … (source: …)`: the resolved deck-wide theme.
+- `Stopped (no visible actions)`: the poller correctly idled (no leak).
 
-> **Note:** The log is local-only — the plugin has **no telemetry** and never uploads anything. You choose what to share.
+> **Note:** The log is local-only: the plugin has **no telemetry** and never uploads anything. You choose what to share.
 
 ---
 
 ## Before you file an issue
 
-Run through this first — most problems resolve here:
+Run through this first; most problems resolve here:
 
 - [ ] **HWiNFO is running** and its **Sensors window is open**.
 - [ ] At least one interface is enabled: **Shared Memory Support** *or* **Gadget reporting** ("Report value in Gadget" on the sensors you need).
@@ -185,9 +185,9 @@ Run through this first — most problems resolve here:
 
 If it still fails, open an issue at the [project repository](https://github.com/slawrensen/hwinfo-streamdeck) and include:
 
-1. **What you see** — the exact status-screen text (e.g. "Access denied / un-elevate") or a photo of the key/dial.
+1. **What you see**: the exact status-screen text (e.g. "Access denied / un-elevate") or a photo of the key/dial.
 2. **HWiNFO version and edition** (free or Pro), and which interface(s) you enabled.
-3. **Plugin version** (currently 1.1.6.0 — see the Marketplace listing or `manifest.json`).
+3. **Plugin version** (see the Marketplace listing or `manifest.json`).
 4. **Stream Deck software version** and device model (regular vs Stream Deck +).
 5. **Windows version**.
 6. **The relevant lines from the log** (`com.lawrensen.hwinfo.0.log`), especially any `HWiNFO unavailable […]` and the `Opened HWiNFO data source` lines.
