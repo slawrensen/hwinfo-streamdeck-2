@@ -6,6 +6,7 @@ import type { JsonValue } from "@elgato/streamdeck";
 
 import type { PollerStatus } from "./poller";
 import { statusSentence } from "./ui/state-screens";
+import { getDeckTheme } from "./ui/theme-store";
 import { loadThemes } from "./ui/themes";
 
 export type TreeReading = {
@@ -56,10 +57,13 @@ export type PreviewPayload = {
 /**
  * The theme tokens for the PI's preset gallery — served over the message
  * channel because the PI webview cannot reliably fetch local files. The
- * plugin's schema-validated themes.json stays the single source of truth.
+ * plugin's schema-validated themes.json stays the single source of truth,
+ * and `effectiveDeckTheme` is the RESOLVED deck default from the theme
+ * store — the PI must never guess it from raw global settings (stale or
+ * invalid values there made the "Deck default" chip lie).
  */
 export function buildThemesPayload(): JsonValue {
-	return JSON.parse(JSON.stringify({ event: "themes", ...loadThemes() })) as JsonValue;
+	return JSON.parse(JSON.stringify({ event: "themes", effectiveDeckTheme: getDeckTheme(), ...loadThemes() })) as JsonValue;
 }
 
 /** The full sensor list, grouped by source — sent on PI request. */

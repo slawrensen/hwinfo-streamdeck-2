@@ -53,7 +53,14 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 				streamDeck.logger.error("SensorReadingAction tick failed", err);
 			}
 		});
-		onThemeChange(() => this.renderAll(poller.getStatus()));
+		onThemeChange(() => {
+			this.renderAll(poller.getStatus());
+			// Keep the open PI's "Deck default" chip truthful in real time.
+			const pi = streamDeck.ui.current;
+			if (pi !== undefined && (pi.action as typeof pi.action | undefined)?.manifestId === this.manifestId) {
+				void pi.sendToPropertyInspector(buildThemesPayload());
+			}
+		});
 	}
 
 	override onWillAppear(ev: WillAppearEvent<ReadingSettings>): void {

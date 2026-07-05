@@ -168,6 +168,15 @@ details > summary:hover {
 	font-variant-numeric: tabular-nums;
 }
 
+/* Passive help lines (neutral — .hw-hint's amber is for warnings). */
+.hw-help {
+	margin: -2px 12px 6px;
+	color: #8a8a8a;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 8pt;
+	line-height: 1.35;
+}
+
 .hw-hint {
 	margin: 6px 12px;
 	padding: 6px 8px;

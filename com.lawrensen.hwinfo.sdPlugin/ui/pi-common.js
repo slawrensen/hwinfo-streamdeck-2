@@ -250,9 +250,8 @@
 	// seven presets follow. Clicking writes the per-key "theme" setting ("" =
 	// follow deck default) — the key/dial re-renders immediately: live preview.
 
-	let themesConfig = null; // { defaultTheme, themes: { id: { bg, ... } } }
+	let themesConfig = null; // { defaultTheme, effectiveDeckTheme, themes: { id: { bg, ... } } }
 	let themeOverride = "";
-	let deckTheme = "";
 
 	const setThemeOverride =
 		galleryEl === null
@@ -293,8 +292,11 @@
 	function renderGallery() {
 		if (galleryEl === null || themesConfig === null) return;
 		const frag = document.createDocumentFragment();
-		const deckId = themesConfig.themes[deckTheme] ? deckTheme : themesConfig.defaultTheme;
-		frag.appendChild(themeChip("", themesConfig.themes[deckId], "Deck default", themeOverride === ""));
+		// The plugin resolves the effective deck default (theme store, incl.
+		// legacy migration) — never guess it from raw global settings here.
+		const deckId = themesConfig.themes[themesConfig.effectiveDeckTheme] ? themesConfig.effectiveDeckTheme : themesConfig.defaultTheme;
+		const deckName = "Deck default · " + deckId.charAt(0).toUpperCase() + deckId.slice(1);
+		frag.appendChild(themeChip("", themesConfig.themes[deckId], deckName, themeOverride === ""));
 		for (const [id, palette] of Object.entries(themesConfig.themes)) {
 			frag.appendChild(themeChip(id, palette, id.charAt(0).toUpperCase() + id.slice(1), themeOverride === id));
 		}
@@ -309,21 +311,8 @@
 			setThemeOverride(themeOverride);
 			renderGallery();
 		});
-		// Track the deck-wide default so the "Deck default" chip previews it.
-		streamDeckClient.getGlobalSettings().then((res) => {
-			const settings = res && typeof res === "object" && res.settings ? res.settings : res;
-			if (settings && typeof settings.theme === "string") deckTheme = settings.theme;
-			renderGallery();
-		});
-		if (streamDeckClient.didReceiveGlobalSettings && typeof streamDeckClient.didReceiveGlobalSettings.subscribe === "function") {
-			streamDeckClient.didReceiveGlobalSettings.subscribe((ev) => {
-				const settings = ev && ev.payload && ev.payload.settings;
-				if (settings && typeof settings.theme === "string") {
-					deckTheme = settings.theme;
-					renderGallery();
-				}
-			});
-		}
+		// The plugin pushes a fresh themes payload (with effectiveDeckTheme)
+		// whenever the deck theme changes — no global-settings guessing here.
 		streamDeckClient.send("sendToPlugin", { event: "getThemes" });
 	}
 

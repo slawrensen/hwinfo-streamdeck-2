@@ -93,9 +93,10 @@ async function scenario(send) {
 		device: "dev1",
 		payload: { settings: { readingKey: READING_KEY, sparkline: true }, coordinates: { column: 0, row: 0 } }
 	});
-	// PI opens on the key and asks for the tree.
+	// PI opens on the key and asks for the tree + themes.
 	send({ event: "propertyInspectorDidAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1" });
 	send({ event: "sendToPlugin", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: { event: "getSensorTree" } });
+	send({ event: "sendToPlugin", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: { event: "getThemes" } });
 	await sleep(2600);
 
 	// Exit hygiene: with every action gone the poller must go idle (zero
@@ -218,6 +219,15 @@ async function finish() {
 	check("sensorTree has many grouped readings", (tree?.groups?.length ?? 0) > 5 && tree.groups.reduce((n, g) => n + g.readings.length, 0) > 100, `groups=${tree?.groups?.length}, readings=${tree?.groups?.reduce((n, g) => n + g.readings.length, 0)}`);
 	const preview = results.piPayloads.find((p) => p?.event === "preview" && p.reading);
 	check("PI got live preview for selected reading", preview !== undefined, preview ? `${preview.reading.label}=${preview.reading.value}` : "");
+
+	// The Deck-default chip must never guess: the plugin sends its RESOLVED
+	// deck theme, and it must be a real theme id from the same payload.
+	const themes = results.piPayloads.find((p) => p?.event === "themes");
+	check(
+		"themes payload carries a valid effectiveDeckTheme",
+		themes !== undefined && typeof themes.effectiveDeckTheme === "string" && themes.themes?.[themes.effectiveDeckTheme] !== undefined,
+		themes ? `effectiveDeckTheme=${themes.effectiveDeckTheme}` : "no themes payload"
+	);
 
 	// Exit hygiene.
 	check("poller idles when no actions visible", results.idleDelta === 0, `frames in 3 s after willDisappear: ${results.idleDelta}`);

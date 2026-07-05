@@ -42,9 +42,13 @@ function notify(): void {
 /** Ingests the global settings (startup read and every later change). */
 export function applyGlobalThemeSettings(settings: { theme?: unknown; typeAccents?: unknown }): void {
 	const config = loadThemes();
-	const nextTheme = typeof settings.theme === "string" && config.themes[settings.theme] !== undefined ? settings.theme : deckTheme;
+	const themeValid = typeof settings.theme === "string" && config.themes[settings.theme] !== undefined;
+	const nextTheme = themeValid ? (settings.theme as string) : deckTheme;
 	const nextAccents = settings.typeAccents !== "off";
-	if (typeof settings.theme === "string") {
+	// Only a VALID stored theme counts as "the user (or migration) decided" —
+	// an empty/invalid value must not lock out the legacy migration while
+	// silently failing to apply.
+	if (themeValid) {
 		migrationDecided = true;
 	}
 	if (nextTheme === deckTheme && nextAccents === typeAccentsOn) {
@@ -52,6 +56,7 @@ export function applyGlobalThemeSettings(settings: { theme?: unknown; typeAccent
 	}
 	deckTheme = nextTheme;
 	typeAccentsOn = nextAccents;
+	streamDeck.logger.info(`Deck theme = ${getDeckTheme()} (type accents ${typeAccentsOn ? "on" : "off"}, source: global settings)`);
 	notify();
 }
 
@@ -69,6 +74,7 @@ export function decideLegacyDefault(hasExistingConfig: boolean): void {
 	migrationDecided = true;
 	const config = loadThemes();
 	const theme = hasExistingConfig ? config.legacyDefaultTheme : config.defaultTheme;
+	streamDeck.logger.info(`Deck theme = ${theme} (source: ${hasExistingConfig ? "legacy migration" : "fresh-install default"})`);
 	if (theme !== getDeckTheme()) {
 		deckTheme = theme;
 		notify();
@@ -81,6 +87,11 @@ export function decideLegacyDefault(hasExistingConfig: boolean): void {
 async function persistTheme(theme: string): Promise<void> {
 	try {
 		const globals = await streamDeck.settings.getGlobalSettings();
+		// Async race guard: if a PI wrote a theme while we awaited, the user's
+		// explicit choice wins — never clobber it with the migration result.
+		if (typeof globals.theme === "string" && globals.theme !== "") {
+			return;
+		}
 		await streamDeck.settings.setGlobalSettings({ ...globals, theme });
 	} catch (err) {
 		streamDeck.logger.error("failed to persist migrated theme", err);

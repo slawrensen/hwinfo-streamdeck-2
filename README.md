@@ -84,7 +84,10 @@ face stays themed (the touchscreen slot is too small for a full field flip).
 ## Themes
 
 Seven presets, chosen from a live gallery in any key's or dial's settings — per
-key, or once for the whole deck (*Advanced → Deck theme*):
+key, or once for the whole deck (*Advanced → Deck theme*). A per-key pick
+always wins over the deck-wide theme; choose the gallery's "Deck default"
+chip (labelled with the resolved theme, e.g. *Deck default · Void*) to make
+a key follow the deck-wide setting:
 
 | Preset | Look |
 | --- | --- |
@@ -104,8 +107,9 @@ type accents (accents are ink there by design).
 
 **Alerts override everything.** At the warn threshold the whole key flips to a
 bright amber field with black text; at critical, a red field with white text —
-aviation-style master caution/warning. The two alert palettes are global, never
-tinted per theme, so warn and crit stay unmistakable on any theme and with any
+aviation-style master caution/warning (on dials, the range bar flips to the
+same alert colors). The two alert palettes are global, never tinted per
+theme, so warn and crit stay unmistakable on any theme and with any
 color-vision deficiency.
 
 ## Key states you might see

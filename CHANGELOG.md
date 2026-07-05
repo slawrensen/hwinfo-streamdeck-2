@@ -2,6 +2,19 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.2.0 — 2026-07-04
+
+- Theme system truthfulness: the settings panel's "Deck default" chip now
+  shows the plugin's actual resolved deck theme (labelled with its name,
+  e.g. "Deck default · Void") instead of guessing from raw global settings,
+  and updates live when the deck-wide theme changes. Added help text making
+  the precedence rule explicit: a per-key theme always wins; the Advanced
+  "Deck theme" only affects keys set to Deck default.
+- Fixed: an empty or invalid stored deck theme could permanently block the
+  legacy-migration default while silently failing to apply; the migration
+  can no longer overwrite a theme the user picked concurrently.
+- The effective deck theme is now logged at startup and on every change.
+
 ## 1.1.1.0 — 2026-07-04
 
 - Hardening: the plugin now watches its parent process and exits if the
