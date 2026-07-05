@@ -14,6 +14,10 @@ A ground-up TypeScript rewrite on the official Elgato SDK, inspired by the
 archived [shayne/hwinfo-streamdeck](https://github.com/shayne/hwinfo-streamdeck)
 (no code shared — see [NOTICE.md](NOTICE.md)).
 
+📖 **[Full documentation & FAQ →](https://slawrensen.github.io/hwinfo-streamdeck-2/)** —
+step-by-step setup, every key and dial setting, themes, thresholds, data sources,
+status screens and troubleshooting. (The sections below are a condensed tour.)
+
 ## Requirements
 
 - Windows 10 or later, Stream Deck software **6.6+**

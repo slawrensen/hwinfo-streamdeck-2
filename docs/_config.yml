@@ -1,0 +1,35 @@
+# GitHub Pages / just-the-docs configuration for the documentation site.
+# Publish: repo Settings -> Pages -> Deploy from a branch -> main -> /docs.
+# (GitHub Pages on a private repo needs a paid plan; this is ready to serve the
+#  moment the repo is public.)
+title: HWiNFO Sensors for Stream Deck
+description: >-
+  Live HWiNFO sensor readings on your Elgato Stream Deck — temperatures, clocks,
+  fan speeds, usage and power, with themes, thresholds and sparklines.
+
+# Served at https://slawrensen.github.io/hwinfo-streamdeck-2/
+url: https://slawrensen.github.io
+baseurl: /hwinfo-streamdeck-2
+
+remote_theme: just-the-docs/just-the-docs@v0.10.1
+plugins:
+  - jekyll-remote-theme
+
+color_scheme: dark
+search_enabled: true
+heading_anchors: true
+
+# Repo links in the header + "edit this page" footer.
+aux_links:
+  GitHub: https://github.com/slawrensen/hwinfo-streamdeck-2
+  Download: https://github.com/slawrensen/hwinfo-streamdeck-2/releases/latest
+aux_links_new_tab: true
+
+gh_edit_link: true
+gh_edit_repository: https://github.com/slawrensen/hwinfo-streamdeck-2
+gh_edit_branch: main
+gh_edit_view_mode: tree
+
+footer_content: >-
+  MIT licensed. No ads, no telemetry. Not affiliated with REALiX/HWiNFO or
+  Elgato. &copy; Stephen Lawrensen.
