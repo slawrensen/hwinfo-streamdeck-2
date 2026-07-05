@@ -289,3 +289,13 @@ full 518-reading parse + theme resolve + SVG render + send). 5e's instant
 ~1 s poll; shayne's first paint waits for its 1 s ticker. Vendored koffi
 import costs only ~8 ms (measured in isolation), inside the ~55 ms Node
 boot both Node plugins pay. Ours is first-to-data by ~17×. Artifact updated.
+
+### 2026-07-04 21:15 — benchmark scaffolding removed
+
+Competitor plugins uninstalled (com.exension.hwinfo, com.5e.hwinfo-reader)
+and test pages 43–46 removed from the deck profile (backup in session
+scratchpad); the 40 all-reading coverage pages stay. Post-strip: only our
+plugin process under the app, ring 42 pages, suite:full ALL GREEN with
+zero orphans, no VSB key, poller live on shared memory. To reproduce the
+benchmark: packs at the URLs in the 3-way entries above; shayne settings
+schema + VSB-bridge pattern documented in the session ledger.
