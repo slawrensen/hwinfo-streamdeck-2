@@ -76,4 +76,4 @@ jobs:
 
             **Pack SHA-256:** `${{ steps.hash.outputs.sha }}` (${{ steps.hash.outputs.size }} bytes)
 
-            Install: download the `.streamDeckPlugin` below and double-click it, or install from the Elgato Marketplace once approved. See the [documentation](https://github.com/slawrensen/hwinfo-streamdeck-2#readme) for setup and troubleshooting.
+            Install: download the `.streamDeckPlugin` below and double-click it, or install from the Elgato Marketplace once approved. See the [documentation](https://github.com/slawrensen/hwinfo-streamdeck#readme) for setup and troubleshooting.

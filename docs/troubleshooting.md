@@ -183,7 +183,7 @@ Run through this first — most problems resolve here:
 - [ ] You **re-picked the sensor** if it went missing after a hardware/driver change.
 - [ ] Threshold values are in the **displayed unit**, with the right **Direction**.
 
-If it still fails, open an issue at the [project repository](https://github.com/slawrensen/hwinfo-streamdeck-2) and include:
+If it still fails, open an issue at the [project repository](https://github.com/slawrensen/hwinfo-streamdeck) and include:
 
 1. **What you see** — the exact status-screen text (e.g. "Access denied / un-elevate") or a photo of the key/dial.
 2. **HWiNFO version and edition** (free or Pro), and which interface(s) you enabled.

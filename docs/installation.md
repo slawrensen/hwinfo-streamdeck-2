@@ -23,7 +23,7 @@ There are two ways to install, depending on where you got the plugin.
 
 **From a GitHub Release (`.streamDeckPlugin` file)**
 
-1. Download `com.lawrensen.hwinfo.streamDeckPlugin` from the [releases page](https://github.com/slawrensen/hwinfo-streamdeck-2/releases).
+1. Download `com.lawrensen.hwinfo.streamDeckPlugin` from the [releases page](https://github.com/slawrensen/hwinfo-streamdeck/releases).
 2. Double-click the file. The Stream Deck app opens and asks you to confirm the install.
 3. Confirm. **HWiNFO Sensors** appears in the actions list on the right, under its own **HWiNFO Sensors** category.
 

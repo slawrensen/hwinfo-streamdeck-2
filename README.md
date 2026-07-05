@@ -14,7 +14,7 @@ A ground-up TypeScript rewrite on the official Elgato SDK, inspired by the
 archived [shayne/hwinfo-streamdeck](https://github.com/shayne/hwinfo-streamdeck)
 (no code shared — see [NOTICE.md](NOTICE.md)).
 
-📖 **[Full documentation & FAQ →](https://slawrensen.github.io/hwinfo-streamdeck-2/)** —
+📖 **[Full documentation & FAQ →](https://slawrensen.github.io/hwinfo-streamdeck/)** —
 step-by-step setup, every key and dial setting, themes, thresholds, data sources,
 status screens and troubleshooting. (The sections below are a condensed tour.)
 
@@ -171,3 +171,7 @@ correctly.
 [MIT](LICENSE) — free software, no ads, no telemetry. Credits in
 [NOTICE.md](NOTICE.md): HWiNFO (REALiX), the original plugin by
 [@shayne](https://github.com/shayne/hwinfo-streamdeck), koffi, sdpi-components.
+
+Not affiliated with, endorsed by, or sponsored by REALiX, s.r.o. or Elgato.
+"HWiNFO" is a trademark of REALiX, s.r.o.; "Stream Deck" and "Elgato" are
+trademarks of Corsair Memory, Inc.

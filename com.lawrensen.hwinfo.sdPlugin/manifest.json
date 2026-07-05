@@ -9,7 +9,7 @@
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Icon": "imgs/plugin/marketplace",
-	"URL": "https://github.com/slawrensen/hwinfo-streamdeck-2",
+	"URL": "https://github.com/slawrensen/hwinfo-streamdeck",
 	"SDKVersion": 2,
 	"Software": {
 		"MinimumVersion": "6.6"
