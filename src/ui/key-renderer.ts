@@ -158,17 +158,24 @@ export interface StatusKeyOptions {
 export function renderStatusKey(opts: StatusKeyOptions): string {
 	const parts: string[] = [
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">`,
-		`<rect width="144" height="144" fill="#1a1c22"/>`,
+		// True black so the key vanishes into an OLED panel (no backlight glow,
+		// no burn-in worry) and stays calm on the desk.
+		`<rect width="144" height="144" fill="#000000"/>`,
 		ICONS[opts.icon](opts.accent)
 	];
-	const startY = 88;
-	for (let i = 0; i < opts.lines.length && i < 3; i++) {
-		const line = opts.lines[i] as string;
-		// Never regular weight at these physical sizes — strokes thin below one
-		// device pixel on the 72 px key.
-		const weight = i === 0 ? 700 : 600;
-		const fill = i === 0 ? "#ffffff" : "#8b8fa3";
-		parts.push(`<text x="72" y="${startY + i * 19}" text-anchor="middle" font-family="${FONT}" font-size="${i === 0 ? 17 : 14}" font-weight="${weight}" fill="${fill}">${escapeXml(line)}</text>`);
+	// One soft-white headline (never pure #fff — it blooms on OLED and tires the
+	// eye) and at most one dim sub-line. Two lines, not three: the full recovery
+	// step already lives in the PI hint, so the key can breathe.
+	const lines = opts.lines.slice(0, 2);
+	const single = lines.length === 1;
+	for (let i = 0; i < lines.length; i++) {
+		const headline = i === 0;
+		const y = single ? 104 : 100 + i * 22;
+		// Hierarchy comes from size + color, not weight — both stay >=600 so the
+		// strokes survive the 0.5x downscale to the 72 px physical key.
+		parts.push(
+			`<text x="72" y="${y}" text-anchor="middle" font-family="${FONT}" font-size="${headline ? 19 : 13}" font-weight="600" fill="${headline ? "#d6d9de" : "#6b7280"}">${escapeXml(lines[i] as string)}</text>`
+		);
 	}
 	parts.push("</svg>");
 	return parts.join("");

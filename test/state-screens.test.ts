@@ -36,9 +36,9 @@ describe("state-screens: stale recovery hint follows the source", () => {
 		assert.equal(text?.value, "check sharing");
 	});
 
-	it("key stale screen already branches on source", () => {
-		assert.deepEqual(statusScreen(stale("gadget"))?.lines, ["Not updating", "check HWiNFO", "Gadget report"]);
-		assert.deepEqual(statusScreen(stale("shared-memory"))?.lines, ["Not updating", "check HWiNFO", "Shared Memory"]);
+	it("key stale screen branches on source", () => {
+		assert.deepEqual(statusScreen(stale("gadget"))?.lines, ["Not updating", "check Gadget"]);
+		assert.deepEqual(statusScreen(stale("shared-memory"))?.lines, ["Not updating", "check sharing"]);
 	});
 
 	it("PI sentence already branches on source", () => {

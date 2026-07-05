@@ -28,15 +28,18 @@ export type ReadingSettings = {
 	theme?: string;
 };
 
-const HISTORY_LENGTH = 36;
-
 type InstanceState = {
 	settings: ReadingSettings;
-	/** Recent current values in display units, for the sparkline. */
-	history: number[];
+	/** The reading key this instance is subscribed to in the poller's sparkline
+	 *  store (undefined when nothing is selected). */
+	subscribedKey: string | undefined;
 	/** Last SVG sent — identical frames are skipped. */
 	lastSvg: string;
 };
+
+function readingKeyOf(settings: ReadingSettings): string | undefined {
+	return typeof settings.readingKey === "string" && settings.readingKey !== "" ? settings.readingKey : undefined;
+}
 
 @action({ UUID: "com.lawrensen.hwinfo.reading" })
 export class SensorReadingAction extends SingletonAction<ReadingSettings> {
@@ -65,18 +68,34 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 
 	override onWillAppear(ev: WillAppearEvent<ReadingSettings>): void {
 		// Stream Deck can replay willAppear for a context without an intervening
-		// willDisappear (reconnect, wake) — retain only on the first sighting.
-		if (!this.instances.has(ev.action.id)) {
+		// willDisappear (reconnect, wake) — retain + subscribe only on the first
+		// sighting, and carry the existing subscription across a replay so the
+		// sparkline history (now owned by the poller) is never dropped.
+		const existing = this.instances.get(ev.action.id);
+		const firstSighting = existing === undefined;
+		if (firstSighting) {
 			poller.retain();
 		}
 		decideLegacyDefault(Object.values(ev.payload.settings).some((v) => v !== undefined));
-		this.instances.set(ev.action.id, { settings: ev.payload.settings, history: [], lastSvg: "" });
+		const key = readingKeyOf(ev.payload.settings);
+		if (firstSighting && key !== undefined) {
+			poller.subscribeSeries(key);
+		}
+		this.instances.set(ev.action.id, {
+			settings: ev.payload.settings,
+			subscribedKey: firstSighting ? key : existing?.subscribedKey,
+			lastSvg: existing?.lastSvg ?? ""
+		});
 		this.renderAll(poller.getStatus());
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<ReadingSettings>): void {
+		const state = this.instances.get(ev.action.id);
 		if (this.instances.delete(ev.action.id)) {
 			poller.release();
+			if (state?.subscribedKey !== undefined) {
+				poller.unsubscribeSeries(state.subscribedKey);
+			}
 		}
 	}
 
@@ -85,11 +104,20 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		if (state === undefined) {
 			return;
 		}
-		const previous = state.settings;
-		state.settings = ev.payload.settings;
-		if (previous.readingKey !== state.settings.readingKey || previous.fahrenheit !== state.settings.fahrenheit) {
-			state.history.length = 0;
+		// Re-point the sparkline subscription when the sensor changes. A °C/°F
+		// change no longer resets anything: the poller stores native values, so
+		// the drawn shape is unit-invariant and the history carries across.
+		const nextSub = readingKeyOf(ev.payload.settings);
+		if (state.subscribedKey !== nextSub) {
+			if (state.subscribedKey !== undefined) {
+				poller.unsubscribeSeries(state.subscribedKey);
+			}
+			if (nextSub !== undefined) {
+				poller.subscribeSeries(nextSub);
+			}
+			state.subscribedKey = nextSub;
 		}
+		state.settings = ev.payload.settings;
 		this.renderAll(poller.getStatus());
 	}
 
@@ -119,27 +147,9 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 	}
 
 	private onPollerTick(status: PollerStatus): void {
-		if (status.state === "ok") {
-			for (const state of this.instances.values()) {
-				const key = state.settings.readingKey;
-				if (key === undefined || key === "") {
-					state.history.length = 0;
-					continue;
-				}
-				const reading = status.snapshot.byKey.get(key);
-				if (reading === undefined) {
-					continue;
-				}
-				const { value } = convertUnit(reading.value, reading.unit, state.settings.fahrenheit === true);
-				if (!Number.isFinite(value)) {
-					continue;
-				}
-				state.history.push(value);
-				if (state.history.length > HISTORY_LENGTH) {
-					state.history.shift();
-				}
-			}
-		}
+		// The sparkline rings are filled by the poller now (once per fresh
+		// snapshot, keyed by reading) so it survives this action's appear churn —
+		// here we only render and feed the open PI's live preview.
 		this.renderAll(status);
 		this.pushPreview(status);
 	}
@@ -204,7 +214,11 @@ function compose(state: InstanceState, status: PollerStatus): string {
 		valueText: formatValue(displayed.value, decimals),
 		unitText: displayed.unit,
 		statBadge: badge,
-		history: settings.sparkline === true ? state.history : undefined,
+		// Poller-owned NATIVE ring: the renderer self-normalizes over the
+		// samples' own min/max and °C→°F is a positive affine map, so native
+		// values draw a pixel-identical sparkline to converted ones (and the
+		// shape survives a unit toggle unchanged).
+		history: settings.sparkline === true ? poller.getSeries(settings.readingKey) : undefined,
 		palette: resolvePalette(loadThemes(), themeId, accent, level)
 	});
 }

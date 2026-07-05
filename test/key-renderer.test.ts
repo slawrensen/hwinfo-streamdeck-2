@@ -168,11 +168,13 @@ describe("alert pass recolors the whole key", () => {
 });
 
 describe("status keys", () => {
-	it("never render regular-weight text (strokes thin below one device pixel)", () => {
-		const svg = renderStatusKey({ icon: "target", accent: "#4cc2ff", lines: ["Pick a sensor", "in the key's", "settings"] });
+	it("draw on true black, at most two lines, never regular weight", () => {
+		const svg = renderStatusKey({ icon: "target", accent: "#4cc2ff", lines: ["Pick a sensor", "in settings", "third dropped"] });
+		assert.match(svg, /<rect width="144" height="144" fill="#000000"\/>/); // OLED-safe
 		const texts = svg.match(/<text[^>]*>/g) ?? [];
-		assert.equal(texts.length, 3);
+		assert.equal(texts.length, 2); // third line is dropped, not truncated
 		for (const el of texts) {
+			// strokes thin below one device pixel at regular weight on the 72 px key
 			assert.match(el, /font-weight="(600|700)"/, el);
 		}
 	});

@@ -99,6 +99,17 @@ async function scenario(send) {
 	send({ event: "sendToPlugin", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: { event: "getThemes" } });
 	await sleep(2600);
 
+	// Sparkline persistence: nav the key away and back (the dial keeps the
+	// poller alive) — the FIRST frame after re-appear must already carry a
+	// sparkline, proving the history survived in the poller rather than being
+	// wiped on willAppear as it was before.
+	const keyFramesBefore = results.images.filter((i) => i.context === "ctx-key").length;
+	send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1", payload: { settings: { readingKey: READING_KEY, sparkline: true }, coordinates: { column: 0, row: 0 }, controller: "Keypad", isInMultiAction: false } });
+	await sleep(300);
+	send({ event: "willAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1", payload: { settings: { readingKey: READING_KEY, sparkline: true }, coordinates: { column: 0, row: 0 }, controller: "Keypad", isInMultiAction: false } });
+	await sleep(300);
+	results.reappearFirstFrame = decodeSvg((results.images.filter((i) => i.context === "ctx-key")[keyFramesBefore] ?? {}).image);
+
 	// Exit hygiene: with every action gone the poller must go idle (zero
 	// further frames) and the process must then exit on socket close alone.
 	send({ event: "propertyInspectorDidDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1" });
@@ -201,6 +212,11 @@ async function finish() {
 	const value = valueMatch ? Number(valueMatch[1]) : NaN;
 	check("key SVG value is a plausible CPU temp", Number.isFinite(value) && value > 15 && value < 120, `value=${value}`);
 	check("key SVG includes sparkline polyline", keyImages.some((s) => s.includes("<polyline")));
+	check(
+		"sparkline survives nav away + back (history persisted in poller)",
+		typeof results.reappearFirstFrame === "string" && results.reappearFirstFrame.includes("<polyline"),
+		typeof results.reappearFirstFrame === "string" ? results.reappearFirstFrame.slice(0, 80) : "no re-appear frame"
+	);
 
 	const minFrame = keyImages.find((s) => s.includes(">MIN<"));
 	check("keyDown cycled stat mode to MIN", minFrame !== undefined);

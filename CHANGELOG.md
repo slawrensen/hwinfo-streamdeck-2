@@ -2,6 +2,21 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.6.0 — 2026-07-05
+
+- Sparklines now persist across page changes. The recent-history graph used to
+  reset to empty every time a key reappeared (switching pages, waking the
+  machine, the app reconnecting) and had to rebuild from scratch. History now
+  lives with the poller and survives those, so switching away and back keeps
+  the graph drawn. It also survives a °C/°F toggle now (same data, just
+  relabelled), and a frozen HWiNFO no longer flattens the line — it holds its
+  last real shape. (A graph on a page you haven't viewed in a while still
+  rebuilds, and fills at HWiNFO's own update rate.)
+- Redesigned the status screens (Start HWiNFO, Shared Memory off, Not updating,
+  etc.) to be calmer and OLED-friendly: a true-black background instead of dark
+  grey, two lines of soft-white text instead of three lines of hard white. Same
+  guidance, much less glare.
+
 ## 1.1.5.0 — 2026-07-05
 
 - Theme gallery: the "Deck default" chip is now **structurally** distinct from

@@ -21,6 +21,7 @@ import { EventEmitter } from "node:events";
 import { GadgetRegistryProvider } from "./hwinfo/gadget-registry";
 import { SharedMemoryProvider, type SnapshotProvider, type SnapshotSource } from "./hwinfo/provider";
 import { HwinfoError, type HwinfoUnavailableReason, type SensorSnapshot } from "./hwinfo/types";
+import { pushSample } from "./series";
 
 export type PollerStatus =
 	| { state: "ok"; snapshot: SensorSnapshot; source: SnapshotSource }
@@ -40,6 +41,9 @@ const STALE_AFTER_MS = Number(process.env.HWINFO_STALE_AFTER_MS ?? "") || 15_000
 const REOPEN_PROBE_MS = Number(process.env.HWINFO_REOPEN_PROBE_MS ?? "") || 5_000;
 /** While on the gadget fallback in auto mode, probe shared memory this often. */
 const UPGRADE_PROBE_MS = Number(process.env.HWINFO_UPGRADE_PROBE_MS ?? "") || 15_000;
+/** Keep a sparkline ring for this long after its last subscriber disappears,
+ *  so a page-nav away and back (or an SDK reconnect) does not lose the line. */
+const SERIES_GRACE_MS = Number(process.env.HWINFO_SERIES_GRACE_MS ?? "") || 60_000;
 
 export function parsePollInterval(raw: unknown): number {
 	const n = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : Number.NaN;
@@ -65,6 +69,13 @@ class HwinfoPoller extends EventEmitter {
 	private lastReopenProbeAt = 0;
 	private lastUpgradeProbeAt = 0;
 	private status: PollerStatus = { state: "unavailable", reason: "not-running", message: "Not polled yet." };
+	// Per-reading recent-value ring backing the key sparkline. It lives here,
+	// not in per-key action state, so it outlives every willAppear (the action
+	// wiped its own history on each appear — page-nav / reconnect / wake all
+	// reset the sparkline). Native values; converted only at render.
+	private readonly series = new Map<string, number[]>();
+	private readonly seriesRefs = new Map<string, number>();
+	private readonly seriesEvict = new Map<string, NodeJS.Timeout>();
 
 	/** Latest status; safe to read at any time (e.g. right after willAppear). */
 	getStatus(): PollerStatus {
@@ -73,6 +84,43 @@ class HwinfoPoller extends EventEmitter {
 
 	onTick(listener: (status: PollerStatus) => void): void {
 		this.on("tick", listener);
+	}
+
+	/** A key action subscribes its reading so the poller keeps that sparkline's
+	 *  history alive across the action's own appear/disappear churn. Only the
+	 *  key action calls this; dials have no sparkline. */
+	subscribeSeries(key: string): void {
+		const evict = this.seriesEvict.get(key);
+		if (evict !== undefined) {
+			clearTimeout(evict);
+			this.seriesEvict.delete(key);
+		}
+		this.seriesRefs.set(key, (this.seriesRefs.get(key) ?? 0) + 1);
+	}
+
+	/** Releases one subscription; the ring is evicted only after a grace window,
+	 *  so a quick nav away and back keeps the line. */
+	unsubscribeSeries(key: string): void {
+		const refs = (this.seriesRefs.get(key) ?? 0) - 1;
+		if (refs > 0) {
+			this.seriesRefs.set(key, refs);
+			return;
+		}
+		this.seriesRefs.delete(key);
+		if (this.seriesEvict.has(key)) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			this.seriesEvict.delete(key);
+			this.series.delete(key);
+		}, SERIES_GRACE_MS);
+		timer.unref();
+		this.seriesEvict.set(key, timer);
+	}
+
+	/** The reading's recent NATIVE values (newest last), or undefined if none. */
+	getSeries(key: string): readonly number[] | undefined {
+		return this.series.get(key);
 	}
 
 	/** Called by actions on willAppear. Starts polling with the first retain. */
@@ -96,6 +144,9 @@ class HwinfoPoller extends EventEmitter {
 			return;
 		}
 		this.intervalMs = ms;
+		// The ring is index-spaced, not timestamped, so it cannot honestly span a
+		// cadence change — reset it. Subscriptions persist and repopulate.
+		this.series.clear();
 		this.logger.info(`Poll interval set to ${ms} ms`);
 		if (this.timer !== null) {
 			clearInterval(this.timer);
@@ -185,6 +236,22 @@ class HwinfoPoller extends EventEmitter {
 			if (snapshot !== null && snapshot.pollTime !== this.lastPollTime) {
 				this.lastPollTime = snapshot.pollTime;
 				this.lastAdvanceAt = Date.now();
+				// Feed the sparkline rings only on a genuinely fresh snapshot: a
+				// frozen or stale source must never push duplicate points (that
+				// would flatten the line in place and churn setImage for no new
+				// data). Native values in; the key renderer self-normalizes.
+				for (const key of this.seriesRefs.keys()) {
+					const reading = snapshot.byKey.get(key);
+					if (reading === undefined) {
+						continue;
+					}
+					let ring = this.series.get(key);
+					if (ring === undefined) {
+						ring = [];
+						this.series.set(key, ring);
+					}
+					pushSample(ring, reading.value);
+				}
 			}
 			// Freshness is judged even when the read was skipped (mutex busy) —
 			// a consumer wedged on the mutex must not freeze us at "ok" forever.

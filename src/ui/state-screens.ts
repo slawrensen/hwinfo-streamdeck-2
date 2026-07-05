@@ -16,32 +16,33 @@ export function statusScreen(status: PollerStatus): StatusKeyOptions | null {
 		return null;
 	}
 	if (status.state === "stale") {
+		// Sub-line matches the source in use (like the dial text + PI hint).
 		return status.source === "gadget"
-			? { icon: "clock", accent: AMBER, lines: ["Not updating", "check HWiNFO", "Gadget report"] }
-			: { icon: "clock", accent: AMBER, lines: ["Not updating", "check HWiNFO", "Shared Memory"] };
+			? { icon: "clock", accent: AMBER, lines: ["Not updating", "check Gadget"] }
+			: { icon: "clock", accent: AMBER, lines: ["Not updating", "check sharing"] };
 	}
 	switch (status.reason) {
 		case "not-running":
-			return { icon: "power", accent: BLUE, lines: ["Start HWiNFO", "sensors app", "not detected"] };
+			return { icon: "power", accent: BLUE, lines: ["Start HWiNFO", "not detected"] };
 		case "gadget-empty":
-			return { icon: "target", accent: AMBER, lines: ["Tick sensors:", "'Report value", "in Gadget'"] };
+			return { icon: "target", accent: AMBER, lines: ["Tick sensors", "in Gadget"] };
 		case "disabled":
-			return { icon: "warning", accent: AMBER, lines: ["Shared Memory", "off — enable it", "in HWiNFO"] };
+			return { icon: "warning", accent: AMBER, lines: ["Shared Memory", "is off"] };
 		case "access-denied":
-			return { icon: "lock", accent: RED, lines: ["Access denied", "un-elevate", "HWiNFO"] };
+			return { icon: "lock", accent: RED, lines: ["Access denied", "un-elevate"] };
 		case "unsupported-platform":
 			return { icon: "warning", accent: RED, lines: ["Needs x64", "Windows"] };
 		default:
-			return { icon: "warning", accent: RED, lines: ["HWiNFO error", "data unreadable"] };
+			return { icon: "warning", accent: RED, lines: ["HWiNFO error", "unreadable"] };
 	}
 }
 
 export function noSelectionScreen(): StatusKeyOptions {
-	return { icon: "target", accent: BLUE, lines: ["Pick a sensor", "in the key's", "settings"] };
+	return { icon: "target", accent: BLUE, lines: ["Pick a sensor", "in settings"] };
 }
 
 export function missingReadingScreen(): StatusKeyOptions {
-	return { icon: "question", accent: AMBER, lines: ["Sensor missing", "pick it again", "in settings"] };
+	return { icon: "question", accent: AMBER, lines: ["Sensor missing", "pick again"] };
 }
 
 /** Short two-line text for the Stream Deck + touchscreen. */
