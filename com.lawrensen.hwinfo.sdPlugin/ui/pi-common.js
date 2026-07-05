@@ -295,8 +295,14 @@
 		// The plugin resolves the effective deck default (theme store, incl.
 		// legacy migration) — never guess it from raw global settings here.
 		const deckId = themesConfig.themes[themesConfig.effectiveDeckTheme] ? themesConfig.effectiveDeckTheme : themesConfig.defaultTheme;
-		const deckName = "Deck default · " + deckId.charAt(0).toUpperCase() + deckId.slice(1);
-		frag.appendChild(themeChip("", themesConfig.themes[deckId], deckName, themeOverride === ""));
+		const deckDisplay = deckId.charAt(0).toUpperCase() + deckId.slice(1);
+		const deckChip = themeChip("", themesConfig.themes[deckId], "Deck default", themeOverride === "");
+		deckChip.title = "Deck default · " + deckDisplay;
+		frag.appendChild(deckChip);
+		const help = document.getElementById("theme-help");
+		if (help !== null) {
+			help.textContent = "Pick a preset for this " + (document.title.includes("Dial") ? "dial" : "key") + " only, or “Deck default” (currently " + deckDisplay + ") to follow the deck-wide theme set under Advanced.";
+		}
 		for (const [id, palette] of Object.entries(themesConfig.themes)) {
 			frag.appendChild(themeChip(id, palette, id.charAt(0).toUpperCase() + id.slice(1), themeOverride === id));
 		}

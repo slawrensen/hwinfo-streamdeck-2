@@ -2,6 +2,13 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.3.0 — 2026-07-04
+
+- Fixed the theme gallery layout: the longer "Deck default" label introduced
+  in 1.1.2.0 blew its grid column wide (CSS grid min-width:auto). Chips are
+  equal-width again; the resolved deck theme now appears in the help line
+  under the gallery ("currently Void") and in the chip tooltip.
+
 ## 1.1.2.0 — 2026-07-04
 
 - Theme system truthfulness: the settings panel's "Deck default" chip now

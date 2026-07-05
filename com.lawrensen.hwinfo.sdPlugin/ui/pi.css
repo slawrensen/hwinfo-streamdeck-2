@@ -210,6 +210,9 @@ details > summary:hover {
 	border: none;
 	padding: 0;
 	cursor: pointer;
+	/* Grid items default to min-width:auto — a long nowrap label would blow
+	   the 1fr column wide (seen with "Deck default · <name>"). */
+	min-width: 0;
 }
 
 .hw-theme-face {
