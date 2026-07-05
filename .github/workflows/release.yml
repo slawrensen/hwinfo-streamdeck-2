@@ -1,0 +1,79 @@
+# Automated release: push a `vX.Y.Z` tag and this builds, packs, hashes and
+# publishes the .streamDeckPlugin to a GitHub Release with auto-generated notes.
+#
+#   # after bumping manifest/package + CHANGELOG on main:
+#   git tag -a v1.1.7 -m "HWiNFO Sensors 1.1.7.0"
+#   git push origin main --follow-tags
+#
+# The e2e suites need a live HWiNFO mapping (+ Win32 named objects / HKCU), so
+# they stay local (`npm run suite:full`); CI runs the static + unit gate only,
+# same as ci.yml. v1.1.6 and earlier were released by hand; this automates 1.1.7+.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # required for the GITHUB_TOKEN to create the release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # The pack script shells out to the Elgato CLI (`streamdeck pack`); it is a
+      # global tool, not a project dependency, so install it here (pinned major).
+      - name: Install Elgato Stream Deck CLI
+        run: npm install -g @elgato/cli@1
+
+      - name: Pack plugin
+        run: npm run pack
+
+      - name: Verify packed version matches the tag
+        shell: pwsh
+        run: |
+          $manifest = Get-Content com.lawrensen.hwinfo.sdPlugin/manifest.json -Raw | ConvertFrom-Json
+          $tag = "${{ github.ref_name }}".TrimStart('v')            # v1.1.7 -> 1.1.7
+          $ver = $manifest.Version                                  # 1.1.7.0
+          if (-not $ver.StartsWith("$tag.") -and $ver -ne $tag) {
+            Write-Error "manifest Version $ver does not match tag $tag — bump manifest.json before tagging"
+            exit 1
+          }
+          Write-Output "manifest $ver matches tag $tag"
+
+      - name: Compute SHA-256
+        id: hash
+        shell: pwsh
+        run: |
+          $f = "release/com.lawrensen.hwinfo.streamDeckPlugin"
+          $sha = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+          $size = (Get-Item $f).Length
+          "sha=$sha"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "size=$size" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "SHA-256 $sha ($size bytes)"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/com.lawrensen.hwinfo.streamDeckPlugin
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            Built and published automatically from `${{ github.ref_name }}`.
+
+            **Pack SHA-256:** `${{ steps.hash.outputs.sha }}` (${{ steps.hash.outputs.size }} bytes)
+
+            Install: download the `.streamDeckPlugin` below and double-click it, or install from the Elgato Marketplace once approved. See the [documentation](https://github.com/slawrensen/hwinfo-streamdeck-2#readme) for setup and troubleshooting.
