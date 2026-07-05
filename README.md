@@ -1,5 +1,22 @@
 # HWiNFO Sensors for Stream Deck
 
+<p align="center">
+  <img src="docs/assets/img/themes-contact-sheet.png" width="900"
+       alt="HWiNFO Sensors on a Stream Deck: seven display themes across the top row (Void, Graphite, Ultraviolet, Midnight, Forest, Ember, Paper), each key showing a live value, unit and sparkline; below them the aviation-style amber warn and red critical alert states; and two Stream Deck + dials with session range bars">
+</p>
+
+<p align="center">
+  <em>Seven themes (top row) · aviation-style amber <strong>warn</strong> / red <strong>critical</strong> alerts · live sparklines · Stream&nbsp;Deck&nbsp;+ dials</em>
+</p>
+
+<p align="center">
+  <a href="https://slawrensen.github.io/hwinfo-streamdeck/"><img alt="Documentation" src="https://img.shields.io/badge/docs-live-2ea44f?style=flat-square"></a>
+  <a href="https://github.com/slawrensen/hwinfo-streamdeck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/slawrensen/hwinfo-streamdeck?style=flat-square&color=blue"></a>
+  <img alt="Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-0078d6?style=flat-square">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/slawrensen/hwinfo-streamdeck?style=flat-square"></a>
+  <img alt="No ads, no telemetry" src="https://img.shields.io/badge/ads%20%C2%B7%20telemetry-none-brightgreen?style=flat-square">
+</p>
+
 Live [HWiNFO](https://www.hwinfo.com) sensor readings on your Elgato Stream Deck —
 temperatures, clocks, fan speeds, usage, power and more. Keys show a value with
 optional warn/critical coloring and a sparkline; on Stream Deck + the dials get a
@@ -75,6 +92,11 @@ corner). The warn/critical colors always track the *live* value.
 
 The touchscreen shows the label, live value, session ▼min/▲max and a range bar.
 
+<p align="center">
+  <img src="docs/assets/img/dials.png" width="440"
+       alt="Two Stream Deck + dials: CPU temperature with a sparkline and session min/max, and GPU Hot Spot pinned at its session maximum in red">
+</p>
+
 - **Rotate** — step through the readings of the same sensor source
 - **Push** — reset the session min/max/avg
 - **Touch** — cycle current / session-min / session-max / session-avg
@@ -117,6 +139,14 @@ theme, so warn and crit stay unmistakable on any theme and with any
 color-vision deficiency.
 
 ## Key states you might see
+
+When HWiNFO isn't publishing or a key isn't set up, it shows a clean, OLED-black
+status screen that names the problem and its fix:
+
+<p align="center">
+  <img src="docs/assets/img/status-screens.png" width="820"
+       alt="The plugin's status screens rendered as clean OLED-black key faces, each with a two-line message: Start HWiNFO, Shared Memory off, Access denied, Tick sensors in Gadget, Not updating, Pick a sensor, and Sensor missing">
+</p>
 
 | Key shows | Meaning / fix |
 | --- | --- |
