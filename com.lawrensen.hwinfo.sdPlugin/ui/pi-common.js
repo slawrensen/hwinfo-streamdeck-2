@@ -277,7 +277,9 @@
 		const value = document.createElement("span");
 		value.className = "hw-theme-value";
 		value.style.color = palette.value;
-		value.textContent = "64";
+		// "Deck default" previews the resolved palette but must not look like
+		// a duplicate of that theme's own chip — it follows, it doesn't pin.
+		value.textContent = id === "" ? "auto" : "64";
 		const spark = document.createElement("span");
 		spark.className = "hw-theme-spark";
 		spark.style.background = palette.accent;

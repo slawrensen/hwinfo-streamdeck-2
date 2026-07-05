@@ -2,6 +2,12 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.4.0 — 2026-07-04
+
+- Theme gallery: the "Deck default" chip face now reads "auto" (in the
+  resolved theme's colors) instead of a sample value, so it no longer looks
+  like a duplicate of the theme it currently resolves to.
+
 ## 1.1.3.0 — 2026-07-04
 
 - Fixed the theme gallery layout: the longer "Deck default" label introduced
