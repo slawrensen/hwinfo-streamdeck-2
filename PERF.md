@@ -251,3 +251,23 @@ timestamps match every page click. Both competitors keep polling forever
 after first render and hold peak RSS; shayne burns more CPU hidden than
 visible. (Headless 5-min controlled run, same day: ours 0.10 % CPU / 57 MB /
 6-of-6 keys vs shayne 0.90 % / 72 MB / 5-of-6 vs 5e 0.20 % / 55.5 MB / 6-of-6.)
+
+### 2026-07-04 20:30 — competitor sweep round 2 (scaling, startup, resilience, shutdown)
+
+30 keys / 120 s headless (identical settings each): ours 0.3 s CPU (0.25 %) /
+54.9 MB / 2,247 frames (dedup); shayne 170.8 s CPU (**142 % — 1.4 cores**) /
+103 MB / 3,660 frames; 5e 0.8 s (0.67 %) / 59.8 MB / 3,630. Cold start to
+first frame: ours 135 ms, shayne 1,097 ms, 5e 63 ms.
+
+Live HWiNFO kill (real app, screenshots): ours flipped every key to the
+amber "Not updating" screen and — with a leftover frozen VSB key present —
+fell back to gadget while STILL flagging staleness; auto-recovered and
+auto-upgraded back to shared memory on HWiNFO restart. shayne showed
+"Please Launch HWINFO64" and recovered via its app monitor. 5e displayed
+7-minute-dead frozen registry values as live with no staleness indication.
+
+Shutdown: real app stop cleans all three trees (job object, 0/0/0
+survivors). Harness socket-close (app-crash sim): ours + 5e linger
+passively while keys are visible (ours: poller timer holds the loop —
+production-mitigated by the job object, noted for future hardening);
+shayne's watchdog RESPAWNS a fresh two-process pair — active orphans.
