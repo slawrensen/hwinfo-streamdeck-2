@@ -1,17 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+	<!-- The app icon is a real key face (Void theme), not an illustration:
+	     same anchors, tokens and sparkline geometry as src/ui/key-renderer.ts
+	     scaled 144 -> 256. If the renderer changes, change this too. -->
 	<defs>
-		<linearGradient id="g" x1="0" y1="1" x2="1" y2="0">
-			<stop offset="0" stop-color="#2563eb"/>
-			<stop offset="1" stop-color="#4cc2ff"/>
-		</linearGradient>
+		<clipPath id="tile"><rect width="256" height="256" rx="52"/></clipPath>
 	</defs>
-	<rect width="256" height="256" rx="52" fill="#1a1c22"/>
-	<path d="M 58 172 A 78 78 0 1 1 198 172" fill="none" stroke="#2c2f3a" stroke-width="20" stroke-linecap="round"/>
-	<path d="M 58 172 A 78 78 0 0 1 121 51" fill="none" stroke="url(#g)" stroke-width="20" stroke-linecap="round"/>
-	<g transform="rotate(-42 128 138)">
-		<rect x="123" y="70" width="10" height="74" rx="5" fill="#e8edf7"/>
+	<rect width="256" height="256" rx="52" fill="#000000"/>
+	<g clip-path="url(#tile)">
+		<text x="128" y="57" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="600" fill="#7A8393">CPU</text>
+		<text x="128" y="167" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="92" font-weight="700" fill="#FFFFFF">62</text>
+		<text x="128" y="210" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="600" fill="#667082">&#176;C</text>
+		<path d="M14.2,248.8 L14.2,244.5 L32.4,240.3 L50.6,243.1 L68.8,236.0 L87.0,239.7 L105.2,233.2 L123.4,237.4 L141.7,231.2 L159.9,234.6 L178.1,227.5 L196.3,231.2 L214.5,225.5 L241.8,221.8 L241.8,248.8 Z" fill="#161A21"/>
+		<polyline points="14.2,244.5 32.4,240.3 50.6,243.1 68.8,236.0 87.0,239.7 105.2,233.2 123.4,237.4 141.7,231.2 159.9,234.6 178.1,227.5 196.3,231.2 214.5,225.5 241.8,221.8" fill="none" stroke="#4CC2FF" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+		<circle cx="241.8" cy="221.8" r="8.5" fill="#4CC2FF"/>
 	</g>
-	<circle cx="128" cy="138" r="14" fill="#e8edf7"/>
-	<circle cx="128" cy="138" r="6" fill="#1a1c22"/>
-	<polyline points="52,214 84,214 100,196 116,222 132,204 148,214 204,214" fill="none" stroke="#4cc2ff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+	<rect x="1.25" y="1.25" width="253.5" height="253.5" rx="50.75" fill="none" stroke="#1E242E" stroke-width="2.5"/>
 </svg>

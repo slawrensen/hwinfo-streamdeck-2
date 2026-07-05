@@ -8,6 +8,9 @@ Every Marketplace submission corresponds to one entry here and one git tag.
   submission: manifest description, settings-panel text, status-screen and
   probe wording, README and docs. Plain punctuation throughout. No
   functional changes.
+- New icons across the board: the app, category, and action icons now show
+  what the plugin actually renders (a key face with a value and sparkline;
+  a knob for the dial action) instead of a radial gauge it never draws.
 - Repo: added `npm run release:validate` (lint, typecheck, tests, plus a
   copy/manifest/asset/version validator).
 
