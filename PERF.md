@@ -271,3 +271,21 @@ survivors). Harness socket-close (app-crash sim): ours + 5e linger
 passively while keys are visible (ours: poller timer holds the loop —
 production-mitigated by the job object, noted for future hardening);
 shayne's watchdog RESPAWNS a fresh two-process pair — active orphans.
+
+### 2026-07-04 21:05 — cold-start correction (event-driven re-measure)
+
+The round-2 "first frame: ours 135 ms vs 5e 63 ms" was a measurement
+artifact (50 ms polling in the harness) plus a classification error.
+Event-driven re-measure, 3 runs each, first-frame CONTENT decoded:
+
+| spawn → | ours | 5e | shayne |
+| --- | --- | --- | --- |
+| register | ~55 ms | ~53 ms | ~73 ms |
+| first DATA frame | **~60 ms** (value digits verified in the SVG) | ~1,070 ms | ~1,087 ms |
+
+Ours renders real data 5 ms after willAppear (open mapping + 240 KB copy +
+full 518-reading parse + theme resolve + SVG render + send). 5e's instant
+~59 ms frame is a BLANK placeholder — its first real graph waits for its
+~1 s poll; shayne's first paint waits for its 1 s ticker. Vendored koffi
+import costs only ~8 ms (measured in isolation), inside the ~55 ms Node
+boot both Node plugins pay. Ours is first-to-data by ~17×. Artifact updated.
