@@ -50,7 +50,10 @@ export function statusDialText(status: PollerStatus): { title: string; value: st
 		return null;
 	}
 	if (status.state === "stale") {
-		return { title: "HWiNFO stalled", value: "check sharing" };
+		// Match the recovery hint to the source in use, like statusScreen and
+		// statusSentence do — a gadget-source dial must not be told to check
+		// Shared Memory sharing that isn't even the source it's reading from.
+		return status.source === "gadget" ? { title: "HWiNFO stalled", value: "check Gadget" } : { title: "HWiNFO stalled", value: "check sharing" };
 	}
 	switch (status.reason) {
 		case "not-running":

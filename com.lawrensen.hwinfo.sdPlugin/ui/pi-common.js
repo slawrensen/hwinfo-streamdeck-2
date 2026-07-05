@@ -220,7 +220,18 @@
 			closeList();
 			searchEl.blur();
 		} else if (ev.key === "Enter" && listOpen) {
-			selectRow(listEl.querySelector(".hw-row"));
+			// Only treat Enter as "pick the top row" when the user actually typed
+			// a filter (same condition renderList uses). With the box still showing
+			// the current selection — or the ⚠ missing-sensor placeholder — the list
+			// is the full unfiltered tree, whose top row is unrelated; picking it
+			// would silently swap the user's saved sensor. Just close instead.
+			const raw = searchEl.value;
+			const filtering = raw !== "" && findSelectedDisplay() !== raw;
+			if (filtering) {
+				selectRow(listEl.querySelector(".hw-row"));
+			} else {
+				closeList();
+			}
 		}
 	});
 
@@ -265,10 +276,23 @@
 					null
 				)[1];
 
+	// A monochrome "link" glyph marking the follow chip. Drawn (not an emoji or
+	// theme color) so it stays legible on any resolved palette, sitting on a
+	// translucent dark badge.
+	const FOLLOW_GLYPH =
+		'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+		'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
+		'<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+
 	function themeChip(id, palette, name, selected) {
+		// The leading chip (id "") follows the deck-wide theme. It must preview
+		// the resolved palette truthfully yet never read as a twin of the preset
+		// it currently resolves to — so it gets a dashed frame + link badge
+		// (structure, not typography). It follows; it doesn't pin.
+		const isDeck = id === "";
 		const chip = document.createElement("button");
 		chip.type = "button";
-		chip.className = "hw-theme" + (selected ? " selected" : "");
+		chip.className = "hw-theme" + (selected ? " selected" : "") + (isDeck ? " hw-theme-deck" : "");
 		chip.dataset.theme = id;
 		chip.title = name;
 		const face = document.createElement("span");
@@ -277,13 +301,17 @@
 		const value = document.createElement("span");
 		value.className = "hw-theme-value";
 		value.style.color = palette.value;
-		// "Deck default" previews the resolved palette but must not look like
-		// a duplicate of that theme's own chip — it follows, it doesn't pin.
-		value.textContent = id === "" ? "auto" : "64";
+		value.textContent = isDeck ? "auto" : "64";
 		const spark = document.createElement("span");
 		spark.className = "hw-theme-spark";
 		spark.style.background = palette.accent;
 		face.append(value, spark);
+		if (isDeck) {
+			const badge = document.createElement("span");
+			badge.className = "hw-theme-badge";
+			badge.innerHTML = FOLLOW_GLYPH;
+			face.appendChild(badge);
+		}
 		const label = document.createElement("span");
 		label.className = "hw-theme-name";
 		label.textContent = name;
@@ -303,7 +331,7 @@
 		frag.appendChild(deckChip);
 		const help = document.getElementById("theme-help");
 		if (help !== null) {
-			help.textContent = "Pick a preset for this " + (document.title.includes("Dial") ? "dial" : "key") + " only, or “Deck default” (currently " + deckDisplay + ") to follow the deck-wide theme set under Advanced.";
+			help.textContent = "Pick a preset for this " + (document.title.includes("Dial") ? "dial" : "key") + " only, or the dashed “Deck default” chip (currently " + deckDisplay + ") to follow the deck-wide theme set under Advanced.";
 		}
 		for (const [id, palette] of Object.entries(themesConfig.themes)) {
 			frag.appendChild(themeChip(id, palette, id.charAt(0).toUpperCase() + id.slice(1), themeOverride === id));

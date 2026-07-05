@@ -233,6 +233,36 @@ details > summary:hover {
 	outline-offset: 1px;
 }
 
+/* The leading "Deck default" chip follows the deck-wide theme. It previews the
+   resolved palette truthfully, but a dashed frame + link badge (structure, not
+   typography) keep it from ever reading as a twin of the preset it resolves to
+   (e.g. Void). border-box keeps the 2px dashed border the same outer size as
+   the 1px solid preset chips, so the equal-width grid is untouched. */
+.hw-theme-deck .hw-theme-face {
+	border: 2px dashed #8ecbff;
+}
+
+.hw-theme-badge {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	background: rgba(8, 10, 14, 0.78);
+	color: #8ecbff;
+	pointer-events: none;
+}
+
+.hw-theme-badge svg {
+	display: block;
+	width: 10px;
+	height: 10px;
+}
+
 .hw-theme-value {
 	font-family: "Segoe UI", Arial, sans-serif;
 	font-size: 13px;

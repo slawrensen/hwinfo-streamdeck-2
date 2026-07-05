@@ -68,6 +68,23 @@ function isNullPtr(ptr: NativePtr): boolean {
 	return ptr === null || ptr === undefined || ptr === 0n || ptr === 0;
 }
 
+/**
+ * Validates the header magic, throwing the status-appropriate {@link HwinfoError}.
+ * Shared by open()-time validation and every {@link SharedMemorySession.read} so
+ * a mapping HWiNFO has flipped to "DEAD" (free version, after 12 h) is rejected
+ * both when we first open it and if it dies mid-run.
+ */
+function assertMagicActive(headerBuf: Buffer): void {
+	const magic = headerBuf.readUInt32LE(HEADER.magic);
+	if (magic === MAGIC_ACTIVE) {
+		return;
+	}
+	if (magic === MAGIC_DEAD) {
+		throw new HwinfoError("disabled", 'HWiNFO reports shared-memory support as disabled (magic "DEAD").');
+	}
+	throw new HwinfoError("invalid", `Unexpected shared-memory magic 0x${magic.toString(16)}.`);
+}
+
 export class SharedMemorySession {
 	private closed = false;
 	private locked = false;
@@ -111,7 +128,30 @@ export class SharedMemorySession {
 
 		// The consistency mutex is optional — read unguarded if it is absent.
 		const hMutex = w.openMutexW(SYNCHRONIZE, false, EFFECTIVE_MUTEX_NAME);
-		return new SharedMemorySession(w, hMap, view, isNullPtr(hMutex) ? null : hMutex);
+		const session = new SharedMemorySession(w, hMap, view, isNullPtr(hMutex) ? null : hMutex);
+		// Validate the magic NOW, not just on the first read(). A present-but-
+		// "DEAD" mapping (free HWiNFO after the 12 h limit leaves the named
+		// section behind — see layout.ts) otherwise opens successfully and only
+		// fails later in read(), which strands auto mode on the "Shared Memory
+		// off" screen instead of falling back to the gadget registry, and lets
+		// an upgrade probe close a working gadget provider for a dead one.
+		// Treating DEAD as a failed open lets the poller's fallback logic engage.
+		try {
+			session.validateHeaderMagic();
+		} catch (err) {
+			session.close();
+			throw err;
+		}
+		return session;
+	}
+
+	/**
+	 * Reads the header once (unguarded — the magic is a stable, atomically
+	 * written 32-bit field) and asserts it, for open()-time validation.
+	 */
+	private validateHeaderMagic(): void {
+		this.w.rtlMoveMemory(this.headerBuf, this.view, HEADER_SIZE);
+		assertMagicActive(this.headerBuf);
 	}
 
 	/**
@@ -134,13 +174,7 @@ export class SharedMemorySession {
 		try {
 			this.w.rtlMoveMemory(this.headerBuf, this.view, HEADER_SIZE);
 
-			const magic = this.headerBuf.readUInt32LE(HEADER.magic);
-			if (magic !== MAGIC_ACTIVE) {
-				if (magic === MAGIC_DEAD) {
-					throw new HwinfoError("disabled", "HWiNFO reports shared-memory support as disabled (magic \"DEAD\").");
-				}
-				throw new HwinfoError("invalid", `Unexpected shared-memory magic 0x${magic.toString(16)}.`);
-			}
+			assertMagicActive(this.headerBuf);
 
 			const sensorSectionOffset = this.headerBuf.readUInt32LE(HEADER.sensorSectionOffset);
 			const sensorElementSize = this.headerBuf.readUInt32LE(HEADER.sensorElementSize);

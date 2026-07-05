@@ -2,6 +2,27 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.5.0 — 2026-07-05
+
+- Theme gallery: the "Deck default" chip is now **structurally** distinct from
+  the preset it resolves to. It keeps its truthful resolved-palette face but
+  wears a dashed accent border and a small link/follow badge, so it can never
+  be mistaken for the Void (or any) preset chip at a glance — even when the
+  deck theme it follows happens to render an identical palette. (v1.1.3/v1.1.4
+  tried text-only cues that still failed the eye.)
+- Fixed a data-source fallback bug: when free HWiNFO disables shared memory
+  after 12 hours it leaves the named mapping behind with a "DEAD" marker. The
+  reader now validates that marker at open time, so "auto" mode correctly falls
+  back to the Gadget registry instead of getting stuck on the "Shared Memory
+  off" screen, and a shared-memory upgrade probe no longer closes a working
+  gadget provider for the dead mapping. (New `e2e:dead-fallback` regression.)
+- Fixed the sensor picker silently replacing your saved sensor: pressing Enter
+  with the picker open but no search text typed used to select the first
+  sensor in the list. It now leaves the current selection untouched.
+- The dial's "HWiNFO stalled" touchscreen text now says "check Gadget" when the
+  dial is reading from the Gadget registry, matching the key screen and PI hint
+  instead of always pointing at Shared Memory.
+
 ## 1.1.4.0 — 2026-07-04
 
 - Theme gallery: the "Deck default" chip face now reads "auto" (in the
