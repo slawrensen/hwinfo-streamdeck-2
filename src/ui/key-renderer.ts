@@ -11,8 +11,10 @@ import type { Palette } from "./themes";
 
 const FONT = "Segoe UI, Arial, sans-serif";
 
-/** Spark strip box: x 8–136, y 124–140. */
-const SPARK = { x: 8, y: 124, w: 128, h: 16 } as const;
+/** Spark strip box: x 8–136, y 120–134. Sits above a bottom margin so the
+ * line at a session low and the r=5 end dot (down to y≈139) never clip the
+ * 144 key edge. */
+const SPARK = { x: 8, y: 120, w: 128, h: 14 } as const;
 /** Accent polyline stroke; the spec's absolute minimum is 3. */
 const SPARK_STROKE = 4;
 const SPARK_SAMPLES = 36;

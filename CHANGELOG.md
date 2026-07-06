@@ -2,6 +2,13 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.9.0 - 2026-07-05
+
+- Fixed the key sparkline clipping the bottom edge. The strip sat too low, so
+  at a session low the line and its end dot were scissored by the key edge with
+  no margin beneath. Moved the strip up (now y 120-134) so the line and the r=5
+  dot always clear the edge. Regenerated the marketing and docs images to match.
+
 ## 1.1.8.0 - 2026-07-05
 
 - Meets the current Marketplace intake requirements (surfaced in the live

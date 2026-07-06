@@ -104,14 +104,14 @@ describe("label truncation and badge collision", () => {
 describe("sparkline strip", () => {
 	const history = Array.from({ length: 40 }, (_, i) => 50 + Math.sin(i) * 10);
 
-	it("caps at 36 samples inside x8–136, y124–140", () => {
+	it("caps at 36 samples inside x8–136, y120–134", () => {
 		const svg = render({ history });
 		const points = (svg.match(/<polyline points="([^"]+)"/) as RegExpMatchArray)[1] as string;
 		const pairs = points.split(" ").map((p) => p.split(",").map(Number) as [number, number]);
 		assert.equal(pairs.length, 36);
 		for (const [x, y] of pairs) {
 			assert.ok(x >= 8 && x <= 136, `x ${x}`);
-			assert.ok(y >= 124 && y <= 140, `y ${y}`);
+			assert.ok(y >= 120 && y <= 134, `y ${y}`);
 		}
 	});
 
@@ -120,17 +120,17 @@ describe("sparkline strip", () => {
 		assert.match(svg, new RegExp(`<polyline [^>]*stroke="${VOID.accent}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"`));
 	});
 
-	it("solid under-fill in track color, closed to the strip bottom (y=140)", () => {
+	it("solid under-fill in track color, closed to the strip bottom (y=134)", () => {
 		const svg = render({ history });
 		const path = (svg.match(/<path d="([^"]+)" fill="([^"]+)"/) as RegExpMatchArray);
 		assert.equal(path[2], VOID.track);
-		assert.match(path[1] as string, /^M8\.0,140 L/);
-		assert.match(path[1] as string, /L136\.0,140 Z$/);
+		assert.match(path[1] as string, /^M8\.0,134 L/);
+		assert.match(path[1] as string, /L136\.0,134 Z$/);
 	});
 
 	it("end dot r=5 in accent at the last sample", () => {
-		const svg = render({ history: [10, 20, 30] });
-		assert.match(svg, new RegExp(`<circle cx="136\\.0" cy="124\\.0" r="5" fill="${VOID.accent}"/>`));
+		const svg = render({ history: [10, 20, 30] }); // last = max → top of strip
+		assert.match(svg, new RegExp(`<circle cx="136\\.0" cy="120\\.0" r="5" fill="${VOID.accent}"/>`));
 	});
 
 	it("no sparkline without 2+ samples", () => {
