@@ -172,6 +172,8 @@ More notes:
 
 ## Building from source
 
+Full contributor and agent guide (commands, structure, conventions): [AGENTS.md](AGENTS.md).
+
 ```bash
 npm ci                   # Node 20+
 npm run build            # bundles to com.lawrensen.hwinfo.sdPlugin/bin/plugin.js

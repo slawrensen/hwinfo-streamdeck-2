@@ -81,6 +81,7 @@ function checkCopy(rel, { emDashOnly = false } = {}) {
 const RULES_DOC = "docs/release/COPY_RULES.md";
 const PROSE_FILES = [
 	"README.md",
+	"AGENTS.md",
 	"CHANGELOG.md",
 	"MARKETPLACE.md",
 	"NOTICE.md",

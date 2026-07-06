@@ -10,7 +10,8 @@ Every version below matches a
 with a downloadable `.streamDeckPlugin`. Generated from the repo's
 `CHANGELOG.md`; do not edit this page by hand.
 
-Every Marketplace submission corresponds to one entry here and one git tag.
+One entry per version. Tagged versions are published as GitHub releases; the
+Elgato Marketplace listing is a separate track.
 
 ## 1.1.9.0 - 2026-07-05
 
@@ -115,9 +116,9 @@ Every Marketplace submission corresponds to one entry here and one git tag.
   alive with nobody to render for; normal operation already relied on the
   app's job object). No functional changes.
 
-## 1.1.0.0 - 2026-07-04 (initial Marketplace release)
+## 1.1.0.0 - 2026-07-04 (first tagged build)
 
-First public release. Tag: `v1.1.0`.
+The baseline feature set. Tag: `v1.1.0`.
 
 **Features**
 
