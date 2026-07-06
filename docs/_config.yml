@@ -7,9 +7,10 @@ description: >-
   Live HWiNFO sensor readings on your Elgato Stream Deck: temperatures, clocks,
   fan speeds, usage and power, with themes, thresholds and sparklines.
 
-# Served at https://slawrensen.github.io/hwinfo-streamdeck/
-url: https://slawrensen.github.io
-baseurl: /hwinfo-streamdeck
+# Served at https://docs.slawrensen.com/ (custom domain via docs/CNAME;
+# Cloudflare CNAME docs -> slawrensen.github.io, DNS-only/grey cloud).
+url: https://docs.slawrensen.com
+baseurl: ""
 
 remote_theme: just-the-docs/just-the-docs@v0.10.1
 plugins:
