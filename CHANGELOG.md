@@ -13,6 +13,8 @@ Every Marketplace submission corresponds to one entry here and one git tag.
   `JsonValue`/log-level imports to their new homes. Same behavior: all unit,
   e2e (harness, resilience, gadget, dead-fallback, load), and live-load
   checks pass, and the poller/render/status paths are unchanged.
+- The plugin URL and the docs links now point at the documentation site
+  (docs.slawrensen.com/hwinfo-streamdeck) instead of the raw GitHub repo.
 
 ## 1.1.7.0 - 2026-07-05
 
