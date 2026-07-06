@@ -14,13 +14,16 @@ com.lawrensen.hwinfo.sdPlugin/logs/
 /release/
 *.streamDeckPlugin
 
-# Internal working docs and machine-local agent config. Kept on disk and in
-# backups, never in the public repo. Do not git add -f these.
+# Internal working docs, machine-local agent config, and the private backup
+# working dir. Kept out of the public repo; mirrored in-place to the private
+# repo slawrensen/hwinfo-streamdeck-private (bare repo, see .private/README.md).
+# Do not git add -f these.
 /MARKETPLACE.md
 /design/
 /CLAUDE.md
 /.claude/
 /docs/release/
+/.private/
 
 # Misc
 *.log
