@@ -5,7 +5,7 @@ nav_order: 3
 
 This page gets one live sensor onto a Stream Deck key in about a minute, then points you at everything else.
 
-> **Before you start.** This is a Windows-only plugin that reads a running copy of [HWiNFO](https://www.hwinfo.com/download/). You need Windows 10 or later, Stream Deck software **6.6+**, and HWiNFO publishing data on either **Shared Memory Support** (preferred) or **Gadget reporting**. If HWiNFO isn't running yet, do that first: see [Install & requirements](installation.md).
+> **Before you start.** This is a Windows-only plugin that reads a running copy of [HWiNFO](https://www.hwinfo.com/download/). You need Windows 10 or later, Stream Deck software **6.9+**, and HWiNFO publishing data on either **Shared Memory Support** (preferred) or **Gadget reporting**. If HWiNFO isn't running yet, do that first: see [Install & requirements](installation.md).
 
 ## 1. Install the plugin
 

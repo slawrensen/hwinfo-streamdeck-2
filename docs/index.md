@@ -21,7 +21,7 @@ description: >-
 
 ## Facts
 
-> **Windows only, HWiNFO-dependent.** HWiNFO is a Windows application; this plugin reads its Shared Memory or Gadget-registry interface locally. It needs 64-bit Windows 10 or later and Stream Deck software 6.6+. **MIT licensed, no ads, no telemetry.** Independent project, not affiliated with or endorsed by REALiX/HWiNFO.
+> **Windows only, HWiNFO-dependent.** HWiNFO is a Windows application; this plugin reads its Shared Memory or Gadget-registry interface locally. It needs 64-bit Windows 10 or later and Stream Deck software 6.9+. **MIT licensed, no ads, no telemetry.** Independent project, not affiliated with or endorsed by REALiX/HWiNFO.
 
 ## Start here
 

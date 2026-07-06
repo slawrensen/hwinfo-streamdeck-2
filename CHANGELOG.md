@@ -2,6 +2,18 @@
 
 Every Marketplace submission corresponds to one entry here and one git tag.
 
+## 1.1.8.0 - 2026-07-05
+
+- Meets the current Marketplace intake requirements (surfaced in the live
+  Maker Console): manifest `SDKVersion` 3 and minimum Stream Deck app 6.9.
+  **The plugin now requires Stream Deck software 6.9 or later.**
+- Upgraded the runtime SDK from `@elgato/streamdeck` 1.4.1 to 2.1.0, which
+  SDKVersion 3 requires. Migrated the property-inspector messaging off the
+  removed `streamDeck.ui.current` onto `streamDeck.ui`, and moved the
+  `JsonValue`/log-level imports to their new homes. Same behavior: all unit,
+  e2e (harness, resilience, gadget, dead-fallback, load), and live-load
+  checks pass, and the poller/render/status paths are unchanged.
+
 ## 1.1.7.0 - 2026-07-05
 
 - Copy pass over everything a user reads, ahead of the Marketplace

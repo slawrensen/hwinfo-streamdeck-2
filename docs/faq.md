@@ -16,7 +16,7 @@ You also need **64-bit (x64) Windows**. On Windows-on-ARM the key shows a `Needs
 ### What are the exact requirements?
 
 - Windows 10 or later, x64
-- Stream Deck software **6.6+**
+- Stream Deck software **6.9+**
 - [HWiNFO](https://www.hwinfo.com/download/) (installer or portable) running, publishing on **Shared Memory Support** or **Gadget reporting**
 
 Stream Deck + dials are optional: they add the [Sensor Dial](sensor-dial.md) action, but the key action works on any Stream Deck.

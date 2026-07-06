@@ -2,7 +2,7 @@
  * Message shapes exchanged with the property inspector pages (ui/pi-common.js).
  * All are `type` aliases (not interfaces) so they satisfy the SDK's JsonValue.
  */
-import type { JsonValue } from "@elgato/streamdeck";
+import type { JsonValue } from "@elgato/utils";
 
 import type { PollerStatus } from "./poller";
 import { statusSentence } from "./ui/state-screens";

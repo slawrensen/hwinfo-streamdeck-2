@@ -7,7 +7,8 @@
  *   touch       cycle displayed stat (current → min → max → avg, session)
  *   long touch  back to the current value
  */
-import streamDeck, { action, SingletonAction, type DialDownEvent, type DialRotateEvent, type DidReceiveSettingsEvent, type JsonValue, type SendToPluginEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
+import streamDeck, { action, SingletonAction, type DialDownEvent, type DialRotateEvent, type DidReceiveSettingsEvent, type SendToPluginEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
+import type { JsonValue } from "@elgato/utils";
 
 import type { Reading } from "../hwinfo/types";
 import { buildPreview, buildSensorTree, buildThemesPayload } from "../pi-protocol";
@@ -68,9 +69,8 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		onThemeChange(() => {
 			this.renderAll(poller.getStatus());
 			// Keep the open PI's "Deck default" chip truthful in real time.
-			const pi = streamDeck.ui.current;
-			if (pi !== undefined && (pi.action as typeof pi.action | undefined)?.manifestId === this.manifestId) {
-				void pi.sendToPropertyInspector(buildThemesPayload());
+			if (streamDeck.ui.action?.manifestId === this.manifestId) {
+				void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
 			}
 		});
 	}
@@ -167,9 +167,9 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			return;
 		}
 		if (payload.event === "getSensorTree") {
-			void streamDeck.ui.current?.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
+			void streamDeck.ui.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
 		} else if (payload.event === "getThemes") {
-			void streamDeck.ui.current?.sendToPropertyInspector(buildThemesPayload());
+			void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
 		}
 	}
 
@@ -216,14 +216,12 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 	}
 
 	private pushPreview(status: PollerStatus): void {
-		const pi = streamDeck.ui.current;
-		// pi.action is typed non-optional but the SDK constructs it as undefined
-		// when the PI appears before the action's willAppear (restart races).
-		if (pi === undefined || (pi.action as typeof pi.action | undefined)?.manifestId !== this.manifestId) {
+		const piAction = streamDeck.ui.action;
+		if (piAction === undefined || piAction.manifestId !== this.manifestId) {
 			return;
 		}
-		const state = this.instances.get(pi.action.id);
-		void pi.sendToPropertyInspector(buildPreview(status, state?.settings.readingKey));
+		const state = this.instances.get(piAction.id);
+		void streamDeck.ui.sendToPropertyInspector(buildPreview(status, state?.settings.readingKey));
 	}
 }
 

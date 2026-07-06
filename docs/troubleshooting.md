@@ -100,7 +100,7 @@ The settings-panel sensor list is populated live from whatever source is active:
 ## Plugin shows nothing at all / the action is missing
 
 1. **Actions not visible in Stream Deck.** Look for the **HWiNFO Sensors** category in the actions list; drag **Sensor Reading** onto a key (or **Sensor Dial** onto a Stream Deck + encoder).
-2. **Stream Deck too old.** This plugin requires **Stream Deck software 6.6 or newer**. Update it.
+2. **Stream Deck too old.** This plugin requires **Stream Deck software 6.9 or newer**. Update it.
 3. **Not on Windows / wrong architecture.** The plugin is Windows x64 only; macOS and Windows-on-ARM are unsupported (you'll see **"Needs x64 Windows"** if it loads at all).
 4. **Install got corrupted.** Remove the plugin and reinstall by double-clicking the `.streamDeckPlugin` file, then restart Stream Deck.
 
@@ -179,7 +179,7 @@ Run through this first; most problems resolve here:
 - [ ] At least one interface is enabled: **Shared Memory Support** *or* **Gadget reporting** ("Report value in Gadget" on the sensors you need).
 - [ ] **Data source** (Advanced) is **Auto** unless you have a specific reason otherwise.
 - [ ] HWiNFO and Stream Deck are at the **same elevation** (both normal, or both admin).
-- [ ] **Stream Deck 6.6+**, **64-bit Windows 10+**.
+- [ ] **Stream Deck 6.9+**, **64-bit Windows 10+**.
 - [ ] You **re-picked the sensor** if it went missing after a hardware/driver change.
 - [ ] Threshold values are in the **displayed unit**, with the right **Direction**.
 

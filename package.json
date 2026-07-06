@@ -1,6 +1,6 @@
 {
 	"name": "hwinfo-streamdeck",
-	"version": "1.1.7",
+	"version": "1.1.8",
 	"private": true,
 	"type": "module",
 	"description": "Elgato Stream Deck plugin that displays live HWiNFO sensor readings on keys and dials",
@@ -29,7 +29,8 @@
 		"pack": "streamdeck pack com.lawrensen.hwinfo.sdPlugin --output release --force"
 	},
 	"dependencies": {
-		"@elgato/streamdeck": "^1.4.1",
+		"@elgato/streamdeck": "^2.1.0",
+		"@elgato/utils": "^0.4.5",
 		"koffi": "^3.1.0"
 	},
 	"devDependencies": {

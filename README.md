@@ -37,7 +37,7 @@ status screens and troubleshooting. (The sections below are a condensed tour.)
 
 ## Requirements
 
-- Windows 10 or later (x64), Stream Deck software **6.6+**
+- Windows 10 or later (x64), Stream Deck software **6.9+**
 - [HWiNFO](https://www.hwinfo.com/download/) (installer or portable) publishing
   data on either interface: **Shared Memory Support** (preferred) or **Gadget
   reporting**. The plugin picks automatically and falls back on its own.

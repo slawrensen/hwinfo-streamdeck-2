@@ -1,4 +1,4 @@
-import streamDeck, { LogLevel } from "@elgato/streamdeck";
+import streamDeck from "@elgato/streamdeck";
 
 import { SensorDialAction } from "./actions/sensor-dial";
 import { SensorReadingAction } from "./actions/sensor-reading";
@@ -16,7 +16,7 @@ type GlobalSettings = {
 	typeAccents?: string;
 };
 
-streamDeck.logger.setLevel(LogLevel.INFO);
+streamDeck.logger.setLevel("info");
 
 // A monitoring widget should log-and-continue rather than die silently; every
 // per-tick failure mode is already handled in the poller, so anything landing
@@ -37,9 +37,8 @@ await initKoffi();
 // The Stream Deck app reaps plugin processes through its job object, but if
 // it ever dies without that teardown (hard crash), the poller's interval
 // would keep this process alive — polling for nobody. Watch the parent and
-// leave when it does. SDK 1.4.1 exposes no connection-close event, and the
-// watchdog also covers closes the socket never sees. unref'd so the timer
-// itself never holds the event loop open.
+// leave when it does. The watchdog also covers closes the socket never sees.
+// unref'd so the timer itself never holds the event loop open.
 const parentPid = process.ppid;
 const PARENT_CHECK_MS = Number(process.env.HWINFO_PARENT_CHECK_MS ?? "") || 30_000;
 setInterval(() => {
