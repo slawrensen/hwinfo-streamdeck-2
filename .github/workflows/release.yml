@@ -43,15 +43,17 @@ jobs:
         run: npm run pack
 
       - name: Verify packed version matches the tag
+        id: verify
         shell: pwsh
         run: |
           $manifest = Get-Content com.lawrensen.hwinfo.sdPlugin/manifest.json -Raw | ConvertFrom-Json
-          $tag = "${{ github.ref_name }}".TrimStart('v')            # v1.1.7 -> 1.1.7
-          $ver = $manifest.Version                                  # 1.1.7.0
+          $tag = "${{ github.ref_name }}".TrimStart('v')            # v1.1.8 -> 1.1.8
+          $ver = $manifest.Version                                  # 1.1.8.0
           if (-not $ver.StartsWith("$tag.") -and $ver -ne $tag) {
             Write-Error "manifest Version $ver does not match tag $tag; bump manifest.json before tagging"
             exit 1
           }
+          "ver=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Output "manifest $ver matches tag $tag"
 
       - name: Compute SHA-256
@@ -68,6 +70,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: HWiNFO Sensors ${{ steps.verify.outputs.ver }}
           files: release/com.lawrensen.hwinfo.streamDeckPlugin
           generate_release_notes: true
           fail_on_unmatched_files: true
