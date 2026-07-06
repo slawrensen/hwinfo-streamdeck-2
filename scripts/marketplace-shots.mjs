@@ -158,10 +158,10 @@ async function hero() {
 	const chrome = [
 		`<rect x="${deckX}" y="${deckY}" width="${deckW}" height="${deckH}" rx="34" fill="#131418" stroke="#26282E" stroke-width="1.5"/>`,
 		`<text x="96" y="392" font-family="${FONT}" font-size="66" font-weight="700" fill="${HEADLINE}">HWiNFO Sensors</text>`,
-		`<text x="96" y="446" font-family="${FONT}" font-size="26" font-weight="400" fill="${BODY}">Live hardware telemetry on your Stream Deck.</text>`,
+		`<text x="96" y="446" font-family="${FONT}" font-size="26" font-weight="400" fill="${BODY}">Live hardware readings on your Stream Deck.</text>`,
 		`<text x="96" y="522" font-family="${MONO}" font-size="17" fill="${CYAN}">temperatures · clocks · fans · power · load · network</text>`,
 		`<text x="96" y="560" font-family="${MONO}" font-size="17" fill="${MUTED}">7 themes · type accents · sparklines · aviation-style alerts</text>`,
-		`<text x="96" y="912" font-family="${MONO}" font-size="15" fill="${MUTED}">every key face above is real plugin output — Ryzen 9 9950X3D + RTX 4090</text>`
+		`<text x="96" y="912" font-family="${MONO}" font-size="15" fill="${MUTED}">every key face above is real plugin output: Ryzen 9 9950X3D + RTX 4090</text>`
 	];
 
 	const composites = [];
@@ -188,7 +188,7 @@ async function themes() {
 
 	const chrome = [
 		`<text x="960" y="96" text-anchor="middle" font-family="${FONT}" font-size="52" font-weight="700" fill="${HEADLINE}">Seven themes. One instrument.</text>`,
-		`<text x="960" y="142" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">Per key or deck-wide — anchors never move, only the palette changes.</text>`,
+		`<text x="960" y="142" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">Per key or deck-wide. Anchors never move, only the palette changes.</text>`,
 		`<text x="960" y="${rowY[1] + KEY + 64}" text-anchor="middle" font-family="${FONT}" font-size="21" fill="${BODY}">Alerts are global and never themed: amber field with black text at warn, red with white at critical.</text>`
 	];
 
@@ -300,7 +300,7 @@ async function dials() {
 // ---------- shot 3: settings panel (from capture-pi.mjs screenshots) ----------
 async function settings(piDir) {
 	const panels = [
-		{ file: "pi-picker.png", title: "Searchable picker — every reading, live values" },
+		{ file: "pi-picker.png", title: "Searchable picker: every reading, live values" },
 		{ file: "pi-settings.png", title: "Themes, thresholds and sparkline per key" }
 	];
 	const CROP_H = 1150; // content ends at the Advanced fold (2× captures are 800px wide)
@@ -312,7 +312,7 @@ async function settings(piDir) {
 
 	const chrome = [
 		`<text x="960" y="84" text-anchor="middle" font-family="${FONT}" font-size="50" font-weight="700" fill="${HEADLINE}">Set up in seconds.</text>`,
-		`<text x="960" y="130" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">The real settings panel — search 500+ readings with live values, pick a theme, set thresholds.</text>`
+		`<text x="960" y="130" text-anchor="middle" font-family="${FONT}" font-size="22" fill="${BODY}">The real settings panel: search 500+ readings with live values, pick a theme, set thresholds.</text>`
 	];
 	const composites = [];
 	for (let i = 0; i < panels.length; i++) {
@@ -358,7 +358,7 @@ async function thumbnail() {
 
 	const chrome = [
 		`<text x="960" y="180" text-anchor="middle" font-family="${FONT}" font-size="86" font-weight="700" fill="${HEADLINE}">HWiNFO Sensors</text>`,
-		`<text x="960" y="248" text-anchor="middle" font-family="${FONT}" font-size="32" fill="${BODY}">Live hardware telemetry on keys and dials</text>`,
+		`<text x="960" y="248" text-anchor="middle" font-family="${FONT}" font-size="32" fill="${BODY}">Live hardware readings on keys and dials</text>`,
 		`<text x="960" y="322" text-anchor="middle" font-family="${MONO}" font-size="22" fill="${CYAN}">temperatures · clocks · fans · power · load · network</text>`,
 		`<text x="960" y="878" text-anchor="middle" font-family="${MONO}" font-size="20" fill="${MUTED}">7 themes · sparklines · warn/critical alerts · Stream Deck +</text>`
 	];
