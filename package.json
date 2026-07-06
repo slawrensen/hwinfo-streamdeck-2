@@ -17,6 +17,7 @@
 		"test": "tsx --test test/themes.test.ts test/key-renderer.test.ts test/dial-renderer.test.ts test/reader.test.ts test/state-screens.test.ts test/series.test.ts",
 		"contact-sheet": "tsx scripts/contact-sheet.mjs",
 		"docs-shots": "tsx scripts/gen-docs-shots.mjs",
+		"changelog:page": "node scripts/gen-changelog-page.mjs",
 		"probe": "tsx src/probe.ts",
 		"e2e": "node scripts/e2e-harness.mjs",
 		"e2e:resilience": "node scripts/e2e-resilience.mjs",
