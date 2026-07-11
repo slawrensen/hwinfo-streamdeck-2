@@ -1,0 +1,13 @@
+{
+	"name": "legacy press without rotation fires the reset on dial down, once",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialDown", "mono": 1000 },
+		{ "context": "ctx1", "event": "dialUp", "mono": 1200 }
+	],
+	"expect": {
+		"ctx1": { "commands": ["resetStats"], "selection": "a:0:1" }
+	}
+}

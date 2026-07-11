@@ -6,7 +6,7 @@
 import streamDeck, { action, SingletonAction, type DidReceiveSettingsEvent, type KeyDownEvent, type SendToPluginEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 
-import { buildPreview, buildSensorTree, buildThemesPayload } from "../pi-protocol";
+import { buildPreview, buildSensorTree, buildSupportReportPayload, buildThemesPayload } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
 import { alertLevel, convertUnit, formatValue, isStatMode, parseThreshold, STAT_BADGE, STAT_MODES, statValue, type DecimalsSetting, type StatMode } from "../ui/format";
 import { renderReadingKey, renderStatusKey } from "../ui/key-renderer";
@@ -71,6 +71,7 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		// willDisappear (reconnect, wake) — retain + subscribe only on the first
 		// sighting, and carry the existing subscription across a replay so the
 		// sparkline history (now owned by the poller) is never dropped.
+		streamDeck.logger.debug(`Key appeared on ${ev.action.device.name}${ev.action.isKey() && ev.action.coordinates !== undefined ? ` at ${ev.action.coordinates.column},${ev.action.coordinates.row}` : ""} (${ev.action.id})`);
 		const existing = this.instances.get(ev.action.id);
 		const firstSighting = existing === undefined;
 		if (firstSighting) {
@@ -78,12 +79,28 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		}
 		decideLegacyDefault(Object.values(ev.payload.settings).some((v) => v !== undefined));
 		const key = readingKeyOf(ev.payload.settings);
-		if (firstSighting && key !== undefined) {
-			poller.subscribeSeries(key);
+		let subscribedKey = existing?.subscribedKey;
+		if (firstSighting) {
+			if (key !== undefined) {
+				poller.subscribeSeries(key);
+			}
+			subscribedKey = key;
+		} else if (subscribedKey !== key) {
+			// A replayed willAppear can carry settings that changed while the
+			// action was out of sight — re-point the sparkline subscription
+			// exactly like onDidReceiveSettings, or the ring for the new key
+			// never fills and the sparkline goes permanently blank.
+			if (subscribedKey !== undefined) {
+				poller.unsubscribeSeries(subscribedKey);
+			}
+			if (key !== undefined) {
+				poller.subscribeSeries(key);
+			}
+			subscribedKey = key;
 		}
 		this.instances.set(ev.action.id, {
 			settings: ev.payload.settings,
-			subscribedKey: firstSighting ? key : existing?.subscribedKey,
+			subscribedKey,
 			lastSvg: existing?.lastSvg ?? ""
 		});
 		this.renderAll(poller.getStatus());
@@ -143,6 +160,8 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 			void streamDeck.ui.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
 		} else if (payload.event === "getThemes") {
 			void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
+		} else if (payload.event === "getSupportReport") {
+			void streamDeck.ui.sendToPropertyInspector(buildSupportReportPayload());
 		}
 	}
 

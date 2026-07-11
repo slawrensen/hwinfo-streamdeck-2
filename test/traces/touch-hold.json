@@ -1,0 +1,14 @@
+{
+	"name": "touch hold returns to current and never doubles as a tap",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "touchTap", "mono": 1000, "hold": false, "tapX": 100 },
+		{ "context": "ctx1", "event": "touchTap", "mono": 1400, "hold": false, "tapX": 100 },
+		{ "context": "ctx1", "event": "touchTap", "mono": 2000, "hold": true, "tapX": 100 }
+	],
+	"expect": {
+		"ctx1": { "commands": ["cycleStat", "cycleStat", "backToCurrent"], "statMode": "current" }
+	}
+}

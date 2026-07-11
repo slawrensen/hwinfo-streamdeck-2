@@ -1,0 +1,17 @@
+{
+	"name": "a pinned dial cannot be rotated off its reading until unpinned",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1", "controlPreset": "custom", "gestureShortPress": "pin" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialDown", "mono": 1000 },
+		{ "context": "ctx1", "event": "dialUp", "mono": 1100 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1500, "ticks": 2, "pressed": false },
+		{ "context": "ctx1", "event": "dialDown", "mono": 2000 },
+		{ "context": "ctx1", "event": "dialUp", "mono": 2100 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 2500, "ticks": 1, "pressed": false }
+	],
+	"expect": {
+		"ctx1": { "commands": ["pin", "pin", "step:1"], "selection": "a:0:2", "pinned": false }
+	}
+}

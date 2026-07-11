@@ -1,6 +1,6 @@
 {
 	"name": "hwinfo-streamdeck",
-	"version": "1.1.9",
+	"version": "1.1.10",
 	"private": true,
 	"type": "module",
 	"description": "Elgato Stream Deck plugin that displays live HWiNFO sensor readings on keys and dials",
@@ -14,7 +14,7 @@
 		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.lawrensen.hwinfo\"",
 		"lint": "eslint src scripts test --max-warnings 0",
 		"typecheck": "tsc --noEmit",
-		"test": "tsx --test test/themes.test.ts test/key-renderer.test.ts test/dial-renderer.test.ts test/reader.test.ts test/state-screens.test.ts test/series.test.ts",
+		"test": "tsx --test test/themes.test.ts test/key-renderer.test.ts test/dial-renderer.test.ts test/reader.test.ts test/state-screens.test.ts test/series.test.ts test/rotation.test.ts test/devices.test.ts test/gestures.test.ts test/controls.test.ts test/stats.test.ts test/diagnostics.test.ts test/gesture-replay.test.ts test/density.test.ts",
 		"contact-sheet": "tsx scripts/contact-sheet.mjs",
 		"docs-shots": "tsx scripts/gen-docs-shots.mjs",
 		"changelog:page": "node scripts/gen-changelog-page.mjs",

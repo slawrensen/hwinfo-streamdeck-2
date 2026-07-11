@@ -1,0 +1,14 @@
+{
+	"name": "rapid multi-tick rotation lands on the correct final selection",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1000, "ticks": 3, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1016, "ticks": -1, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1031, "ticks": 2, "pressed": false }
+	],
+	"expect": {
+		"ctx1": { "commands": ["step:3", "step:-1", "step:2"], "selection": "a:0:1" }
+	}
+}

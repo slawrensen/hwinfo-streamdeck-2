@@ -18,6 +18,10 @@
 	const previewStatsEl = document.getElementById("preview-stats");
 	const hintEl = document.getElementById("status-hint");
 	const galleryEl = document.getElementById("theme-gallery");
+	const rotationSetEl = document.getElementById("rotation-set"); // dial PI only
+	const controlsCustomEl = document.getElementById("controls-custom"); // dial PI only
+	const controlsZonesEl = document.getElementById("controls-zones"); // dial PI only
+	const supportEl = document.getElementById("support-report");
 
 	const MAX_ROWS = 150;
 	const SENSOR_TYPE_NAMES = ["", "Temp", "Voltage", "Fan", "Current", "Power", "Clock", "Usage", ""];
@@ -27,6 +31,11 @@
 	let treeRequestPending = false;
 	let selectedKey = "";
 	let listOpen = false;
+	// True only after a real keystroke in the search box; cleared whenever the
+	// box is programmatically rewritten. The old proxy (box text differs from
+	// the selection display) misfired when rotation moved the selection under
+	// a focused box: the stale display text filtered the list to nothing.
+	let searchTyped = false;
 
 	// Immediate (non-debounced) persistence; third arg null disables debounce.
 	const [getReadingKey, setReadingKey] = useSettings(
@@ -35,9 +44,91 @@
 			selectedKey = typeof value === "string" ? value : "";
 			showSelection();
 			renderList();
+			// Rotating the dial (or autocycle) moves the selection while the
+			// list is open: keep the highlighted row in view so the movement
+			// is visible. "nearest" only scrolls when it left the viewport,
+			// and a hand-typed filter is never yanked around.
+			if (listOpen && !searchTyped) {
+				listEl.querySelector(".hw-row.selected")?.scrollIntoView({ block: "nearest" });
+			}
 		},
 		null
 	);
+
+	// Rotation set (dial PI only): the readings dial rotation is limited to.
+	// Ticked in the picker rows, shown as removable chips under the picker.
+	let rotationKeys = [];
+	const rotationBinding =
+		rotationSetEl === null
+			? null
+			: useSettings(
+					"rotationKeys",
+					(value) => {
+						rotationKeys = Array.isArray(value) ? value.filter((k) => typeof k === "string") : [];
+						renderRotationSet();
+						renderList();
+					},
+					null
+				);
+
+	function applyRotationKeys(next) {
+		rotationKeys = next;
+		rotationBinding[1](rotationKeys);
+		renderRotationSet();
+		// Sync ticks in place instead of rebuilding the list: the open list
+		// keeps its scroll position and every box matches the model.
+		for (const row of listEl.querySelectorAll(".hw-row")) {
+			const tick = row.querySelector(".hw-tick");
+			if (tick !== null) tick.checked = rotationKeys.includes(row.dataset.key);
+		}
+	}
+
+	function setRotationMembership(key, present) {
+		if (rotationBinding === null || !key) return;
+		if (present === rotationKeys.includes(key)) return;
+		applyRotationKeys(present ? [...rotationKeys, key] : rotationKeys.filter((k) => k !== key));
+	}
+
+	function readingLabelOf(key) {
+		if (tree !== null) {
+			for (const group of tree) {
+				for (const reading of group.readings) {
+					if (reading.key === key) return reading.label;
+				}
+			}
+		}
+		return null;
+	}
+
+	function renderRotationSet() {
+		if (rotationSetEl === null) return;
+		const frag = document.createDocumentFragment();
+		for (const key of rotationKeys) {
+			const label = readingLabelOf(key);
+			const chip = document.createElement("span");
+			chip.className = "hw-set-chip" + (tree !== null && label === null ? " missing" : "");
+			const name = document.createElement("span");
+			name.textContent = label ?? key;
+			const remove = document.createElement("button");
+			remove.type = "button";
+			remove.className = "hw-set-remove";
+			remove.dataset.key = key;
+			remove.title = "Remove from the rotation set";
+			remove.textContent = "×";
+			chip.append(name, remove);
+			frag.appendChild(chip);
+		}
+		const note = document.createElement("div");
+		note.className = "hw-set-note";
+		note.textContent =
+			rotationKeys.length === 0
+				? "Empty: rotation moves through all readings of the picked sensor."
+				: rotationKeys.length === 1
+					? "Only one reading picked. Rotation needs two or more to move."
+					: `Rotation moves through these ${rotationKeys.length} readings only.`;
+		frag.appendChild(note);
+		rotationSetEl.replaceChildren(frag);
+	}
 
 	function fmt(value) {
 		if (!Number.isFinite(value)) return "—";
@@ -59,7 +150,8 @@
 	}
 
 	function showSelection() {
-		if (document.activeElement === searchEl && listOpen) return; // don't fight the user mid-search
+		if (document.activeElement === searchEl && listOpen && searchTyped) return; // don't fight the user mid-search
+		searchTyped = false;
 		const found = findSelected();
 		if (found !== null) {
 			searchEl.value = `${found.reading.label}  ·  ${found.group.name}`;
@@ -109,8 +201,8 @@
 			return;
 		}
 		const raw = searchEl.value;
-		// When the box still shows the selection display text, don't filter by it.
-		const filtering = raw !== "" && findSelectedDisplay() !== raw;
+		// Only a filter the user actually typed filters the list.
+		const filtering = searchTyped && raw !== "";
 		const tokens = filtering ? tokensOf(raw) : [];
 
 		const frag = document.createDocumentFragment();
@@ -135,6 +227,14 @@
 				const row = document.createElement("div");
 				row.className = "hw-row" + (reading.key === selectedKey ? " selected" : "");
 				row.dataset.key = reading.key;
+				if (rotationSetEl !== null) {
+					const tick = document.createElement("input");
+					tick.type = "checkbox";
+					tick.className = "hw-tick";
+					tick.checked = rotationKeys.includes(reading.key);
+					tick.title = "Include in the rotation set";
+					row.appendChild(tick);
+				}
 				const label = document.createElement("span");
 				label.className = "hw-label";
 				label.textContent = reading.label;
@@ -160,11 +260,6 @@
 			frag.appendChild(more);
 		}
 		listEl.replaceChildren(frag);
-	}
-
-	function findSelectedDisplay() {
-		const found = findSelected();
-		return found !== null ? `${found.reading.label}  ·  ${found.group.name}` : null;
 	}
 
 	function openList() {
@@ -211,6 +306,7 @@
 	});
 
 	searchEl.addEventListener("input", () => {
+		searchTyped = true;
 		openList();
 		renderList();
 	});
@@ -225,9 +321,7 @@
 			// the current selection (or the ⚠ missing-sensor placeholder), the list
 			// is the full unfiltered tree, whose top row is unrelated; picking it
 			// would silently swap the user's saved sensor. Just close instead.
-			const raw = searchEl.value;
-			const filtering = raw !== "" && findSelectedDisplay() !== raw;
-			if (filtering) {
+			if (searchTyped && searchEl.value !== "") {
 				selectRow(listEl.querySelector(".hw-row"));
 			} else {
 				closeList();
@@ -239,12 +333,26 @@
 	listEl.addEventListener("mousedown", (ev) => {
 		const row = ev.target.closest(".hw-row");
 		if (!row) return;
+		// Membership ticks toggle natively on the CLICK that follows; fighting
+		// that from mousedown left the box visually inverted. Let it be.
+		if (ev.target.classList.contains("hw-tick")) return;
 		ev.preventDefault();
 		selectRow(row);
 	});
 
+	// The checkbox's own activation already flipped it; adopt its new state.
+	listEl.addEventListener("click", (ev) => {
+		if (!ev.target.classList.contains("hw-tick")) return;
+		const row = ev.target.closest(".hw-row");
+		setRotationMembership(row?.dataset.key, ev.target.checked);
+	});
+
 	document.addEventListener("mousedown", (ev) => {
-		if (listOpen && !ev.target.closest(".hw-picker")) closeList();
+		// composedPath, not target.closest: toggling a rotation tick re-renders
+		// the rows mid-bubble, detaching ev.target; closest() on a detached node
+		// would misread the click as outside the picker and close the list.
+		const insidePicker = ev.composedPath().some((el) => el instanceof Element && el.classList.contains("hw-picker"));
+		if (listOpen && !insidePicker) closeList();
 	});
 
 	if (refreshEl) {
@@ -252,6 +360,57 @@
 			tree = null;
 			renderList();
 			requestTree();
+		});
+	}
+
+	// Control preset (dial PI only): the custom gesture rows only exist for
+	// "custom", the touch-zone picker for anything beyond legacy. The sdpi
+	// store notifies subscribers on didReceiveSettings only, and the app does
+	// NOT echo a PI's own setSettings back to it, so picking a preset in this
+	// very panel never fires the subscription. Poll the LOCAL settings cache
+	// (no round trip) so the rows follow the select while the panel is open.
+	if (controlsCustomEl !== null) {
+		const applyPreset = (value) => {
+			const preset = value === "elite" || value === "custom" ? value : "legacy";
+			controlsCustomEl.hidden = preset !== "custom";
+			if (controlsZonesEl !== null) controlsZonesEl.hidden = preset === "legacy";
+		};
+		const [getPreset] = useSettings("controlPreset", applyPreset, null);
+		getPreset().then(applyPreset);
+		setInterval(() => getPreset().then(applyPreset), 400);
+	}
+
+	// "Copy support report": ask the plugin for the redacted report, copy it.
+	if (supportEl !== null) {
+		supportEl.addEventListener("click", () => {
+			supportEl.disabled = true;
+			streamDeckClient.send("sendToPlugin", { event: "getSupportReport" });
+		});
+	}
+
+	async function copyText(text) {
+		try {
+			await navigator.clipboard.writeText(text);
+			return true;
+		} catch {
+			const scratch = document.createElement("textarea");
+			scratch.value = text;
+			document.body.appendChild(scratch);
+			scratch.select();
+			const ok = document.execCommand("copy");
+			scratch.remove();
+			return ok;
+		}
+	}
+
+	function deliverSupportReport(report) {
+		if (supportEl === null) return;
+		copyText(report).then((ok) => {
+			supportEl.disabled = false;
+			supportEl.textContent = ok ? "Copied to clipboard" : "Copy failed";
+			setTimeout(() => {
+				supportEl.textContent = "Copy support report";
+			}, 2000);
 		});
 	}
 
@@ -360,6 +519,10 @@
 			renderGallery();
 			return;
 		}
+		if (p.event === "supportReport" && typeof p.report === "string") {
+			deliverSupportReport(p.report);
+			return;
+		}
 		if (p.event === "sensorTree") {
 			tree = p.groups;
 			treeFetchedOk = p.state === "ok";
@@ -367,6 +530,7 @@
 			setHint(p.hint);
 			showSelection();
 			renderList();
+			renderRotationSet(); // chip labels resolve once the tree is here
 		} else if (p.event === "preview") {
 			renderPreview(p);
 			setHint(p.hint);
@@ -382,5 +546,15 @@
 		selectedKey = typeof value === "string" ? value : "";
 		showSelection();
 	});
+	if (rotationBinding !== null) {
+		rotationSetEl.addEventListener("click", (ev) => {
+			const remove = ev.target.closest(".hw-set-remove");
+			if (remove) setRotationMembership(remove.dataset.key, false);
+		});
+		rotationBinding[0]().then((value) => {
+			rotationKeys = Array.isArray(value) ? value.filter((k) => typeof k === "string") : [];
+			renderRotationSet();
+		});
+	}
 	requestTree();
 })();

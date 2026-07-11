@@ -4,7 +4,8 @@
 		<meta charset="utf-8" />
 		<title>Sensor Dial settings</title>
 		<script src="sdpi-components.js"></script>
-		<link rel="stylesheet" href="pi.css" />
+		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
+		<link rel="stylesheet" href="pi.css?v=1.1.10.0" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -35,8 +36,39 @@
 
 		<div class="hw-hint" id="status-hint" hidden></div>
 
+		<sdpi-item label="Rotation set">
+			<div class="hw-set" id="rotation-set"></div>
+		</sdpi-item>
+		<div class="hw-help">Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor.</div>
+
+		<sdpi-item label="Rotation">
+			<sdpi-checkbox setting="rotationDisabled" label="Ignore turns (protects against accidental bumps)"></sdpi-checkbox>
+		</sdpi-item>
+
+		<sdpi-item label="Auto cycle">
+			<sdpi-select setting="autoCycleMs" default="off">
+				<option value="off">Off</option>
+				<option value="5000">Every 5 seconds</option>
+				<option value="10000">Every 10 seconds</option>
+				<option value="30000">Every 30 seconds</option>
+				<option value="60000">Every minute</option>
+				<option value="300000">Every 5 minutes</option>
+			</sdpi-select>
+		</sdpi-item>
+		<div class="hw-help">Steps through the rotation set (or the picked sensor's readings) on a timer. Runs even while turns are ignored, and holds instead of rotating away while the shown reading is critical.</div>
+
+		<sdpi-item label="On alert">
+			<sdpi-checkbox setting="alertInterrupt" label="Auto cycle jumps to a critical reading in the set"></sdpi-checkbox>
+		</sdpi-item>
+
 		<sdpi-item label="Label">
 			<sdpi-textfield setting="label" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item label="Label mode">
+			<sdpi-select setting="labelMode" default="auto">
+				<option value="auto">Clears when rotation moves on (default)</option>
+				<option value="fixed">Stays as a fixed title for this dial</option>
+			</sdpi-select>
 		</sdpi-item>
 
 		<sdpi-item label="Theme">
@@ -79,8 +111,85 @@
 
 		<details>
 			<summary>Dial gestures &amp; advanced</summary>
-			<sdpi-item label="Gestures">
-				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Rotate: next/previous reading of the same sensor · Push: reset session min/max · Touch: cycle current/min/max/avg · Long touch: back to current.</div>
+			<sdpi-item label="Controls">
+				<sdpi-select setting="controlPreset" default="legacy">
+					<option value="legacy">Legacy (default)</option>
+					<option value="elite">Elite</option>
+					<option value="custom">Custom</option>
+				</sdpi-select>
+			</sdpi-item>
+			<div class="hw-help" id="controls-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: pressed rotation switches sensors, short push pauses the auto cycle, long push resets stats.</div>
+			<div id="controls-custom" hidden>
+				<sdpi-item label="Rotate">
+					<sdpi-select setting="gestureRotate" default="step">
+						<option value="step">Cycle readings</option>
+						<option value="stepGroup">Switch sensor</option>
+						<option value="cycleStat">Cycle stat mode</option>
+						<option value="none">Do nothing</option>
+					</sdpi-select>
+				</sdpi-item>
+				<sdpi-item label="Press+rotate">
+					<sdpi-select setting="gesturePressedRotate" default="step">
+						<option value="step">Cycle readings</option>
+						<option value="stepGroup">Switch sensor</option>
+						<option value="none">Do nothing</option>
+					</sdpi-select>
+				</sdpi-item>
+				<sdpi-item label="Short push">
+					<sdpi-select setting="gestureShortPress" default="resetStats">
+						<option value="resetStats">Reset session stats</option>
+						<option value="pauseResume">Pause/resume auto cycle</option>
+						<option value="pin">Pin/unpin this reading</option>
+						<option value="cycleStat">Cycle stat mode</option>
+						<option value="backToCurrent">Back to current value</option>
+						<option value="none">Do nothing</option>
+					</sdpi-select>
+				</sdpi-item>
+				<sdpi-item label="Long push">
+					<sdpi-select setting="gestureLongPress" default="resetStats">
+						<option value="resetStats">Reset session stats</option>
+						<option value="pauseResume">Pause/resume auto cycle</option>
+						<option value="pin">Pin/unpin this reading</option>
+						<option value="backToCurrent">Back to current value</option>
+						<option value="none">Do nothing</option>
+					</sdpi-select>
+				</sdpi-item>
+				<sdpi-item label="Touch tap">
+					<sdpi-select setting="gestureTap" default="cycleStat">
+						<option value="cycleStat">Cycle stat mode</option>
+						<option value="backToCurrent">Back to current value</option>
+						<option value="pauseResume">Pause/resume auto cycle</option>
+						<option value="pin">Pin/unpin this reading</option>
+						<option value="none">Do nothing</option>
+					</sdpi-select>
+				</sdpi-item>
+				<sdpi-item label="Long touch">
+					<sdpi-select setting="gestureTouchHold" default="backToCurrent">
+						<option value="backToCurrent">Back to current value</option>
+						<option value="cycleStat">Cycle stat mode</option>
+						<option value="resetStats">Reset session stats</option>
+						<option value="none">Do nothing</option>
+					</sdpi-select>
+				</sdpi-item>
+			</div>
+			<div id="controls-zones" hidden>
+				<sdpi-item label="Touch zones">
+					<sdpi-select setting="touchZones" default="off">
+						<option value="off">Off (whole surface = one tap)</option>
+						<option value="two">Two: left/right switch readings</option>
+						<option value="three">Three: left/right switch, center taps</option>
+					</sdpi-select>
+				</sdpi-item>
+			</div>
+			<sdpi-item label="Reset reach">
+				<sdpi-select setting="resetScope" default="current">
+					<option value="current">This reading only</option>
+					<option value="set">The whole rotation set</option>
+					<option value="all">Every dial (use with care)</option>
+				</sdpi-select>
+			</sdpi-item>
+			<sdpi-item label="Link ID">
+				<sdpi-textfield setting="linkId" placeholder="Name for HWiNFO Control keys to target"></sdpi-textfield>
 			</sdpi-item>
 			<sdpi-item label="Deck theme">
 				<sdpi-select setting="theme" global default="void">
@@ -116,8 +225,12 @@
 					<option value="5000">5 seconds</option>
 				</sdpi-select>
 			</sdpi-item>
+			<sdpi-item label="Support">
+				<button class="hw-support" id="support-report" type="button">Copy support report</button>
+			</sdpi-item>
+			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-common.js"></script>
+		<script src="pi-common.js?v=1.1.10.0"></script>
 	</body>
 </html>

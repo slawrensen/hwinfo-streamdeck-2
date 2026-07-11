@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>HWiNFO Control settings</title>
+		<script src="sdpi-components.js"></script>
+		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
+		<link rel="stylesheet" href="pi.css?v=1.1.10.0" />
+	</head>
+	<body>
+		<details class="hw-setup">
+			<summary>What this key does</summary>
+			<p>
+				It drives your <b>Sensor Dial</b> actions from any key: a pedal, a G-key,
+				a Multi Action step, or a plain key on another deck. Pick a command and,
+				optionally, a target. The key shows a tick when the command reached at
+				least one matching dial and an alert icon when none matched.
+			</p>
+		</details>
+
+		<sdpi-item label="Command">
+			<sdpi-select setting="command" default="next">
+				<option value="next">Next reading</option>
+				<option value="prev">Previous reading</option>
+				<option value="nextGroup">Next sensor</option>
+				<option value="prevGroup">Previous sensor</option>
+				<option value="cycleStat">Cycle stat mode</option>
+				<option value="showCurrent">Show current value</option>
+				<option value="showMin">Show session min</option>
+				<option value="showMax">Show session max</option>
+				<option value="showAvg">Show session average</option>
+				<option value="pauseCycle">Pause auto cycle</option>
+				<option value="resumeCycle">Resume auto cycle</option>
+				<option value="toggleCycle">Pause/resume auto cycle</option>
+				<option value="pin">Pin reading</option>
+				<option value="unpin">Unpin reading</option>
+				<option value="togglePin">Pin/unpin reading</option>
+				<option value="resetStats">Reset session stats</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Target">
+			<sdpi-textfield setting="target" placeholder="Link ID (empty: every dial)"></sdpi-textfield>
+		</sdpi-item>
+		<div class="hw-help">Give a dial a Link ID in its settings (under "Dial gestures &amp; advanced") and put the same name here to steer just that dial or group of dials. The dial can be on a different Stream Deck than this key.</div>
+
+		<sdpi-item label="Reset reach">
+			<sdpi-select setting="resetScope" default="current">
+				<option value="current">Current reading only</option>
+				<option value="set">The dial's rotation set</option>
+				<option value="all">Every dial, everywhere (use with care)</option>
+			</sdpi-select>
+		</sdpi-item>
+		<div class="hw-help">Only used by "Reset session stats". "Every dial, everywhere" ignores the Target and clears session stats on all dials, on all decks, including hidden ones.</div>
+
+		<details>
+			<summary>Support</summary>
+			<sdpi-item label="Support">
+				<button class="hw-support" id="support-report" type="button">Copy support report</button>
+			</sdpi-item>
+			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
+		</details>
+
+		<script src="pi-control.js?v=1.1.10.0"></script>
+	</body>
+</html>

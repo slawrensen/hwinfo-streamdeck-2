@@ -2,8 +2,10 @@
  * Message shapes exchanged with the property inspector pages (ui/pi-common.js).
  * All are `type` aliases (not interfaces) so they satisfy the SDK's JsonValue.
  */
+import streamDeck from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 
+import { buildSupportReport } from "./diagnostics";
 import type { PollerStatus } from "./poller";
 import { statusSentence } from "./ui/state-screens";
 import { getDeckTheme } from "./ui/theme-store";
@@ -64,6 +66,19 @@ export type PreviewPayload = {
  */
 export function buildThemesPayload(): JsonValue {
 	return JSON.parse(JSON.stringify({ event: "themes", effectiveDeckTheme: getDeckTheme(), ...loadThemes() })) as JsonValue;
+}
+
+/** The redacted support report, for the PI's "Copy support report" button. */
+export function buildSupportReportPayload(): JsonValue {
+	const info = streamDeck.info;
+	return {
+		event: "supportReport",
+		report: buildSupportReport({
+			pluginVersion: info.plugin.version,
+			appVersion: info.application.version,
+			platformVersion: info.application.platformVersion
+		})
+	};
 }
 
 /** The full sensor list, grouped by source — sent on PI request. */

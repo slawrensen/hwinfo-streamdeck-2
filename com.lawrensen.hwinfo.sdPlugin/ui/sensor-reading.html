@@ -4,7 +4,8 @@
 		<meta charset="utf-8" />
 		<title>Sensor Reading settings</title>
 		<script src="sdpi-components.js"></script>
-		<link rel="stylesheet" href="pi.css" />
+		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
+		<link rel="stylesheet" href="pi.css?v=1.1.10.0" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -122,8 +123,12 @@
 			<sdpi-item label="Tip">
 				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Pressing the key cycles current → min → max → avg.</div>
 			</sdpi-item>
+			<sdpi-item label="Support">
+				<button class="hw-support" id="support-report" type="button">Copy support report</button>
+			</sdpi-item>
+			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-common.js"></script>
+		<script src="pi-common.js?v=1.1.10.0"></script>
 	</body>
 </html>

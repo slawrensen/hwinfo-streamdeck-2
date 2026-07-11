@@ -82,6 +82,19 @@ class HwinfoPoller extends EventEmitter {
 		return this.status;
 	}
 
+	/** Redacted data-source facts for the support report (no sensor values). */
+	diagnostics(): { state: string; reason?: string; source?: string; readings?: number; intervalMs: number; polling: boolean; retained: number; sampleAgeMs: number | null } {
+		const status = this.status;
+		return {
+			state: status.state,
+			...(status.state === "unavailable" ? { reason: status.reason } : { source: status.source, readings: status.snapshot.readings.length }),
+			intervalMs: this.intervalMs,
+			polling: this.timer !== null,
+			retained: this.refs,
+			sampleAgeMs: this.lastAdvanceAt === 0 ? null : Date.now() - this.lastAdvanceAt
+		};
+	}
+
 	onTick(listener: (status: PollerStatus) => void): void {
 		this.on("tick", listener);
 	}

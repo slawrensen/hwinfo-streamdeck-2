@@ -1,0 +1,18 @@
+{
+	"name": "two devices stay fully isolated under interleaved input",
+	"contexts": {
+		"ctxPlus": { "settings": { "readingKey": "a:0:1" }, "device": "devPlus" },
+		"ctxXl": { "settings": { "readingKey": "b:0:1" }, "device": "devXl" }
+	},
+	"events": [
+		{ "context": "ctxPlus", "event": "dialRotate", "mono": 1000, "ticks": 1, "pressed": false },
+		{ "context": "ctxXl", "event": "dialDown", "mono": 1010 },
+		{ "context": "ctxPlus", "event": "touchTap", "mono": 1020, "hold": false, "tapX": 100 },
+		{ "context": "ctxXl", "event": "dialRotate", "mono": 1030, "ticks": -1, "pressed": true },
+		{ "context": "ctxXl", "event": "dialUp", "mono": 1040 }
+	],
+	"expect": {
+		"ctxPlus": { "commands": ["step:1", "cycleStat"], "selection": "a:0:2", "statMode": "min" },
+		"ctxXl": { "commands": ["resetStats", "step:-1"], "selection": "b:0:2", "statMode": "current" }
+	}
+}

@@ -1,0 +1,17 @@
+{
+	"name": "elite presses classify on release: short pauses the cycle, long resets stats",
+	"contexts": {
+		"ctxShort": { "settings": { "readingKey": "a:0:1", "controlPreset": "elite" }, "device": "devA" },
+		"ctxLong": { "settings": { "readingKey": "a:0:1", "controlPreset": "elite" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctxShort", "event": "dialDown", "mono": 1000 },
+		{ "context": "ctxShort", "event": "dialUp", "mono": 1499 },
+		{ "context": "ctxLong", "event": "dialDown", "mono": 2000 },
+		{ "context": "ctxLong", "event": "dialUp", "mono": 2500 }
+	],
+	"expect": {
+		"ctxShort": { "commands": ["pauseResume"], "paused": true },
+		"ctxLong": { "commands": ["resetStats"], "paused": false }
+	}
+}

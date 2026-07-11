@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
+	<rect width="72" height="72" fill="#000000"/>
+	<text x="36" y="16" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="8" font-weight="600" fill="#7A8393">HWiNFO</text>
+	<circle cx="36" cy="40" r="5" fill="#FFFFFF"/>
+	<path d="M 24 32 L 16 40 L 24 48" fill="none" stroke="#4CC2FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+	<path d="M 48 32 L 56 40 L 48 48" fill="none" stroke="#4CC2FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+	<text x="36" y="63" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="8" font-weight="600" fill="#667082">CONTROL</text>
+</svg>

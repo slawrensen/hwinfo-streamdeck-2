@@ -2,9 +2,9 @@
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"UUID": "com.lawrensen.hwinfo",
 	"Name": "HWiNFO Sensors",
-	"Version": "1.1.9.0",
+	"Version": "1.1.10.0",
 	"Author": "Stephen Lawrensen",
-	"Description": "Live HWiNFO sensor readings on your Stream Deck: temperatures, clocks, fan speeds, voltages, power and usage, rendered with seven display themes, sensor-type accents, warn/critical alert colors, sparklines and stat modes, plus Stream Deck + dial and touchscreen support. Requires HWiNFO with Shared Memory Support or Gadget reporting enabled; auto mode picks the best available source and recovers on its own when HWiNFO restarts.",
+	"Description": "Live HWiNFO sensor readings on your Stream Deck: temperatures, clocks, fan speeds, voltages, power and usage, rendered with seven display themes, sensor-type accents, warn/critical alert colors, sparklines and stat modes, plus dial and touchscreen support on the Stream Deck + and Stream Deck + XL. Requires HWiNFO with Shared Memory Support or Gadget reporting enabled; auto mode picks the best available source and recovers on its own when HWiNFO restarts.",
 	"Category": "HWiNFO Sensors",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
@@ -42,6 +42,22 @@
 			]
 		},
 		{
+			"Name": "HWiNFO Control",
+			"UUID": "com.lawrensen.hwinfo.control",
+			"Icon": "imgs/actions/control/icon",
+			"Tooltip": "Control Sensor Dials from any key, pedal or Multi Action: switch readings, pause the auto cycle, pin, reset session stats.",
+			"PropertyInspectorPath": "ui/control.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/control/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
 			"Name": "Sensor Dial",
 			"UUID": "com.lawrensen.hwinfo.dial",
 			"Icon": "imgs/actions/dial/icon",
@@ -55,7 +71,7 @@
 				"layout": "layouts/sensor-dial.json",
 				"Icon": "imgs/actions/dial/dial",
 				"TriggerDescription": {
-					"Rotate": "Cycle readings in group",
+					"Rotate": "Cycle readings (set or sensor)",
 					"Push": "Reset session min/max",
 					"Touch": "Cycle stat mode",
 					"LongTouch": "Back to current value"

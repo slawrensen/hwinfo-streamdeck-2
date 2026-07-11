@@ -19,9 +19,10 @@
 
 Live [HWiNFO](https://www.hwinfo.com) sensor readings on your Elgato Stream Deck:
 temperatures, clocks, fan speeds, usage, power and more. Keys show a value with
-optional warn/critical coloring and a sparkline; on Stream Deck + the dials get a
-touchscreen readout with rotate-to-switch and session min/max. Seven display
-themes (per key or deck-wide) keep the whole wall reading as one instrument.
+optional warn/critical coloring and a sparkline; on the Stream Deck + and
+Stream Deck + XL the dials get a touchscreen readout with rotate-to-switch and
+session min/max. Seven display themes (per key or deck-wide) keep the whole
+wall reading as one instrument.
 
 > **Windows only.** HWiNFO is a Windows application; this plugin reads its
 > shared-memory or Gadget-registry interface locally. No ads, no telemetry,
@@ -179,7 +180,7 @@ npm ci                   # Node 20+
 npm run build            # bundles to com.lawrensen.hwinfo.sdPlugin/bin/plugin.js
 npm run probe            # standalone smoke test: dumps live readings (-- --gadget forces the registry backend)
 npm run lint && npm run typecheck
-npm test                 # unit suites: themes, key/dial renderers, shared-memory decode, status screens, series (node:test)
+npm test                 # unit suites: themes, renderers, shared-memory decode, status screens, series, rotation, gestures, controls, stats, devices, diagnostics, replay (node:test)
 npm run e2e              # drives the built plugin over a mock Stream Deck WebSocket
 npm run e2e:resilience   # forces the shared-memory failure states (missing, frozen, DEAD, gone) via a synthetic provider
 npm run e2e:gadget       # exercises the Gadget-registry fallback via a synthetic HKCU key

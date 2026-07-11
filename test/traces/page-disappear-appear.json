@@ -1,0 +1,21 @@
+{
+	"name": "a press spanning page navigation never classifies on the release after return",
+	"description": "willDisappear detaches the half-tracked press, so the dialUp after willAppear must execute nothing. Production pause survival across pages is the hidden-state cache, checked end to end in scripts/e2e-harness.mjs.",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1", "controlPreset": "elite" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialDown", "mono": 1000 },
+		{ "context": "ctx1", "event": "dialUp", "mono": 1100 },
+		{ "context": "ctx1", "event": "dialDown", "mono": 2000 },
+		{ "context": "ctx1", "event": "willDisappear", "mono": 2050 },
+		{ "context": "ctx1", "event": "willAppear", "mono": 4000 },
+		{ "context": "ctx1", "event": "dialUp", "mono": 4100 },
+		{ "context": "ctx1", "event": "dialDown", "mono": 5000 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 5100, "ticks": 1, "pressed": true },
+		{ "context": "ctx1", "event": "dialUp", "mono": 5900 }
+	],
+	"expect": {
+		"ctx1": { "commands": ["pauseResume", "stepGroup:1"], "paused": true, "selection": "b:0:1" }
+	}
+}

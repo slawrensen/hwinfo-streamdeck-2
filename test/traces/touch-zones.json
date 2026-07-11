@@ -1,0 +1,14 @@
+{
+	"name": "three-zone touch: left and right switch readings, center taps",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1", "controlPreset": "elite", "touchZones": "three" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "touchTap", "mono": 1000, "hold": false, "tapX": 10 },
+		{ "context": "ctx1", "event": "touchTap", "mono": 1400, "hold": false, "tapX": 190 },
+		{ "context": "ctx1", "event": "touchTap", "mono": 1800, "hold": false, "tapX": 100 }
+	],
+	"expect": {
+		"ctx1": { "commands": ["step:-1", "step:1", "cycleStat"], "selection": "a:0:1", "statMode": "min" }
+	}
+}

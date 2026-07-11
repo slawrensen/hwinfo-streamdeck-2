@@ -311,3 +311,41 @@ survivor check clean. Ruling: socket-close-while-parent-alive still lingers
 by design; that state only occurs during app-initiated restarts, where the
 app kills the process itself. All suites green (96 unit, e2e ×3, load).
 Pack 1.1.1.0: 554,076 B, SHA d710959… (+94 B for the watchdog).
+
+### 2026-07-09 01:15: Stream Deck + XL hardware day (42 live actions)
+
+First run on real Stream Deck + XL hardware (20GBX9901, DeviceType 13,
+9×4 keys + 6 encoders, fw 1.0.2.2, app 7.4.2). Validation profile filled
+the whole device: 36 sensor keys (all 7 themes, sparklines, warn/crit
+alert keys, edge-case screens) + 6 touchscreen dials, all live on shared
+memory at the default 1 s poll. Plugin debug log confirmed willAppear for
+all 36 key coordinates (0,0–8,3) and all 6 encoder columns; zero
+errors/warnings.
+
+Live process while driving the full 42-action device (45 s window,
+TotalProcessorTime delta): **0.1 % CPU, 42.6 MB RSS**. Renders stay
+frame-deduped (identical SVG skipped before send). Ruling: the 12-key
+numbers hold at 3.5× the action count; no render dirty-check needed at
+this scale (the remaining pre-compose skip would save single-digit µs per
+tick against a 0.1 % budget).
+
+### 2026-07-10 03:27: control presets + capability registry pass
+
+The gesture router, control presets, per-reading session stats, hidden-state
+cache, HWiNFO Control action, capability registry, recorder and diagnostics
+landed together; measuring for regressions against the entries above.
+
+Pack: **571,421 B** (554,076 B at 1.1.1.0; the delta carries the new action,
+its settings panel and the preset/gesture code). plugin.js 144,189 B raw,
+42,924 B gzip. Parse bench unchanged: shared-memory tick mean 6.5 µs over
+516 live readings (was 6.5 µs class before), raw copy 3.5 µs.
+
+This build's runtime, from the load e2e (516 keys + 8 dials at 250 ms poll,
+soak + churn): **RSS growth +0.0 MB over the soak window**, 0 late frames
+after mass disappear, clean self-exit, zero orphans in suite:full's process
+sweep. The per-tick additions (per-reading stat folding for current +
+rotation-set members, threshold unit checks) are O(set size) map operations
+against a 6.5 µs decode; nothing measurable moved. Note: the snapshot
+table's "plugin process" row samples the machine's installed release, not
+this working tree; this build's numbers are the load-e2e ones above.
+Ruling: no material CPU or RSS regression.

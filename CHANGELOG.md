@@ -3,6 +3,85 @@
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
+## 1.1.10.0 - 2026-07-09
+
+- New dial rotation controls. A rotation set: tick readings in the dial's
+  sensor picker and rotation moves through just those, in your order, even
+  across different sensors. An "Ignore turns" switch: the dial ignores
+  rotation entirely, so a bump can never move you off your reading. An auto
+  cycle: the dial steps through the rotation set (or the picked sensor's
+  readings) on a timer, from every 5 seconds to every 5 minutes, and it
+  works with turns ignored for a hands-off tour.
+- Rotating a dial whose saved sensor has temporarily vanished (HWiNFO
+  restart, device dropout) no longer jumps to an unrelated reading and
+  overwrites the selection. The dial shows "Sensor missing / waiting" and
+  ignores turns until the sensor returns.
+- Dial session stats are now kept per reading, keyed by HWiNFO's stable
+  sensor identity: rotate away and back and that reading's own session
+  min/max/average is still there, and no reading can ever show another
+  one's numbers. Stats for rotation-set members keep accumulating while
+  they are off screen (whenever any of the plugin's actions is visible,
+  which is what keeps the poller running), and the whole set survives
+  reconnects, wake replays, page switches and profile changes (up to 30
+  minutes off screen).
+- Fixed stale dial titles when rotating through readings: a custom label
+  written for one reading stayed on as the touchscreen title after rotating
+  to another, so the name no longer matched the value. Rotating now clears
+  the custom label and the title follows the reading (a new "Label mode"
+  setting keeps it instead, as a fixed title for the slot).
+- New control presets for the dial. "Legacy" (the default, and what every
+  existing dial keeps) is the exact previous behavior. "Elite" adds
+  press+rotate to jump between sensors, a short press that pauses the auto
+  cycle, and a long press (half a second) that resets session stats.
+  "Custom" assigns each gesture individually, including optional two- or
+  three-zone touch (left/right switch readings, center taps). Pressed
+  rotation never triggers the plain-rotation action, and a press that saw
+  rotation executes nothing on release. The Stream Deck app's own gesture
+  hints follow the selected preset.
+- New "HWiNFO Control" key action: drive Sensor Dials from any key, pedal,
+  G-key or Multi Action step, on any connected device. Commands: previous/
+  next reading or sensor, stat mode, pause/resume auto cycle, pin/unpin,
+  reset session stats. Targeting is explicit (a per-dial "Link ID", or all
+  dials), and the key ticks or alerts by whether any dial took the command.
+- Thresholds and manual bar ranges are now unit-scoped: they only apply to
+  readings in the unit they were typed against, so a warn level meant for
+  a temperature can no longer fire on a fan RPM after rotating to it.
+  Scoping starts with the first threshold you edit after updating;
+  thresholds saved by earlier versions keep their old reach until then.
+- Auto cycle respects alerts: it holds instead of rotating away while the
+  shown reading is critical, and an "On alert" option makes its next step
+  go to a critical member of the set instead of the next one in order.
+- New pause and pin states (from Elite/Custom gestures or the Control key):
+  pause stops the auto cycle timer, pin locks the selection against turns,
+  taps and the cycle. Both survive page switches (up to 30 minutes off
+  screen), both show on the dial's bottom line, and the display mode a
+  dial was left in also survives page navigation now.
+- A device capability registry derives each deck's grid, encoder count and
+  touch geometry from the Stream Deck registration (Stream Deck + XL: six
+  200x100 touch segments) and degrades safely for unknown and untested
+  devices: they fall back to a keys-only profile and input is never gated.
+  Hardware the plugin has not been proven on is not listed as supported.
+- New redacted local diagnostics: a "Copy support report" button in every
+  settings panel (devices by model and hashed ID, data-source state, action
+  states; no sensor values, no names, no upload), and an opt-in event
+  recorder (`HWINFO_TRACE_EVENTS=1`) whose traces replay through the test
+  suite's gesture machine. See the new "Hardware compatibility" docs page.
+- Verified on the Stream Deck + XL (9x4 keys, six dials): a full 36-key,
+  6-dial layout ran live on real hardware with every theme, sparklines,
+  alert states, and touchscreen dials rendering correctly at 0.1 % CPU.
+  The e2e suite now registers a Stream Deck + XL mock device and drives the
+  dial on its sixth encoder, so this coverage holds without the hardware.
+- The plugin log now names each connected deck (model and key grid), so
+  support logs say exactly what hardware was involved.
+- New `HWINFO_LOG_LEVEL` environment override (`trace`/`debug`/`info`/
+  `warn`/`error`) for support diagnostics; the default stays `info`. At
+  `debug`, each key and dial logs where it appeared (device and position).
+  `trace` needs a debug launch of the plugin; on a normal Stream Deck
+  launch it falls back to `debug` and the log says so.
+- The Marketplace listing, README, FAQ, installation guide, Sensor Dial
+  page and troubleshooting page now name the Stream Deck + XL alongside
+  the Stream Deck + when they describe dial support.
+
 ## 1.1.9.0 - 2026-07-05
 
 - Fixed the key sparkline clipping the bottom edge. The strip sat too low, so

@@ -79,6 +79,23 @@ export function parseThreshold(raw: unknown): number | undefined {
 	return undefined;
 }
 
+/**
+ * Whether thresholds and manual bar ranges configured against `alertUnit`
+ * apply to a reading measured in `readingUnit`. A warn value typed for a
+ * temperature must never fire on a fan's RPM after rotating to it: numbers
+ * only compare within one unit.
+ *
+ * `undefined` means unscoped: settings that predate unit scoping keep the
+ * old apply-everywhere behavior until the user next edits a threshold
+ * (which anchors it to the reading on screen). An empty string is a REAL
+ * unit (HWiNFO's unitless yes/no readings) and scopes to unitless readings
+ * only; conflating it with unscoped would both widen alerts and defeat the
+ * stamped-check.
+ */
+export function thresholdsApplyTo(alertUnit: string | undefined, readingUnit: string): boolean {
+	return alertUnit === undefined || alertUnit === readingUnit;
+}
+
 export type AlertLevel = "normal" | "warn" | "crit";
 
 /**

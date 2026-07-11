@@ -1,0 +1,16 @@
+{
+	"name": "a press spanning a device disconnect never classifies; input works after reconnect",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1", "controlPreset": "elite" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialDown", "mono": 1000 },
+		{ "context": "ctx1", "event": "deviceDisconnect", "mono": 1050 },
+		{ "context": "ctx1", "event": "deviceReconnect", "mono": 3000 },
+		{ "context": "ctx1", "event": "dialUp", "mono": 3100 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 3500, "ticks": 1, "pressed": false }
+	],
+	"expect": {
+		"ctx1": { "commands": ["step:1"], "selection": "a:0:2" }
+	}
+}

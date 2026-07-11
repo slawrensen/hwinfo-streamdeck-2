@@ -1,0 +1,13 @@
+{
+	"name": "normal rotation steps within the sensor and wraps",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1000, "ticks": 1, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1200, "ticks": 1, "pressed": false }
+	],
+	"expect": {
+		"ctx1": { "commands": ["step:1", "step:1"], "selection": "a:0:1" }
+	}
+}

@@ -1,0 +1,29 @@
+{
+	"name": "all six + XL encoder columns keep independent state",
+	"description": "One dial per + XL encoder column, interleaved input; every context must end where its own inputs put it. Replace with a real + XL capture when available.",
+	"contexts": {
+		"ctx0": { "settings": { "readingKey": "a:0:1" }, "device": "devXl" },
+		"ctx1": { "settings": { "readingKey": "a:0:2" }, "device": "devXl" },
+		"ctx2": { "settings": { "readingKey": "b:0:1" }, "device": "devXl" },
+		"ctx3": { "settings": { "readingKey": "b:0:2" }, "device": "devXl" },
+		"ctx4": { "settings": { "readingKey": "c:0:1" }, "device": "devXl" },
+		"ctx5": { "settings": { "readingKey": "a:0:1", "rotationKeys": ["a:0:1", "b:0:1", "c:0:1"] }, "device": "devXl" }
+	},
+	"events": [
+		{ "context": "ctx0", "event": "dialRotate", "mono": 1000, "ticks": 1, "pressed": false },
+		{ "context": "ctx5", "event": "dialRotate", "mono": 1005, "ticks": 1, "pressed": false },
+		{ "context": "ctx2", "event": "dialRotate", "mono": 1010, "ticks": 1, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1015, "ticks": 1, "pressed": false },
+		{ "context": "ctx4", "event": "dialRotate", "mono": 1020, "ticks": 1, "pressed": false },
+		{ "context": "ctx3", "event": "dialRotate", "mono": 1025, "ticks": -1, "pressed": false },
+		{ "context": "ctx5", "event": "dialRotate", "mono": 1030, "ticks": 1, "pressed": false }
+	],
+	"expect": {
+		"ctx0": { "selection": "a:0:2" },
+		"ctx1": { "selection": "a:0:1" },
+		"ctx2": { "selection": "b:0:2" },
+		"ctx3": { "selection": "b:0:1" },
+		"ctx4": { "selection": "c:0:1" },
+		"ctx5": { "selection": "c:0:1", "commands": ["step:1", "step:1"] }
+	}
+}

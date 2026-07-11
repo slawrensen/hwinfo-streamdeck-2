@@ -146,6 +146,100 @@ details > summary:hover {
 	font-style: italic;
 }
 
+/* Rotation set (dial PI): membership ticks in the picker rows + removable
+   chips under the picker. The label flexes so the tick/label/value row keeps
+   the label left-aligned (harmless on the key PI's tick-less rows). */
+
+.hw-row .hw-label {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.hw-row .hw-tick {
+	/* Explicit box: the webview's native checkbox otherwise shrinks with the
+	   flex row (long labels squeezed some ticks into dots on the real deck). */
+	flex: 0 0 13px;
+	width: 13px;
+	height: 13px;
+	box-sizing: border-box;
+	margin: 1px 2px 0 0;
+	accent-color: #2660aa;
+	cursor: pointer;
+}
+
+.hw-set {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 2px 0;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 8.5pt;
+}
+
+.hw-set-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	background: #3d3d3d;
+	border-radius: 3px;
+	padding: 2px 2px 2px 8px;
+	color: #d8d8d8;
+	max-width: 100%;
+}
+
+.hw-set-chip.missing {
+	color: #f5a623;
+}
+
+.hw-set-chip > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 170px;
+}
+
+.hw-set-remove {
+	background: none;
+	border: none;
+	color: #969696;
+	cursor: pointer;
+	font-size: 10pt;
+	line-height: 1;
+	padding: 0 4px;
+}
+
+.hw-set-remove:hover {
+	color: #ffffff;
+}
+
+.hw-set-note {
+	flex-basis: 100%;
+	color: #8a8a8a;
+	font-size: 8pt;
+	line-height: 1.35;
+}
+
+/* "Copy support report" button (all PIs). */
+.hw-support {
+	background: #3d3d3d;
+	border: 1px solid #555555;
+	border-radius: 3px;
+	color: #d8d8d8;
+	cursor: pointer;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 8.5pt;
+	padding: 3px 10px;
+}
+
+.hw-support:hover {
+	background: #4a4a4a;
+}
+
+.hw-support:disabled {
+	color: #8a8a8a;
+	cursor: default;
+}
+
 .hw-preview {
 	display: flex;
 	align-items: baseline;

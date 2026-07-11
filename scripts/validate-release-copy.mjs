@@ -91,13 +91,14 @@ const PROSE_FILES = [
 	`${SD}/manifest.json`,
 	`${SD}/ui/sensor-reading.html`,
 	`${SD}/ui/sensor-dial.html`,
+	`${SD}/ui/control.html`,
 ];
 for (const f of PROSE_FILES) checkCopy(f);
 checkCopy(RULES_DOC, { emDashOnly: true });
 
 // Runtime strings users see on keys, dials and the settings panel. Em-dash
 // check only: identifiers like unlock() would false-positive the word list.
-for (const f of ["src/ui/state-screens.ts", "src/probe.ts", `${SD}/ui/pi-common.js`]) {
+for (const f of ["src/ui/state-screens.ts", "src/probe.ts", `${SD}/ui/pi-common.js`, `${SD}/ui/pi-control.js`]) {
 	checkCopy(f, { emDashOnly: true });
 }
 

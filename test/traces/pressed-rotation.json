@@ -1,0 +1,15 @@
+{
+	"name": "pressed rotation switches sensors and suppresses the push on release",
+	"description": "Elite: rotate-while-pressed must route as pressedRotate (stepGroup) and the release, though held past the long-press threshold, must execute nothing.",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1", "controlPreset": "elite" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialDown", "mono": 1000 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1100, "ticks": 1, "pressed": true },
+		{ "context": "ctx1", "event": "dialUp", "mono": 1700 }
+	],
+	"expect": {
+		"ctx1": { "commands": ["stepGroup:1"], "selection": "b:0:1", "paused": false }
+	}
+}

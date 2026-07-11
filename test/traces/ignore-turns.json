@@ -1,0 +1,14 @@
+{
+	"name": "ignore turns: rotation is a true no-op, touch still works",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "a:0:1", "rotationDisabled": true }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1000, "ticks": 5, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1100, "ticks": -3, "pressed": false },
+		{ "context": "ctx1", "event": "touchTap", "mono": 1500, "hold": false, "tapX": 100 }
+	],
+	"expect": {
+		"ctx1": { "commands": ["cycleStat"], "selection": "a:0:1", "statMode": "min" }
+	}
+}

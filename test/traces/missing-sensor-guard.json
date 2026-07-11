@@ -1,0 +1,14 @@
+{
+	"name": "a selection the snapshot does not publish survives every turn",
+	"description": "HWiNFO restart / device dropout: the saved reading is temporarily absent. Turns must never replace the saved selection with an unrelated reading.",
+	"contexts": {
+		"ctx1": { "settings": { "readingKey": "gone:0:9" }, "device": "devA" }
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1000, "ticks": 1, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1100, "ticks": -4, "pressed": false }
+	],
+	"expect": {
+		"ctx1": { "commands": ["step:1", "step:-4"], "selection": "gone:0:9" }
+	}
+}
