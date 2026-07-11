@@ -28,7 +28,7 @@
 		</sdpi-item>
 
 		<sdpi-item label="Live value">
-			<div class="hw-preview">
+			<div class="hw-preview hw-preview-live">
 				<span id="preview-value">—</span>
 				<span id="preview-stats"></span>
 			</div>
@@ -55,10 +55,10 @@
 				<option value="300000">Every 5 minutes</option>
 			</sdpi-select>
 		</sdpi-item>
-		<div class="hw-help">Steps through the rotation set (or the picked sensor's readings) on a timer. Runs even while turns are ignored, and holds instead of rotating away while the shown reading is critical.</div>
+		<div class="hw-help">Steps through the rotation set (or the picked sensor's readings) on a timer. Runs even while turns are ignored.</div>
 
 		<sdpi-item label="On alert">
-			<sdpi-checkbox setting="alertInterrupt" label="Auto cycle jumps to a critical reading in the set"></sdpi-checkbox>
+			<sdpi-checkbox setting="alertInterrupt" label="Auto cycle follows alerts: jumps to a critical reading in the set and holds there while it stays critical"></sdpi-checkbox>
 		</sdpi-item>
 
 		<sdpi-item label="Label">
@@ -118,7 +118,7 @@
 					<option value="custom">Custom</option>
 				</sdpi-select>
 			</sdpi-item>
-			<div class="hw-help" id="controls-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: pressed rotation switches sensors, short push pauses the auto cycle, long push resets stats.</div>
+			<div class="hw-help" id="controls-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: plain rotate cycles readings without leaving the rotation set (or the picked sensor), pressed rotation moves to the next sensor, short push pauses the auto cycle, long push resets stats.</div>
 			<div id="controls-custom" hidden>
 				<sdpi-item label="Rotate">
 					<sdpi-select setting="gestureRotate" default="step">

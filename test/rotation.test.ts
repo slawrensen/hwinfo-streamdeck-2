@@ -123,16 +123,16 @@ describe("autoCycleTarget", () => {
 		assert.equal(autoCycleTarget(list, "a:0:1", none, false)?.key, "a:0:2");
 	});
 
-	it("never rotates away from a critical member (manual turns still can)", () => {
-		assert.equal(autoCycleTarget(list, "a:0:1", new Set(["a:0:1"]), false), undefined);
+	it("alert-aware: never rotates away from a critical member (manual turns still can)", () => {
 		assert.equal(autoCycleTarget(list, "a:0:1", new Set(["a:0:1"]), true), undefined);
 	});
 
-	it("with interrupt on, a critical member preempts the normal step", () => {
+	it("alert-aware: a critical member elsewhere preempts the normal step", () => {
 		assert.equal(autoCycleTarget(list, "a:0:1", new Set(["b:0:2"]), true)?.key, "b:0:2");
 	});
 
-	it("without interrupt, a critical member elsewhere does not preempt", () => {
+	it("plain cycling ignores alerts: steps in order through and past criticals", () => {
+		assert.equal(autoCycleTarget(list, "a:0:1", new Set(["a:0:1"]), false)?.key, "a:0:2");
 		assert.equal(autoCycleTarget(list, "a:0:1", new Set(["b:0:2"]), false)?.key, "a:0:2");
 	});
 });

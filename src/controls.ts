@@ -123,15 +123,32 @@ export function resolveControls(settings: ControlSettings): ControlScheme {
 	};
 }
 
-const COMMAND_LABELS: Record<GestureCommandId, string | undefined> = {
+/** Hint texts when the command leads its line in the app's hint column. */
+const HINT_LABELS: Record<GestureCommandId, string | undefined> = {
 	none: undefined,
 	step: "Cycle readings",
 	stepGroup: "Switch sensor",
 	cycleStat: "Cycle stat mode",
-	backToCurrent: "Back to current value",
-	pauseResume: "Pause/resume auto cycle",
-	pin: "Pin/unpin reading",
-	resetStats: "Reset session stats"
+	backToCurrent: "Back to current",
+	pauseResume: "Pause/resume",
+	pin: "Pin/unpin",
+	resetStats: "Reset stats"
+};
+
+/**
+ * Hint texts after a "pressed:" / "hold:" / "center:" prefix. The prefix and
+ * the gesture glyph already carry the context, so these drop to the object
+ * alone; the app's hint column is narrow and clips longer lines.
+ */
+const SUFFIX_LABELS: Record<GestureCommandId, string | undefined> = {
+	none: undefined,
+	step: "readings",
+	stepGroup: "sensor",
+	cycleStat: "stat mode",
+	backToCurrent: "current",
+	pauseResume: "pause/resume",
+	pin: "pin/unpin",
+	resetStats: "reset stats"
 };
 
 /**
@@ -141,21 +158,21 @@ const COMMAND_LABELS: Record<GestureCommandId, string | undefined> = {
 export function triggerDescriptions(scheme: ControlScheme): { rotate?: string; push?: string; touch?: string; longTouch?: string } {
 	const rotate =
 		scheme.pressedRotate !== "none" && scheme.pressedRotate !== scheme.rotate
-			? joinHints(COMMAND_LABELS[scheme.rotate], `pressed: ${COMMAND_LABELS[scheme.pressedRotate] ?? "off"}`)
-			: COMMAND_LABELS[scheme.rotate];
+			? joinHints(HINT_LABELS[scheme.rotate], `pressed: ${SUFFIX_LABELS[scheme.pressedRotate] ?? "off"}`)
+			: HINT_LABELS[scheme.rotate];
 	const push =
 		scheme.pushTiming === "down"
-			? COMMAND_LABELS[scheme.shortPress]
+			? HINT_LABELS[scheme.shortPress]
 			: scheme.shortPress === scheme.longPress
-				? COMMAND_LABELS[scheme.shortPress]
-				: joinHints(COMMAND_LABELS[scheme.shortPress], scheme.longPress === "none" ? undefined : `hold: ${COMMAND_LABELS[scheme.longPress]}`);
+				? HINT_LABELS[scheme.shortPress]
+				: joinHints(HINT_LABELS[scheme.shortPress], scheme.longPress === "none" ? undefined : `hold: ${SUFFIX_LABELS[scheme.longPress]}`);
 	const touch =
 		scheme.touchZones === "off"
-			? COMMAND_LABELS[scheme.tap]
+			? HINT_LABELS[scheme.tap]
 			: scheme.touchZones === "two"
-				? "Left/right: previous/next reading"
-				: joinHints("Left/right: previous/next reading", COMMAND_LABELS[scheme.tap] === undefined ? undefined : `center: ${COMMAND_LABELS[scheme.tap]}`);
-	return { rotate, push, touch, longTouch: COMMAND_LABELS[scheme.touchHold] };
+				? "Left/right: previous/next"
+				: joinHints("Left/right: previous/next", SUFFIX_LABELS[scheme.tap] === undefined ? undefined : `center: ${SUFFIX_LABELS[scheme.tap]}`);
+	return { rotate, push, touch, longTouch: HINT_LABELS[scheme.touchHold] };
 }
 
 function joinHints(first: string | undefined, second: string | undefined): string | undefined {

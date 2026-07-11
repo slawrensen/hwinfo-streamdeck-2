@@ -236,8 +236,11 @@ async function scenario(send) {
 		send({ event: "keyUp", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: { command: "next", target: "" }, coordinates: { column: 1, row: 0 }, isInMultiAction: false } });
 		await sleep(500);
 		results.controlAdvancedTo = dialWrites().length > writesBeforeControl ? dialWrites().at(-1)?.payload?.readingKey : undefined;
-		results.controlShowedOk = results.showOks.includes("ctx-ctl");
-		const ctlOks = () => results.showOks.filter((c) => c === "ctx-ctl").length;
+		// Success feedback is the key's own icon with a corner tick badge (a
+		// setImage), never the stock full-key checkmark; reverts are empty
+		// setImage calls and don't count.
+		const ctlOks = () => results.images.filter((i) => i.context === "ctx-ctl" && i.image !== "").length;
+		results.controlShowedOk = ctlOks() === 1 && results.showOks.length === 0;
 		// Malformed settings on the control key: a non-string Target means no
 		// target, never a crash (async handlers crash as "Unhandled rejection").
 		send({ event: "keyUp", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: { command: "showCurrent", target: 42 }, coordinates: { column: 1, row: 0 }, isInMultiAction: false } });
@@ -249,6 +252,11 @@ async function scenario(send) {
 		send({ event: "keyUp", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: { command: "resetStats", target: "no-such-link", resetScope: "all" }, coordinates: { column: 1, row: 0 }, isInMultiAction: false } });
 		await sleep(300);
 		results.controlResetAllOk = ctlOks() === 3;
+		// A never-configured key (empty settings): the PI displays "Next
+		// reading", so the press must act as "next", not alert.
+		send({ event: "keyUp", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: {}, coordinates: { column: 1, row: 0 }, isInMultiAction: false } });
+		await sleep(300);
+		results.controlFreshKeyOk = ctlOks() === 4 && !results.showAlerts.includes("ctx-ctl");
 		send({ event: "willDisappear", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: {}, coordinates: { column: 1, row: 0 }, controller: "Keypad", isInMultiAction: false } });
 		dialSet({ readingKey: k1 });
 		await sleep(200);
@@ -425,9 +433,10 @@ async function finish() {
 
 	// HWiNFO Control key on dev1 drives the dial on devxl.
 	check("control key advances the dial across devices", results.controlAdvancedTo === results.rotationKeys?.[1], `advanced to ${results.controlAdvancedTo}`);
-	check("control key shows the ok tick", results.controlShowedOk === true);
+	check("control key shows the corner tick badge, never the stock checkmark", results.controlShowedOk === true);
 	check("control key treats a malformed Target as no target (no crash)", results.controlMalformedTargetOk === true);
 	check("reset-all reaches the dials past a non-matching Target (as its panel says)", results.controlResetAllOk === true);
+	check("a never-configured control key acts as Next reading (panel default), not an alert", results.controlFreshKeyOk === true);
 
 	// Support report: valid JSON, models named, raw device IDs and names absent.
 	const supportMsg = results.piPayloads.find((p) => p?.event === "supportReport");

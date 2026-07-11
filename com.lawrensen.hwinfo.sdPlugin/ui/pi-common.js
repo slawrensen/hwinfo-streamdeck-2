@@ -188,6 +188,8 @@
 			previewValueEl.textContent = "pick a sensor";
 			previewStatsEl.textContent = "";
 		}
+		// The stats line clips to one line (pi.css); the title carries the full text.
+		previewStatsEl.title = previewStatsEl.textContent;
 	}
 
 	function tokensOf(text) {

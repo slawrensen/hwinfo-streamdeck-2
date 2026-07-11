@@ -71,17 +71,18 @@ export function stepSensorSource(list: readonly Reading[], currentKey: string | 
 /**
  * Where an auto-cycle step should land, or undefined to hold this tick.
  *
- * Safety defaults: the cycle never rotates away from a member that is
- * currently critical (a manual turn is the acknowledgement that releases
- * it). With `interrupt`, the due step goes to an alerting member instead of
- * the next one in order; criticals are evaluated for every listed member,
- * visible or not, each time a step is due.
+ * Plain cycling ignores alerts entirely. With `alertAware` (the "On alert"
+ * setting), the cycle never rotates away from a member that is currently
+ * critical (a manual turn is the acknowledgement that releases it), and a
+ * due step goes to an alerting member instead of the next one in order;
+ * criticals are evaluated for every listed member, visible or not, each
+ * time a step is due.
  */
-export function autoCycleTarget(list: readonly Reading[], currentKey: string | undefined, criticalKeys: ReadonlySet<string>, interrupt: boolean): Reading | undefined {
-	if (currentKey !== undefined && criticalKeys.has(currentKey)) {
-		return undefined;
-	}
-	if (interrupt) {
+export function autoCycleTarget(list: readonly Reading[], currentKey: string | undefined, criticalKeys: ReadonlySet<string>, alertAware: boolean): Reading | undefined {
+	if (alertAware) {
+		if (currentKey !== undefined && criticalKeys.has(currentKey)) {
+			return undefined;
+		}
 		const alerting = list.find((r) => r.key !== currentKey && criticalKeys.has(r.key));
 		if (alerting !== undefined) {
 			return alerting;

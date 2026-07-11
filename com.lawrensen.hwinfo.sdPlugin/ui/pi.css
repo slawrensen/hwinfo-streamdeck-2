@@ -250,16 +250,35 @@ details > summary:hover {
 	min-height: 22px;
 }
 
+/* The live preview reserves two lines: the value, then the stats caption.
+   Wide values (RPM, MB) must never re-wrap the row and push the controls
+   below it down mid-click, so the geometry is constant for every reading
+   and for the empty states. */
+.hw-preview-live {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	min-height: 44px;
+}
+
 #preview-value {
 	font-size: 14pt;
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
+	flex: none;
 }
 
+/* Safety net only (the caption line has the full panel width): never wrap,
+   clip with an ellipsis, full string in the title tooltip. */
 #preview-stats {
 	font-size: 8pt;
 	color: #969696;
 	font-variant-numeric: tabular-nums;
+	min-width: 0;
+	max-width: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* Passive help lines (neutral — .hw-hint's amber is for warnings). */

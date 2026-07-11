@@ -83,16 +83,16 @@ describe("triggerDescriptions", () => {
 	it("describes the elite mapping including the pressed-rotate hint", () => {
 		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite" }));
 		assert.match(texts.rotate ?? "", /Cycle readings/);
-		assert.match(texts.rotate ?? "", /pressed: Switch sensor/);
-		assert.match(texts.push ?? "", /Pause\/resume auto cycle/);
-		assert.match(texts.push ?? "", /hold: Reset session stats/);
-		assert.equal(texts.longTouch, "Back to current value");
+		assert.match(texts.rotate ?? "", /pressed: sensor/);
+		assert.match(texts.push ?? "", /Pause\/resume/);
+		assert.match(texts.push ?? "", /hold: reset stats/);
+		assert.equal(texts.longTouch, "Back to current");
 	});
 
 	it("describes touch zones when enabled", () => {
 		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite", touchZones: "three" }));
 		assert.match(texts.touch ?? "", /Left\/right/);
-		assert.match(texts.touch ?? "", /center: Cycle stat mode/);
+		assert.match(texts.touch ?? "", /center: stat mode/);
 	});
 
 	it("hides hints for gestures assigned to none", () => {

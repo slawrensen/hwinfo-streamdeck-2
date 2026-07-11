@@ -14,7 +14,7 @@ hand.
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
-## 1.1.10.0 - 2026-07-09
+## 1.1.10.0 - 2026-07-11
 
 - New dial rotation controls. A rotation set: tick readings in the dial's
   sensor picker and rotation moves through just those, in your order, even
@@ -59,9 +59,10 @@ Elgato Marketplace listing is a separate track.
   a temperature can no longer fire on a fan RPM after rotating to it.
   Scoping starts with the first threshold you edit after updating;
   thresholds saved by earlier versions keep their old reach until then.
-- Auto cycle respects alerts: it holds instead of rotating away while the
-  shown reading is critical, and an "On alert" option makes its next step
-  go to a critical member of the set instead of the next one in order.
+- Alert-aware auto cycle, opt-in via the "On alert" setting: ticked, the
+  cycle holds instead of rotating away while the shown reading is critical
+  and its next step goes to a critical member of the set instead of the
+  next one in order. Unticked (the default), alerts do not steer the cycle.
 - New pause and pin states (from Elite/Custom gestures or the Control key):
   pause stops the auto cycle timer, pin locks the selection against turns,
   taps and the cycle. Both survive page switches (up to 30 minutes off

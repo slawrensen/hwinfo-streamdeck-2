@@ -45,7 +45,7 @@ Three settings control what rotation can reach:
 
   ![The dial's settings panel with a rotation set of three readings from three different sensors (CPU temperature, GPU temperature, pump) shown as removable chips, above the Ignore turns checkbox, the Auto cycle select and the On alert option.]({{ '/assets/img/pi-dial-rotation.png' | relative_url }})
 - **Ignore turns.** A checkbox that makes the dial ignore rotation entirely, so a bump against the deck can never move you off the reading you chose. Push, touch, and the settings panel still work.
-- **Auto cycle.** Steps to the next reading in the rotation set (or the picked sensor's readings) on a timer, from every 5 seconds to every 5 minutes. It runs even while turns are ignored, which makes a hands-off tour of your picked readings: build a set, ignore turns, set a cycle time. A manual turn restarts the timer, and each step clears the custom label just like a manual turn (unless **Label mode** is set to fixed). Timing rides the poll interval, so a step can land up to one poll late. While the shown reading is critical, the cycle holds instead of rotating away; the **On alert** checkbox additionally makes the next step go to a critical member of the set instead of the next one in order.
+- **Auto cycle.** Steps to the next reading in the rotation set (or the picked sensor's readings) on a timer, from every 5 seconds to every 5 minutes. It runs even while turns are ignored, which makes a hands-off tour of your picked readings: build a set, ignore turns, set a cycle time. A manual turn restarts the timer, and each step clears the custom label just like a manual turn (unless **Label mode** is set to fixed). Timing rides the poll interval, so a step can land up to one poll late. Ticking **On alert** makes the cycle alert-aware: it holds instead of rotating away while the shown reading is critical, and its next step goes to a critical member of the set instead of the next one in order. Left unticked (the default), alerts do not steer the cycle; see [Dial controls & presets](controls.md#thresholds-and-mixed-units).
 
 Rotation also protects your selection when HWiNFO temporarily stops publishing the saved sensor (a restart, a device dropout): turns are ignored until the sensor returns, instead of jumping to an unrelated reading.
 
@@ -73,7 +73,7 @@ Open the dial's Property Inspector to configure it. Most fields mirror the key a
 | **Unit** | Show temperatures in °F instead of °C. |
 | **Bar min** | Fixed low end of the range bar. Leave blank to auto-track the session low. |
 | **Bar max** | Fixed high end of the range bar. Leave blank to auto-track the session high. |
-| **On alert** | Auto cycle jumps to a critical member of the rotation set instead of waiting its turn. |
+| **On alert** | Makes the auto cycle alert-aware: it jumps to a critical member of the rotation set instead of waiting its turn, and holds there while the reading stays critical. Off by default. |
 | **Label mode** | Whether a custom label clears when rotation moves to another reading (default), or stays as a fixed title. |
 | **Warn at** | Value at which the bar fill turns amber (in the displayed unit). |
 | **Critical at** | Value at which the bar fill turns red (in the displayed unit). |

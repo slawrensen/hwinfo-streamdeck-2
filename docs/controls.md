@@ -40,7 +40,7 @@ Off by default. With **two zones**, the left half of the touchscreen steps to th
 
 Pause and pin survive page switches and profile changes for up to 30 minutes off screen (the plugin parks the state of the 64 most recently hidden dials; past either bound a returning dial starts fresh). They also reset when the Stream Deck app restarts.
 
-![Three dial faces rendered by the plugin: a CPU temperature dial whose bottom line reads "pinned", a pump dial whose bottom line reads "cycle paused", and a GPU hot spot dial at a forced critical value with the range bar fill in red, where the auto cycle holds.]({{ '/assets/img/dial-states.png' | relative_url }})
+![Three dial faces rendered by the plugin: a CPU temperature dial whose bottom line reads "pinned", a pump dial whose bottom line reads "cycle paused", and a GPU hot spot dial at a forced critical value with the range bar fill in red, where an alert-aware auto cycle holds.]({{ '/assets/img/dial-states.png' | relative_url }})
 
 ## Session stats are per reading
 
@@ -48,17 +48,19 @@ Each reading keeps its own session min/max/average, keyed by HWiNFO's stable sen
 
 ## Thresholds and mixed units
 
+The mapping is yours to define: a reading is **warning** once it crosses **Warn at** and **critical** once it crosses **Critical at**, in the alert direction (above the value by default; below it with the Direction checkbox). Warn paints the face amber, critical paints it red, on keys and dials alike.
+
 Warn/critical thresholds and the manual bar range apply only to readings measured in the unit they were configured against. Type a warn value of 80 while a °C reading is selected, and it will never fire on a 3000 RPM fan you rotate to; the alert and the manual bar simply stand down for readings in other units. Edit a threshold and it re-anchors to the unit of the reading on screen at that moment.
 
 Unit scoping starts with the first threshold you edit after updating. Thresholds saved by earlier versions keep their old reach (they apply to whatever the dial shows) until you touch one; guessing which reading an old threshold was meant for would risk silently disabling it.
 
-The auto cycle also respects alerts: it never rotates away from a reading that is currently critical (a manual turn releases it), and the optional **On alert** setting makes its next step go to a critical member of your set instead of the next one in order.
+Alert-aware cycling is opt-in via the **On alert** setting. Ticked, the auto cycle follows alerts: it never rotates away from a reading that is currently critical (a manual turn releases it), and its next step goes to a critical member of your set instead of the next one in order. Unticked (the default), alerts do not steer the cycle at all; it keeps stepping in order, straight through critical readings.
 
 ## The HWiNFO Control key action
 
 **HWiNFO Control** is a key action that drives Sensor Dials remotely: from a pedal, a G-key, a Multi Action step, a Key Logic slot (Stream Deck 7.0+), or a plain key, on any connected device. Pick a command (next/previous reading or sensor, stat mode, pause/resume, pin/unpin, reset) and optionally a **Target**.
 
-Targeting is explicit. Give a dial a **Link ID** in its settings and put the same name in the control key's Target field; the key then drives only dials with that ID, wherever they live. An empty Target drives every dial. The key shows a tick when the command reached at least one matching dial (a pinned dial still counts as reached), and an alert icon when none matched. Pause/resume and pin/unpin have explicit one-way variants, so repeated presses in a Multi Action stay harmless.
+Targeting is explicit. Give a dial a **Link ID** in its settings and put the same name in the control key's Target field; the key then drives only dials with that ID, wherever they live. An empty Target drives every dial. The key shows a tick when the command reached at least one matching dial (a pinned dial still counts as reached), and an alert icon when none matched. One reach limit: the target dial has to be on screen somewhere, on any connected deck. A dial hidden behind another page of its own deck is not reachable, which is why the sources listed above are other devices or automations, not a key that swaps the dial off screen as you press it. Pause/resume and pin/unpin have explicit one-way variants, so repeated presses in a Multi Action stay harmless.
 
 ![The HWiNFO Control key's settings panel with every section open: the "What this key does" intro, the Command select on "Next reading", the Target field reading "cpu-dial", the Reset reach select with the help text explaining Link ID targeting, and the Copy support report button.]({{ '/assets/img/pi-control.png' | relative_url }})
 
