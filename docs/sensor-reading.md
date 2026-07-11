@@ -7,7 +7,7 @@ The **Sensor Reading** action puts one live HWiNFO reading on a Stream Deck key:
 
 This page documents every setting in the key's settings panel. For the Stream Deck + dial, see [Sensor Dial](sensor-dial.md).
 
-![The full Sensor Reading settings panel in the Stream Deck property inspector, showing the sensor picker with live values, the label field, the theme gallery, and the stat, decimals, unit, sparkline, and threshold controls.]({{ '/assets/img/settings-panel.png' | relative_url }})
+![The full Sensor Reading settings panel in the Stream Deck property inspector: the sensor picker with a live value, the label field, the theme gallery, the stat, decimals, unit, sparkline and threshold controls, and the expanded Advanced section with the deck theme, type accents, data source, poll rate, and the Copy support report button.]({{ '/assets/img/settings-panel.png' | relative_url }})
 
 ## Settings
 
@@ -29,7 +29,7 @@ Custom text for the key. Leave it blank to use the sensor's own (HWiNFO-renamed)
 
 A live gallery of the seven presets: **Void** (default), **Graphite**, **Ultraviolet**, **Midnight**, **Forest**, **Ember**, and **Paper**. Pick one to theme **this key only**, or pick the **Deck default** chip to follow the deck-wide theme set under *Advanced → Deck theme*.
 
-Precedence: a per-key theme always wins; the deck theme only affects keys set to Deck default. The Deck default chip is labelled with the theme it currently resolves to (e.g. *Deck default · Void*) and wears a dashed border and a link badge so it can't be mistaken for a preset chip. See [Themes](themes.md) for the full palette and type-accent details.
+Precedence: a per-key theme always wins; the deck theme only affects keys set to Deck default. The Deck default chip wears a dashed border and a link badge so it can't be mistaken for a preset chip, and names the theme it currently resolves to in its tooltip and the help line under the gallery (e.g. *Deck default · Void*). See [Themes](themes.md) for the full palette and type-accent details.
 
 ### Show (stat mode)
 

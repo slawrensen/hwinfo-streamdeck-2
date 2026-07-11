@@ -19,7 +19,7 @@ You also need **64-bit (x64) Windows**. On Windows-on-ARM the key shows a `Needs
 - Stream Deck software **6.9+**
 - [HWiNFO](https://www.hwinfo.com/download/) (installer or portable) running, publishing on **Shared Memory Support** or **Gadget reporting**
 
-Stream Deck + dials are optional: they add the [Sensor Dial](sensor-dial.md) action, but the key action works on any Stream Deck.
+Dials are optional: a Stream Deck + or Stream Deck + XL adds the [Sensor Dial](sensor-dial.md) action, but the key action works on any Stream Deck.
 
 ### Is this the official HWiNFO plugin? Is it affiliated with REALiX?
 
@@ -81,7 +81,7 @@ This happens when Shared Memory isn't available, most commonly after the free ve
 They're two different things:
 
 - **Key** (Sensor Reading): the `Show` setting and the key-press cycle display **HWiNFO's own** min/max/avg, measured since HWiNFO started (or since you last reset them *inside HWiNFO*). These come from the shared-memory data, so they're empty (equal to current) on the Gadget source.
-- **Dial** (Sensor Dial): min/max/avg are a **session** the plugin accumulates itself while the dial is visible. They reset when you push the dial, change its reading, or it reappears. This works on any data source.
+- **Dial** (Sensor Dial): min/max/avg are a **session** the plugin accumulates itself, kept **per reading** and keyed by HWiNFO's stable sensor identity. Rotate away and back and that reading's own session numbers are still there; they survive page switches and profile changes for up to 30 minutes off screen. **Push** the dial to reset them. This works on any data source.
 
 ## Sparklines
 
@@ -118,7 +118,7 @@ And when none of the plugin's keys are on screen (you switched to another page/p
 
 ### How many sensors / keys can I use?
 
-There's no practical limit you'll hit. HWiNFO typically exposes 500+ readings; the picker lists all of them. You can place as many keys and dials as your Stream Deck hardware has, all reading from the same single poller. The load test above ran 518 key contexts + 8 dials without trouble.
+There's no practical limit you'll hit. HWiNFO typically exposes 500+ readings; the picker searches across all of them (the list shows up to 150 rows at once and asks you to refine the search past that). You can place as many keys and dials as your Stream Deck hardware has, all reading from the same single poller. The load test above ran 518 key contexts + 8 dials without trouble.
 
 ### Can multiple keys show the same sensor?
 
@@ -141,7 +141,7 @@ If a key is amber/red and you didn't mean to set a threshold, clear the **Warn a
 
 ### How do I reset a dial's session min/max?
 
-**Push** the dial (press it in). That resets its session min/max/avg to the current value. The session also resets when you rotate to a different reading or the dial reappears. There's no reset for the *key's* stats; those are HWiNFO's own, reset inside HWiNFO.
+**Push** the dial (press it in). That resets the current reading's session min/max/avg to the current value (on the Elite preset it's the half-second long press; the **Reset reach** setting can widen a reset to the whole rotation set or every dial, and an [HWiNFO Control key](controls.md#the-hwinfo-control-key-action) can fire it remotely). Since 1.1.10, rotating away no longer wipes a reading's session: stats are kept per reading and survive rotation, page switches and profile changes for up to 30 minutes off screen. There's no reset for the *key's* stats; those are HWiNFO's own, reset inside HWiNFO.
 
 ## Themes
 
@@ -152,7 +152,7 @@ If a key is amber/red and you didn't mean to set a threshold, clear the **Warn a
 - Pick the **Void** chip → this key is pinned to Void forever, even if you later change the deck theme.
 - Pick the **Deck default** chip → this key changes whenever you change the deck-wide theme.
 
-In the gallery the Deck default chip is drawn with a dashed border and a small link badge so it's structurally distinct from the preset it currently resolves to (its label reads e.g. *Deck default · Void*).
+In the gallery the Deck default chip is drawn with a dashed border and a small link badge so it's structurally distinct from the preset it currently resolves to; the resolved theme is named in its tooltip and in the help line under the gallery (e.g. "currently Void").
 
 Also note: **existing installs that predate the theme system stay on Graphite** after updating, not Void, so the deck default you inherit may be Graphite, not the fresh-install Void. That's deliberate, so an update never changes how your deck already looks. See [Themes](themes.md).
 
@@ -164,7 +164,7 @@ Because a per-key pick always wins. The **Deck theme** (Advanced) only affects k
 
 ### Is my data sent anywhere? Any telemetry?
 
-**No.** No ads, no telemetry, no network calls. The plugin reads HWiNFO's shared memory / registry **locally** and renders to your Stream Deck. Nothing about your hardware, sensors or usage leaves your machine. It's [MIT-licensed](https://github.com/slawrensen/hwinfo-streamdeck/blob/main/LICENSE); the source is auditable.
+**No.** No ads, no telemetry, no network requests (the plugin's only connection is the local one to the Stream Deck app). It reads HWiNFO's shared memory / registry **locally** and renders to your Stream Deck. Nothing about your hardware, sensors or usage leaves your machine. It's [MIT-licensed](https://github.com/slawrensen/hwinfo-streamdeck/blob/main/LICENSE); the source is auditable.
 
 ## Setup and portability
 
@@ -189,7 +189,7 @@ HWiNFO and Stream Deck are running at **different privilege levels**. Windows bl
 
 ### What do the two-line screens on my keys mean?
 
-They're status screens telling you exactly what to fix. As of 1.1.6 they're pure-black, two lines of soft-white text:
+They're status screens telling you exactly what to fix. As of 1.1.6 they're pure-black, two short lines (a soft-white headline over a dim fix line):
 
 | Key shows | Meaning / fix |
 | --- | --- |

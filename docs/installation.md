@@ -11,11 +11,11 @@ Getting the plugin running is three things: the Stream Deck plugin itself, a wor
 
 | Requirement | Notes |
 | --- | --- |
-| **Windows 10 or later**, 64-bit (x64) | Windows-on-ARM and macOS are not supported; the plugin shows a clear "Needs x64 Windows" screen on those. |
+| **Windows 10 or later**, 64-bit (x64) | Windows-on-ARM is not supported (keys show a clear "Needs x64 Windows" screen). There is no macOS build; the plugin doesn't install there at all. |
 | **Stream Deck software 6.9+** | The Elgato desktop app that hosts plugins. Update it from within the app if you are on an older build. |
 | **HWiNFO** (free or Pro) | Installer or portable. Download from [hwinfo.com](https://www.hwinfo.com/download/). The plugin does not bundle HWiNFO; you run it yourself. |
 
-Any Stream Deck hardware works for the **Sensor Reading** key action. The **Sensor Dial** action needs a Stream Deck + (the model with dials and a touchscreen).
+Any Stream Deck hardware works for the **Sensor Reading** key action. The **Sensor Dial** action needs a Stream Deck + or Stream Deck + XL (the models with dials and a touchscreen). The **HWiNFO Control** key action goes anywhere a key action can, including the Stream Deck Pedal and Corsair G-keys, and drives Sensor Dials on other connected decks. The full device matrix is on [Hardware compatibility](hardware.md).
 
 ## Install the plugin
 

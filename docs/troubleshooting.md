@@ -21,7 +21,7 @@ When a key can't show live data it renders a two-line, true-black status screen 
 | **Access denied** / un-elevate | Access denied / un-elevate HWiNFO | Privilege mismatch between HWiNFO and Stream Deck. |
 | **Tick sensors** / in Gadget | Gadget empty / tick sensors | Gadget reporting is on but no sensors are ticked. |
 | **Pick a sensor** / in settings | HWiNFO / rotate to pick | No sensor selected on this key/dial yet. |
-| **Sensor missing** / pick again | Sensor missing / rotate to pick | The saved sensor isn't in HWiNFO's current output. |
+| **Sensor missing** / pick again | Sensor missing / waiting | The saved sensor isn't in HWiNFO's current output. |
 | **Needs x64** / Windows | Needs x64 Windows | 32-bit or Windows-on-ARM: unsupported. |
 | **HWiNFO error** / restart HWiNFO | HWiNFO error / restart HWiNFO | Header didn't validate (mid-restart or incompatible build). |
 
@@ -84,7 +84,7 @@ A sensor *is* selected, but it isn't in HWiNFO's current output. The saved ident
 3. **HWiNFO profile / config change**, or you switched between shared memory and Gadget sources (the two expose different sensor sets).
 4. **The sensor simply isn't present yet**, e.g. a GPU that's asleep, or a drive that spun down.
 
-**Fix:** open the key's settings and **pick the sensor again**. On a dial, **rotate** to pick a reading from a source that is present.
+**Fix:** open the key's settings and **pick the sensor again**. A dial shows **Sensor missing / waiting** and ignores turns while the sensor is gone, so a temporary dropout (an HWiNFO restart, a sleeping GPU) can't move it off your saved pick; it recovers by itself when the sensor returns. If the sensor is gone for good, pick a new reading in the dial's settings panel.
 
 ## Picker is empty or shows "No sensors reported"
 
@@ -99,7 +99,7 @@ The settings-panel sensor list is populated live from whatever source is active:
 
 ## Plugin shows nothing at all / the action is missing
 
-1. **Actions not visible in Stream Deck.** Look for the **HWiNFO Sensors** category in the actions list; drag **Sensor Reading** onto a key (or **Sensor Dial** onto a Stream Deck + encoder).
+1. **Actions not visible in Stream Deck.** Look for the **HWiNFO Sensors** category in the actions list; drag **Sensor Reading** onto a key (or **Sensor Dial** onto a Stream Deck + or Stream Deck + XL encoder).
 2. **Stream Deck too old.** This plugin requires **Stream Deck software 6.9 or newer**. Update it.
 3. **Not on Windows / wrong architecture.** The plugin is Windows x64 only; macOS and Windows-on-ARM are unsupported (you'll see **"Needs x64 Windows"** if it loads at all).
 4. **Install got corrupted.** Remove the plugin and reinstall by double-clicking the `.streamDeckPlugin` file, then restart Stream Deck.
@@ -122,10 +122,11 @@ Other notes:
 
 ## Dial gestures do nothing
 
-1. **You're on a plain Stream Deck, not a Stream Deck +.** The **Sensor Dial** action needs a Stream Deck + encoder (dial + touchscreen). Regular keys use the **Sensor Reading** action instead.
+1. **You're on a plain Stream Deck, not a Stream Deck + or + XL.** The **Sensor Dial** action needs a Stream Deck + or Stream Deck + XL encoder (dial + touchscreen). Regular keys use the **Sensor Reading** action instead.
 2. **No sensor picked yet**: a fresh dial shows **"rotate to pick."** Rotate to select a reading, or pick one in the settings panel.
+3. **Turns specifically do nothing**: check whether **Ignore turns** is on, or the dial is **pinned** (the bottom line says "pinned"; unpin via the gesture or an HWiNFO Control key).
 
-Dial gesture reference: **rotate** cycles readings of the same sensor source · **push** resets session min/max/avg · **touch** cycles current/min/max/avg · **long touch** returns to the live value.
+Dial gesture reference (Legacy preset, the default): **rotate** cycles readings of the same sensor source · **push** resets session min/max/avg · **touch** cycles current/min/max/avg · **long touch** returns to the live value. The Elite and Custom presets remap these; see [Dial controls & presets](controls.md).
 
 ## High memory, high CPU, or a stuck process
 
@@ -169,6 +170,8 @@ Useful lines to look for:
 
 > **Note:** The log is local-only: the plugin has **no telemetry** and never uploads anything. You choose what to share.
 
+**Need more detail?** Set the user environment variable `HWINFO_LOG_LEVEL=debug` and restart the Stream Deck app; the plugin then logs where every key and dial appeared (device and position). Levels are `trace`, `debug`, `info` (the default), `warn` and `error`. `trace` needs a debug launch of the plugin; on a normal Stream Deck launch it falls back to `debug` and the log says so. The log also names each connected deck's model and key grid, so it shows exactly what hardware was involved.
+
 ---
 
 ## Before you file an issue
@@ -188,7 +191,8 @@ If it still fails, open an issue at the [project repository](https://github.com/
 1. **What you see**: the exact status-screen text (e.g. "Access denied / un-elevate") or a photo of the key/dial.
 2. **HWiNFO version and edition** (free or Pro), and which interface(s) you enabled.
 3. **Plugin version** (see the Marketplace listing or `manifest.json`).
-4. **Stream Deck software version** and device model (regular vs Stream Deck +).
+4. **Stream Deck software version** and device model (regular, Stream Deck +, Stream Deck + XL).
 5. **Windows version**.
 6. **The relevant lines from the log** (`com.lawrensen.hwinfo.0.log`), especially any `HWiNFO unavailable […]` and the `Opened HWiNFO data source` lines.
-7. **Whether either HWiNFO or Stream Deck is running elevated.**
+7. **The support report**: every settings panel has a **Copy support report** button under its advanced section. It copies a local JSON summary (plugin and app version, devices by model and hashed ID, data-source state, action states; no sensor values, no sensor names, nothing uploaded). Paste it into the issue.
+8. **Whether either HWiNFO or Stream Deck is running elevated.**

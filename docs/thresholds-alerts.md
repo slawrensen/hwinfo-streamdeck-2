@@ -91,3 +91,5 @@ Drops to 50 GB → amber; drops to 20 GB → red.
 ## Where thresholds live
 
 The **Warn at**, **Critical at** and **Direction** controls are on both the Sensor Reading (key) and Sensor Dial property inspectors, just below the display options. They're per-key / per-dial (each reading gets its own limits) and they persist with the rest of that button's [settings](sensor-reading.md).
+
+On a **dial**, thresholds and the manual bar range are additionally **unit-scoped**: rotation can put readings with different units on the same dial, so a threshold applies only to readings in the unit it was typed against (a °C warn level can never fire on a fan RPM you rotate to). Details on [Dial controls & presets](controls.md#thresholds-and-mixed-units).

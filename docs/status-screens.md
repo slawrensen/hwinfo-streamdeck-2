@@ -5,7 +5,7 @@ nav_order: 9
 
 When a key or dial can't show a live reading, it shows a **status screen** instead of a value. Each one names the problem on the first line and the fix on the second. They aren't errors to dismiss: they're the plugin telling you exactly what to do next, and every one clears itself the moment HWiNFO is back.
 
-> **New in 1.1.6: OLED-black redesign.** The key status screens are now a true-black background with two lines of soft-white text (previously three lines of hard white on dark grey). Same guidance, far less glare on OLED Stream Deck hardware. The examples below use the exact 1.1.6 wording.
+> **New in 1.1.6: OLED-black redesign.** The key status screens are now a true-black background with two short lines: a soft-white headline and a dim fix line (previously three lines of hard white on dark grey). Same guidance, far less glare on OLED Stream Deck hardware. The examples below use the exact 1.1.6 wording.
 
 ## Key screens
 
@@ -41,8 +41,12 @@ Dials show the same states in the touchscreen's two-slot layout (a title and a v
 | Gadget empty | tick sensors |
 | Needs x64 Windows | "—" (placeholder glyph) |
 | HWiNFO error | restart HWiNFO |
+| HWiNFO | rotate to pick *(no sensor selected yet; the hint line says "or use the settings panel")* |
+| Sensor missing | waiting *(the saved sensor isn't in HWiNFO's output; the hint says "reselect in settings")* |
 
 Like the key screens, the frozen-data message is **source-aware**: a dial reading from the Gadget registry says *check Gadget*, never *check sharing*.
+
+While **Sensor missing / waiting** shows, the dial ignores turns so a temporary dropout (an HWiNFO restart, a device asleep) can't bump you off the saved reading; it recovers on its own when the sensor returns. Separately, a live dial can carry a small **"cycle paused"** or **"pinned"** label on its bottom line: those aren't status screens, they're the pause and pin states described on [Dial controls & presets](controls.md#pause-pin-and-reset-reach).
 
 ## Recovery is automatic
 

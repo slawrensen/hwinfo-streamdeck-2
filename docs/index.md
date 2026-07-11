@@ -5,14 +5,16 @@ description: >-
   Live HWiNFO sensor readings on your Elgato Stream Deck.
 ---
 
-**HWiNFO Sensors** puts live [HWiNFO](https://www.hwinfo.com) readings (temperatures, clocks, fan speeds, usage, power, voltages and everything else HWiNFO measures) directly onto your Elgato Stream Deck. Each key shows one value with an optional warn/critical color and a recent-history sparkline; on Stream Deck + each dial gets a touchscreen readout with a range bar and session min/max, and you rotate to switch readings. Seven display themes (per key or deck-wide) keep every key on the same visual language.
+**HWiNFO Sensors** puts live [HWiNFO](https://www.hwinfo.com) readings (temperatures, clocks, fan speeds, usage, power, voltages and everything else HWiNFO measures) directly onto your Elgato Stream Deck. Each key shows one value with an optional warn/critical color and a recent-history sparkline; on a Stream Deck + or Stream Deck + XL each dial gets a touchscreen readout with a range bar and per-reading session min/max, and you rotate to switch readings. Seven display themes (per key or deck-wide) keep every key on the same visual language.
 
 ![HWiNFO Sensors on a Stream Deck: seven display themes across the top row (Void, Graphite, Ultraviolet, Midnight, Forest, Ember, Paper), each key showing a live value, unit and sparkline, below them the aviation-style amber warn and red critical alert states, and two Stream Deck + dials with session range bars.]({{ '/assets/img/themes-contact-sheet.png' | relative_url }})
 
 ## What you get
 
 - **Live keys.** One HWiNFO reading per key: value, unit, custom label, and a live preview while you pick.
-- **Stream Deck + dials.** Touchscreen value with a range bar and session ▼min/▲max; rotate to step through a sensor's readings, push to reset the session, touch to cycle stats.
+- **Stream Deck + and + XL dials.** Touchscreen value with a range bar and session ▼min/▲max kept per reading; rotate to step through readings, push to reset the session, touch to cycle stats.
+- **Rotation on your terms.** Build a [rotation set](sensor-dial.md#rotation-set-ignore-turns-and-auto-cycle) (any readings, in your order, across sensors), tick **Ignore turns** so a bump can't move the dial, or let the **auto cycle** tour the set on a timer that holds while a reading is critical. Three [control presets](controls.md) (Legacy, Elite, Custom) map the gestures, up to three-zone touch.
+- **HWiNFO Control key.** Drive Sensor Dials from any key, pedal, G-key or Multi Action step: switch readings, pause or pin, reset session stats, targeted at one [Link ID](controls.md#the-hwinfo-control-key-action) or every dial.
 - **Seven themes.** Void, Graphite, Ultraviolet, Midnight, Forest, Ember and Paper, set per key or once for the whole deck, plus optional sensor-type accent colors.
 - **Thresholds and alerts.** Set a warn and critical value; the key flips to amber, then red (aviation-style master caution/warning). Alert colors are global and never themed, so they stay unmistakable.
 - **Sparklines.** Recent history drawn along the bottom of a key; it persists across page changes, wake and reconnect.
@@ -33,7 +35,9 @@ New to the plugin? Follow these two pages in order:
 From there:
 
 - **[Sensor Reading (keys)](sensor-reading.md)**: every key setting and the press-to-cycle behavior.
-- **[Sensor Dial (Stream Deck +)](sensor-dial.md)**: the dial's rotate / push / touch controls and range bar.
+- **[Sensor Dial (Stream Deck +)](sensor-dial.md)**: the dial's rotate / push / touch controls, rotation sets, auto cycle and range bar.
+- **[Dial controls & presets](controls.md)**: the Legacy, Elite and Custom presets, touch zones, pause/pin, reset reach, and the HWiNFO Control key action.
 - **[Themes and alerts](themes.md)**: the seven presets, type accents, and how alerts override everything.
 - **[Data sources](data-sources.md)**: Shared Memory vs. Gadget registry, and how auto-fallback works.
+- **[Hardware compatibility](hardware.md)**: what is physically verified, what is SDK simulated, and how to report your device.
 - **[Troubleshooting](troubleshooting.md)**: what each status screen (*Start HWiNFO*, *Shared Memory off*, *Not updating*, *Access denied*, …) means and how to fix it.
