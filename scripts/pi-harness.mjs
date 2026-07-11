@@ -1,7 +1,10 @@
-// Serves the REAL property inspector in a normal browser against the REAL
+// Serves the REAL property inspectors in a normal browser against the REAL
 // plugin (live HWiNFO data) for settings-panel screenshots: a mock Stream Deck
 // WebSocket bridges plugin <-> PI, and a static server hosts ui/ with a
 // bootstrap that performs the registration call the Stream Deck app would.
+// All three PIs are served: sensor-reading.html (key), sensor-dial.html (dial)
+// and control.html (HWiNFO Control); the page requested last decides which
+// action the PI registers as, so captures visit one page at a time.
 // Usage: node scripts/pi-harness.mjs   (then open http://127.0.0.1:28997/)
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -17,11 +20,24 @@ const READING_KEY = "f0000501:0:1000000"; // CPU (Tctl/Tdie)
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pluginDir = path.join(repoRoot, "com.lawrensen.hwinfo.sdPlugin");
 
-// One key context whose settings both sides share.
+// One action context per PI page; settings are shared between plugin and PI.
+const PAGES = {
+	"sensor-reading.html": { action: "com.lawrensen.hwinfo.reading", context: "ctx-key", controller: "Keypad", coordinates: { column: 0, row: 0 } },
+	"sensor-dial.html": { action: "com.lawrensen.hwinfo.dial", context: "ctx-dial", controller: "Encoder", coordinates: { column: 0, row: 0 } },
+	"control.html": { action: "com.lawrensen.hwinfo.control", context: "ctx-control", controller: "Keypad", coordinates: { column: 1, row: 0 } }
+};
+
 const store = {
-	settings: { readingKey: READING_KEY, sparkline: true, warnValue: "80", critValue: "89", theme: "" },
+	settings: {
+		"ctx-key": { readingKey: READING_KEY, sparkline: true, warnValue: "80", critValue: "89", theme: "" },
+		"ctx-dial": { readingKey: READING_KEY, warnValue: "80", critValue: "89", linkId: "cpu-dial", controlPreset: "elite" },
+		"ctx-control": { command: "next", target: "cpu-dial" }
+	},
 	globals: { theme: "void", typeAccents: "on" }
 };
+
+/** The page served most recently — the PI that registers next belongs to it. */
+let current = PAGES["sensor-reading.html"];
 
 let pluginWs = null;
 let piWs = null;
@@ -35,29 +51,40 @@ wss.on("connection", (ws) => {
 		switch (msg.event) {
 			case "registerPlugin":
 				pluginWs = ws;
-				toPlugin({
-					event: "willAppear",
-					action: "com.lawrensen.hwinfo.reading",
-					context: "ctx-key",
-					device: "dev1",
-					payload: { settings: store.settings, coordinates: { column: 0, row: 0 }, controller: "Keypad", isInMultiAction: false }
-				});
-				toPlugin({ event: "propertyInspectorDidAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1" });
+				for (const page of Object.values(PAGES)) {
+					toPlugin({
+						event: "willAppear",
+						action: page.action,
+						context: page.context,
+						device: "dev1",
+						payload: { settings: store.settings[page.context], coordinates: page.coordinates, controller: page.controller, isInMultiAction: false }
+					});
+				}
+				toPlugin({ event: "propertyInspectorDidAppear", action: current.action, context: current.context, device: "dev1" });
 				break;
 			case "registerPropertyInspector":
 				piWs = ws;
+				toPlugin({ event: "propertyInspectorDidAppear", action: current.action, context: current.context, device: "dev1" });
 				break;
 			// ---- from the PI ----
 			case "sendToPlugin":
-				toPlugin({ event: "sendToPlugin", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: msg.payload });
+				toPlugin({ event: "sendToPlugin", action: current.action, context: current.context, payload: msg.payload });
 				break;
-			case "getSettings":
-				ws.send(JSON.stringify({ event: "didReceiveSettings", action: "com.lawrensen.hwinfo.reading", context: msg.context ?? "ctx-key", payload: { settings: store.settings, coordinates: { column: 0, row: 0 } } }));
+			case "getSettings": {
+				// The PI's own messages carry its registration uuid ("pi-ctx"),
+				// never an action context; only plugin messages name a real one.
+				const ctx = store.settings[msg.context] !== undefined ? msg.context : current.context;
+				const page = Object.values(PAGES).find((p) => p.context === ctx) ?? current;
+				ws.send(JSON.stringify({ event: "didReceiveSettings", action: page.action, context: ctx, payload: { settings: store.settings[ctx], coordinates: page.coordinates } }));
 				break;
-			case "setSettings":
-				store.settings = msg.payload ?? {};
-				toPlugin({ event: "didReceiveSettings", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: { settings: store.settings, coordinates: { column: 0, row: 0 }, isInMultiAction: false } });
+			}
+			case "setSettings": {
+				const ctx = store.settings[msg.context] !== undefined ? msg.context : current.context;
+				const page = Object.values(PAGES).find((p) => p.context === ctx) ?? current;
+				store.settings[ctx] = msg.payload ?? {};
+				toPlugin({ event: "didReceiveSettings", action: page.action, context: ctx, payload: { settings: store.settings[ctx], coordinates: page.coordinates, isInMultiAction: false } });
 				break;
+			}
 			case "getGlobalSettings":
 				ws.send(JSON.stringify({ event: "didReceiveGlobalSettings", payload: { settings: store.globals } }));
 				break;
@@ -68,7 +95,7 @@ wss.on("connection", (ws) => {
 				break;
 			// ---- from the plugin ----
 			case "sendToPropertyInspector":
-				toPi({ event: "sendToPropertyInspector", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", payload: msg.payload });
+				toPi({ event: "sendToPropertyInspector", action: current.action, context: current.context, payload: msg.payload });
 				break;
 			case "setImage":
 			case "setFeedback":
@@ -87,15 +114,19 @@ const info = {
 	devices: [{ id: "dev1", name: "Harness Deck", size: { columns: 5, rows: 3 }, type: 0 }],
 	plugin: { uuid: "com.lawrensen.hwinfo", version: "1.0.0.0" }
 };
-const actionInfo = {
-	action: "com.lawrensen.hwinfo.reading",
-	context: "ctx-key",
-	device: "dev1",
-	payload: { settings: store.settings, coordinates: { column: 0, row: 0 }, controller: "Keypad" }
-};
-
-const BOOTSTRAP = `<style>body{background:#2d2d2d;margin:0;padding:8px 0;}</style>
+/** Built per request: sdpi-components seeds its settings cache from the
+ * registration actionInfo, so a PI reload must carry the LIVE store.settings
+ * or settings written by the PI appear lost on refresh. */
+function bootstrap(page) {
+	const actionInfo = {
+		action: page.action,
+		context: page.context,
+		device: "dev1",
+		payload: { settings: store.settings[page.context], coordinates: page.coordinates, controller: page.controller }
+	};
+	return `<style>body{background:#2d2d2d;margin:0;padding:8px 0;}</style>
 <script>window.addEventListener("load",()=>{connectElgatoStreamDeckSocket(String(${WS_PORT}),"pi-ctx","registerPropertyInspector",${JSON.stringify(JSON.stringify(info))},${JSON.stringify(JSON.stringify(actionInfo))});});</script>`;
+}
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png" };
 createServer((req, res) => {
@@ -112,7 +143,11 @@ createServer((req, res) => {
 	try {
 		let body = readFileSync(file);
 		if (file.endsWith(".html")) {
-			body = Buffer.from(body.toString("utf8").replace("</head>", `${BOOTSTRAP}</head>`));
+			const page = PAGES[path.basename(file)];
+			if (page !== undefined) {
+				current = page;
+				body = Buffer.from(body.toString("utf8").replace("</head>", `${bootstrap(page)}</head>`));
+			}
 		}
 		res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" }).end(body);
 	} catch {

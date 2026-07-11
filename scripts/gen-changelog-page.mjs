@@ -21,10 +21,11 @@ nav_order: 12
 
 # Changelog
 
-Every version below matches a
-[GitHub release](https://github.com/slawrensen/hwinfo-streamdeck/releases/latest)
-with a downloadable \`.streamDeckPlugin\`. Generated from the repo's
-\`CHANGELOG.md\`; do not edit this page by hand.
+The release history. Download any tagged version as a
+\`.streamDeckPlugin\` from the
+[GitHub releases](https://github.com/slawrensen/hwinfo-streamdeck/releases)
+page. Generated from the repo's \`CHANGELOG.md\`; do not edit this page by
+hand.
 
 ${body}
 `;

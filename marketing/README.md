@@ -34,9 +34,14 @@ capture directory. Full pipeline:
 ```bash
 npm run build
 node scripts/pi-harness.mjs                 # keep running in its own terminal
-node scripts/capture-pi.mjs <dir>           # writes pi-settings.png + pi-picker.png
+node scripts/capture-pi.mjs <dir>           # six captures: pi-settings, pi-picker,
+                                            # pi-dial-rotation, pi-dial-presets,
+                                            # pi-dial-custom, pi-control
 npx tsx scripts/marketplace-shots.mjs marketing <dir>
 ```
+
+Shot 3 uses `pi-settings.png` and `pi-picker.png`; the four dial/control
+captures feed the docs site (`docs/assets/img/`).
 
 The app icon is resized from the plugin's own marketplace icon:
 

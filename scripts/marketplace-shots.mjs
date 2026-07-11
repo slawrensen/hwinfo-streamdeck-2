@@ -259,13 +259,14 @@ async function dials() {
 	const chrome = [
 		`<rect x="${deckX}" y="${deckY}" width="${deckW}" height="${deckH}" rx="34" fill="#131418" stroke="#26282E" stroke-width="1.5"/>`,
 		`<text x="110" y="360" font-family="${FONT}" font-size="56" font-weight="700" fill="${HEADLINE}">Dials, themed too.</text>`,
-		`<text x="110" y="418" font-family="${FONT}" font-size="24" fill="${BODY}">Stream Deck + touchscreen slots</text>`,
-		`<text x="110" y="454" font-family="${FONT}" font-size="24" fill="${BODY}">with live value, session range and</text>`,
-		`<text x="110" y="490" font-family="${FONT}" font-size="24" fill="${BODY}">a bar that flips to the alert color</text>`,
-		`<text x="110" y="526" font-family="${FONT}" font-size="24" fill="${BODY}">when a threshold trips.</text>`,
-		`<text x="110" y="590" font-family="${MONO}" font-size="16" fill="${MUTED}">rotate · switch reading</text>`,
-		`<text x="110" y="622" font-family="${MONO}" font-size="16" fill="${MUTED}">push · reset session</text>`,
-		`<text x="110" y="654" font-family="${MONO}" font-size="16" fill="${MUTED}">touch · cycle stat</text>`
+		`<text x="110" y="418" font-family="${FONT}" font-size="24" fill="${BODY}">Stream Deck + and + XL</text>`,
+		`<text x="110" y="454" font-family="${FONT}" font-size="24" fill="${BODY}">touchscreen slots: live value,</text>`,
+		`<text x="110" y="490" font-family="${FONT}" font-size="24" fill="${BODY}">session range, and a bar that</text>`,
+		`<text x="110" y="526" font-family="${FONT}" font-size="24" fill="${BODY}">flips to the alert color when</text>`,
+		`<text x="110" y="562" font-family="${FONT}" font-size="24" fill="${BODY}">a threshold trips.</text>`,
+		`<text x="110" y="622" font-family="${MONO}" font-size="16" fill="${MUTED}">rotate · switch reading</text>`,
+		`<text x="110" y="654" font-family="${MONO}" font-size="16" fill="${MUTED}">push · reset session</text>`,
+		`<text x="110" y="686" font-family="${MONO}" font-size="16" fill="${MUTED}">touch · cycle stat</text>`
 	];
 
 	const composites = [];
@@ -360,7 +361,7 @@ async function thumbnail() {
 		`<text x="960" y="180" text-anchor="middle" font-family="${FONT}" font-size="86" font-weight="700" fill="${HEADLINE}">HWiNFO Sensors</text>`,
 		`<text x="960" y="248" text-anchor="middle" font-family="${FONT}" font-size="32" fill="${BODY}">Live hardware readings on keys and dials</text>`,
 		`<text x="960" y="322" text-anchor="middle" font-family="${MONO}" font-size="22" fill="${CYAN}">temperatures · clocks · fans · power · load · network</text>`,
-		`<text x="960" y="878" text-anchor="middle" font-family="${MONO}" font-size="20" fill="${MUTED}">7 themes · sparklines · warn/critical alerts · Stream Deck +</text>`
+		`<text x="960" y="878" text-anchor="middle" font-family="${MONO}" font-size="20" fill="${MUTED}">7 themes · sparklines · warn/critical alerts · Stream Deck + and + XL</text>`
 	];
 	const composites = [];
 	for (let i = 0; i < faces.length; i++) {
