@@ -1,7 +1,7 @@
 // Marketplace listing stills (1920×960 per Elgato's product guidelines:
 // thumbnail + gallery are 1920×960 PNG; 1920×1080 is the VIDEO spec), composed
 // from the plugin's own renderers with live HWiNFO values — the marketing art
-// IS the product output. Emits gallery shots 1/2/4 (+3 with a capture dir)
+// IS the product output. Emits gallery shots 1/3/5 (+4 with a capture dir; shot 2 is the hardware photo board from scripts/shot2-hardware.mjs)
 // and a dedicated thumbnail.png.
 // Usage: npx tsx scripts/marketplace-shots.mjs <outputDir> [piCaptureDir]
 import path from "node:path";
@@ -210,7 +210,7 @@ async function themes() {
 	for (let i = 0; i < 2; i++) {
 		composites.push({ input: await roundedKey(pair[i], 150, 17, "#26282E"), left: 960 - 160 + i * 170, top: pairY });
 	}
-	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-2-themes.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-3-themes.png"));
 }
 
 // ---------- shot 4: dials (Stream Deck +) ----------
@@ -295,7 +295,7 @@ async function dials() {
 			top: stripY + 148 + 22
 		});
 	}
-	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-4-dials.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-5-dials.png"));
 }
 
 // ---------- shot 3: settings panel (from capture-pi.mjs screenshots) ----------
@@ -325,7 +325,7 @@ async function settings(piDir) {
 		);
 		composites.push({ input: img, left: x, top });
 	}
-	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-3-settings.png"));
+	await sharp(Buffer.from(pageBase(W, H, chrome))).composite(composites).png().toFile(path.join(outDir, "shot-4-settings.png"));
 }
 
 // ---------- thumbnail (dedicated 1920×960 listing card) ----------
@@ -381,7 +381,7 @@ await thumbnail();
 const piDir = process.argv[3];
 if (piDir !== undefined) {
 	await settings(piDir);
-	console.log(`Rendered thumbnail + shots 1-4 (${W}x${H}) to ${outDir}/`);
+	console.log(`Rendered thumbnail + shots 1, 3, 4, 5 (${W}x${H}) to ${outDir}/`);
 } else {
-	console.log(`Rendered thumbnail + shots 1, 2, 4 (${W}x${H}) to ${outDir}/ (pass a capture dir with pi-settings.png + pi-picker.png for shot 3)`);
+	console.log(`Rendered thumbnail + shots 1, 3, 5 (${W}x${H}) to ${outDir}/ (pass a capture dir with pi-settings.png + pi-picker.png for shot 4)`);
 }

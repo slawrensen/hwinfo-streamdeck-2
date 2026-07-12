@@ -178,9 +178,10 @@ const MARKETING = [
 	["marketing/app-icon-288.png", 288, 288],
 	["marketing/thumbnail.png", 1920, 960],
 	["marketing/shot-1-hero.png", 1920, 960],
-	["marketing/shot-2-themes.png", 1920, 960],
-	["marketing/shot-3-settings.png", 1920, 960],
-	["marketing/shot-4-dials.png", 1920, 960],
+	["marketing/shot-2-hardware.png", 1920, 960],
+	["marketing/shot-3-themes.png", 1920, 960],
+	["marketing/shot-4-settings.png", 1920, 960],
+	["marketing/shot-5-dials.png", 1920, 960],
 ];
 for (const [rel, w, h] of MARKETING) {
 	if (!exists(rel)) { fail(rel, 0, "marketing asset missing"); continue; }

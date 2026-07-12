@@ -26,6 +26,10 @@ Stream Deck software floor is **6.9**. Features from newer apps are detected at 
 
 ![Six dial faces rendered by the plugin at the Stream Deck + XL's six-encoder strip geometry (one 200 by 100 segment per encoder): CPU temperature, GPU temperature, a pinned CPU fan, CPU power, CPU load, and a GPU hot spot at a forced critical value with a red bar, with drawn knob markers beneath.]({{ '/assets/img/plusxl-dials.png' | relative_url }})
 
+And the same claim as a photograph, not a render: my Stream Deck + XL running the validation page, 36 keys and six dial readouts live from HWiNFO (iPhone photo, perspective straightened).
+
+![Photograph of a Stream Deck + XL on a desk running HWiNFO Sensors: 36 keys showing live temperatures, clocks, usage and voltages with sparklines, amber warn and red critical demo keys, the touchstrip showing six per-dial readouts including pump RPM and CPU package power, and six metal knobs below.]({{ '/assets/img/plusxl-photo.jpg' | relative_url }})
+
 ## Page swipe
 
 Sideways swipes on the touch strip are page navigation and belong to the Stream Deck app; there is no plugin swipe event to receive. The plugin's job is narrower and it does it: selection and labels always survive the swipe away and back (they are persisted settings), and session stats, pause and pin state survive for up to 30 minutes off screen.
