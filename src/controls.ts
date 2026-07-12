@@ -7,8 +7,9 @@
  *           install that predates presets) resolve here, so existing dials
  *           keep their physical behavior to the millisecond.
  *   elite   press-aware mapping: rotate steps readings, pressed rotation
- *           jumps between sensors, short press pauses/resumes auto cycle,
- *           long press resets session stats, optional touch zones.
+ *           jumps between rotation groups (or sensors while none are
+ *           defined), short press pauses/resumes auto cycle, long press
+ *           resets session stats, optional touch zones.
  *   custom  each gesture assigned individually; unset gestures fall back to
  *           their legacy command so a half-configured dial stays familiar.
  *
@@ -22,9 +23,9 @@ export type ControlPreset = "legacy" | "elite" | "custom";
 /** Commands a gesture can trigger. Persisted in settings as plain strings. */
 export type GestureCommandId =
 	| "none"
-	/** Step through the rotation set / owning sensor's readings. */
+	/** Step through the active rotation group / set / owning sensor's readings. */
 	| "step"
-	/** Jump to the previous/next sensor source in the rotation list. */
+	/** Jump to the previous/next rotation group (or sensor source without groups). */
 	| "stepGroup"
 	| "cycleStat"
 	| "backToCurrent"
@@ -123,6 +124,25 @@ export function resolveControls(settings: ControlSettings): ControlScheme {
 	};
 }
 
+/**
+ * True when some gesture of this scheme can jump rotation groups. Plain
+ * stepping honors group boundaries only while this holds: otherwise a dial
+ * could rotate inside one group forever with no gesture able to leave it,
+ * so defined groups dissolve into one flat list (the pre-groups behavior)
+ * until a Switch gesture exists. Legacy never maps one, which is exactly
+ * its compatibility contract.
+ */
+export function schemeCanSwitchGroups(scheme: ControlScheme): boolean {
+	return (
+		scheme.rotate === "stepGroup" ||
+		scheme.pressedRotate === "stepGroup" ||
+		scheme.shortPress === "stepGroup" ||
+		scheme.longPress === "stepGroup" ||
+		scheme.tap === "stepGroup" ||
+		scheme.touchHold === "stepGroup"
+	);
+}
+
 /** Hint texts when the command leads its line in the app's hint column. */
 const HINT_LABELS: Record<GestureCommandId, string | undefined> = {
 	none: undefined,
@@ -153,26 +173,30 @@ const SUFFIX_LABELS: Record<GestureCommandId, string | undefined> = {
 
 /**
  * Texts for the Stream Deck app's own gesture hints (setTriggerDescription,
- * a 6.4-era API). Undefined fields hide that hint.
+ * a 6.4-era API). Undefined fields hide that hint. `hasGroups` swaps the
+ * stepGroup wording from sensors to groups so the hint names what the jump
+ * actually moves between on this dial.
  */
-export function triggerDescriptions(scheme: ControlScheme): { rotate?: string; push?: string; touch?: string; longTouch?: string } {
+export function triggerDescriptions(scheme: ControlScheme, hasGroups: boolean): { rotate?: string; push?: string; touch?: string; longTouch?: string } {
+	const hint = (command: GestureCommandId): string | undefined => (command === "stepGroup" && hasGroups ? "Switch group" : HINT_LABELS[command]);
+	const suffix = (command: GestureCommandId): string | undefined => (command === "stepGroup" && hasGroups ? "group" : SUFFIX_LABELS[command]);
 	const rotate =
 		scheme.pressedRotate !== "none" && scheme.pressedRotate !== scheme.rotate
-			? joinHints(HINT_LABELS[scheme.rotate], `pressed: ${SUFFIX_LABELS[scheme.pressedRotate] ?? "off"}`)
-			: HINT_LABELS[scheme.rotate];
+			? joinHints(hint(scheme.rotate), `pressed: ${suffix(scheme.pressedRotate) ?? "off"}`)
+			: hint(scheme.rotate);
 	const push =
 		scheme.pushTiming === "down"
-			? HINT_LABELS[scheme.shortPress]
+			? hint(scheme.shortPress)
 			: scheme.shortPress === scheme.longPress
-				? HINT_LABELS[scheme.shortPress]
-				: joinHints(HINT_LABELS[scheme.shortPress], scheme.longPress === "none" ? undefined : `hold: ${SUFFIX_LABELS[scheme.longPress]}`);
+				? hint(scheme.shortPress)
+				: joinHints(hint(scheme.shortPress), scheme.longPress === "none" ? undefined : `hold: ${suffix(scheme.longPress)}`);
 	const touch =
 		scheme.touchZones === "off"
-			? HINT_LABELS[scheme.tap]
+			? hint(scheme.tap)
 			: scheme.touchZones === "two"
 				? "Left/right: previous/next"
-				: joinHints("Left/right: previous/next", SUFFIX_LABELS[scheme.tap] === undefined ? undefined : `center: ${SUFFIX_LABELS[scheme.tap]}`);
-	return { rotate, push, touch, longTouch: HINT_LABELS[scheme.touchHold] };
+				: joinHints("Left/right: previous/next", suffix(scheme.tap) === undefined ? undefined : `center: ${suffix(scheme.tap)}`);
+	return { rotate, push, touch, longTouch: hint(scheme.touchHold) };
 }
 
 function joinHints(first: string | undefined, second: string | undefined): string | undefined {

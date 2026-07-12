@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseResetScope, resolveControls, triggerDescriptions } from "../src/controls";
+import { parseResetScope, resolveControls, schemeCanSwitchGroups, triggerDescriptions } from "../src/controls";
 
 describe("resolveControls", () => {
 	it("settings with no preset field migrate to legacy (the 1.1.x contract)", () => {
@@ -79,9 +79,52 @@ describe("parseResetScope", () => {
 	});
 });
 
+describe("schemeCanSwitchGroups", () => {
+	it("legacy never switches groups (its compatibility contract)", () => {
+		assert.equal(schemeCanSwitchGroups(resolveControls({})), false);
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "legacy" })), false);
+	});
+
+	it("elite switches groups through its pressed rotation", () => {
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "elite" })), true);
+	});
+
+	it("custom switches groups only when some gesture is assigned the jump", () => {
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "custom" })), false); // fallbacks are legacy
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "custom", gesturePressedRotate: "stepGroup" })), true);
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "custom", gestureRotate: "stepGroup", gesturePressedRotate: "none" })), true);
+		// Any of the six slots counts, not just the rotation pair.
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "custom", gesturePressedRotate: "none", gestureTouchHold: "stepGroup" })), true);
+		assert.equal(schemeCanSwitchGroups(resolveControls({ controlPreset: "custom", gestureShortPress: "stepGroup" })), true);
+	});
+
+	it("a fully assigned custom map without the jump keeps the flat list", () => {
+		const explicit = {
+			controlPreset: "custom",
+			gestureRotate: "step",
+			gesturePressedRotate: "none",
+			gestureShortPress: "pauseResume",
+			gestureLongPress: "resetStats",
+			gestureTap: "cycleStat",
+			gestureTouchHold: "backToCurrent"
+		};
+		assert.equal(schemeCanSwitchGroups(resolveControls(explicit)), false);
+		const allOff = {
+			controlPreset: "custom",
+			gestureRotate: "none",
+			gesturePressedRotate: "none",
+			gestureShortPress: "none",
+			gestureLongPress: "none",
+			gestureTap: "none",
+			gestureTouchHold: "none"
+		};
+		assert.equal(schemeCanSwitchGroups(resolveControls(allOff)), false);
+	});
+});
+
 describe("triggerDescriptions", () => {
 	it("describes the elite mapping including the pressed-rotate hint", () => {
-		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite" }));
+		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite" }), false);
 		assert.match(texts.rotate ?? "", /Cycle readings/);
 		assert.match(texts.rotate ?? "", /pressed: sensor/);
 		assert.match(texts.push ?? "", /Pause\/resume/);
@@ -89,14 +132,21 @@ describe("triggerDescriptions", () => {
 		assert.equal(texts.longTouch, "Back to current");
 	});
 
+	it("names groups instead of sensors once rotation groups exist", () => {
+		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite" }), true);
+		assert.match(texts.rotate ?? "", /pressed: group/);
+		const swapped = triggerDescriptions(resolveControls({ controlPreset: "custom", gestureRotate: "stepGroup", gesturePressedRotate: "step" }), true);
+		assert.match(swapped.rotate ?? "", /Switch group/);
+	});
+
 	it("describes touch zones when enabled", () => {
-		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite", touchZones: "three" }));
+		const texts = triggerDescriptions(resolveControls({ controlPreset: "elite", touchZones: "three" }), false);
 		assert.match(texts.touch ?? "", /Left\/right/);
 		assert.match(texts.touch ?? "", /center: stat mode/);
 	});
 
 	it("hides hints for gestures assigned to none", () => {
-		const texts = triggerDescriptions(resolveControls({ controlPreset: "custom", gestureTap: "none", gestureTouchHold: "none" }));
+		const texts = triggerDescriptions(resolveControls({ controlPreset: "custom", gestureTap: "none", gestureTouchHold: "none" }), false);
 		assert.equal(texts.touch, undefined);
 		assert.equal(texts.longTouch, undefined);
 	});

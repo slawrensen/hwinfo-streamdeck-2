@@ -44,6 +44,7 @@
 			selectedKey = typeof value === "string" ? value : "";
 			showSelection();
 			renderList();
+			renderRotationSet(); // the current-chip highlight follows the move
 			// Rotating the dial (or autocycle) moves the selection while the
 			// list is open: keep the highlighted row in view so the movement
 			// is visible. "nearest" only scrolls when it left the viewport,
@@ -55,9 +56,17 @@
 		null
 	);
 
-	// Rotation set (dial PI only): the readings dial rotation is limited to.
-	// Ticked in the picker rows, shown as removable chips under the picker.
+	// Rotation set (dial PI only): the readings dial rotation is limited to,
+	// ticked in the picker rows. Shown under the picker as one flat chips row,
+	// or split into named groups (plain rotate stays inside a group, a gesture
+	// set to "Switch sensor or group" jumps between them). rotationKeys is
+	// kept mirrored to the union of all group keys, so set-wide consumers
+	// (stats, reset reach) and older plugin versions after a rollback keep
+	// reading the flat set unchanged. The plugin ignores anything under two
+	// non-empty groups; the PI still renders those editing states.
 	let rotationKeys = [];
+	let rotationGroups = null; // null = flat set; else [{ name, keys }]
+	let collectorIndex = 0; // which group new ticks land in (PI-local, not persisted)
 	const rotationBinding =
 		rotationSetEl === null
 			? null
@@ -70,23 +79,91 @@
 					},
 					null
 				);
+	const groupsBinding =
+		rotationSetEl === null
+			? null
+			: useSettings(
+					"rotationGroups",
+					(value) => {
+						rotationGroups = parseGroupsSetting(value);
+						clampCollector();
+						renderRotationSet();
+						renderList();
+					},
+					null
+				);
 
-	function applyRotationKeys(next) {
-		rotationKeys = next;
+	// Settings are untyped JSON: keep what renders (name string, string keys)
+	// and treat an empty or non-array value as "no groups" (the flat set).
+	function parseGroupsSetting(value) {
+		if (!Array.isArray(value) || value.length === 0) return null;
+		const groups = [];
+		for (const entry of value) {
+			if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+			const keys = Array.isArray(entry.keys) ? entry.keys.filter((k) => typeof k === "string" && k !== "") : [];
+			groups.push({ name: typeof entry.name === "string" ? entry.name : "", keys });
+		}
+		return groups.length > 0 ? groups : null;
+	}
+
+	function unionKeys(groups) {
+		const keys = [];
+		for (const group of groups) {
+			for (const key of group.keys) {
+				if (!keys.includes(key)) keys.push(key);
+			}
+		}
+		return keys;
+	}
+
+	function clampCollector() {
+		const last = rotationGroups === null ? 0 : rotationGroups.length - 1;
+		collectorIndex = Math.max(0, Math.min(collectorIndex, last));
+	}
+
+	function memberOfRotation(key) {
+		return rotationGroups !== null ? rotationGroups.some((g) => g.keys.includes(key)) : rotationKeys.includes(key);
+	}
+
+	/**
+	 * One write path for every set/group edit: persists the groups (when
+	 * `writeGroups`; flat-set edits skip it so dials that never used groups
+	 * never gain the field) AND the union mirror in rotationKeys, then
+	 * refreshes the chips and syncs the list ticks in place, so the open
+	 * list keeps its scroll position and every box matches the model.
+	 */
+	function writeRotation(writeGroups) {
+		if (rotationGroups !== null) rotationKeys = unionKeys(rotationGroups);
+		clampCollector();
+		if (writeGroups) {
+			// [] persists "no groups": the field is only ever written, never
+			// removed, and the plugin ignores anything under two groups.
+			groupsBinding[1](rotationGroups === null ? [] : rotationGroups.map((g) => ({ name: g.name, keys: [...g.keys] })));
+		}
 		rotationBinding[1](rotationKeys);
 		renderRotationSet();
-		// Sync ticks in place instead of rebuilding the list: the open list
-		// keeps its scroll position and every box matches the model.
 		for (const row of listEl.querySelectorAll(".hw-row")) {
 			const tick = row.querySelector(".hw-tick");
-			if (tick !== null) tick.checked = rotationKeys.includes(row.dataset.key);
+			if (tick !== null) tick.checked = memberOfRotation(row.dataset.key);
 		}
 	}
 
 	function setRotationMembership(key, present) {
 		if (rotationBinding === null || !key) return;
-		if (present === rotationKeys.includes(key)) return;
-		applyRotationKeys(present ? [...rotationKeys, key] : rotationKeys.filter((k) => k !== key));
+		if (present === memberOfRotation(key)) return;
+		if (rotationGroups === null) {
+			rotationKeys = present ? [...rotationKeys, key] : rotationKeys.filter((k) => k !== key);
+		} else if (present) {
+			// New ticks land in the marked collector group.
+			const target = rotationGroups[collectorIndex];
+			if (target !== undefined && !target.keys.includes(key)) target.keys.push(key);
+		} else {
+			// Unticking removes the reading from every group holding it.
+			for (const group of rotationGroups) {
+				group.keys = group.keys.filter((k) => k !== key);
+			}
+		}
+		writeRotation(rotationGroups !== null);
 	}
 
 	function readingLabelOf(key) {
@@ -100,34 +177,129 @@
 		return null;
 	}
 
-	function renderRotationSet() {
-		if (rotationSetEl === null) return;
-		const frag = document.createDocumentFragment();
-		for (const key of rotationKeys) {
-			const label = readingLabelOf(key);
-			const chip = document.createElement("span");
-			chip.className = "hw-set-chip" + (tree !== null && label === null ? " missing" : "");
-			const name = document.createElement("span");
-			name.textContent = label ?? key;
-			const remove = document.createElement("button");
-			remove.type = "button";
-			remove.className = "hw-set-remove";
-			remove.dataset.key = key;
-			remove.title = "Remove from the rotation set";
-			remove.textContent = "×";
-			chip.append(name, remove);
-			frag.appendChild(chip);
-		}
+	function setChip(key, groupIndex) {
+		const label = readingLabelOf(key);
+		const chip = document.createElement("span");
+		// "current" paints the chip of the reading on the dial right now, so
+		// the open panel shows where rotation (and a group jump) landed.
+		chip.className = "hw-set-chip" + (tree !== null && label === null ? " missing" : "") + (key === selectedKey ? " current" : "");
+		const name = document.createElement("span");
+		name.textContent = label ?? key;
+		const remove = document.createElement("button");
+		remove.type = "button";
+		remove.className = "hw-set-remove";
+		remove.dataset.key = key;
+		if (groupIndex !== null) remove.dataset.group = String(groupIndex);
+		remove.title = groupIndex !== null ? "Remove from this group" : "Remove from the rotation set";
+		remove.textContent = "×";
+		chip.append(name, remove);
+		return chip;
+	}
+
+	function setNote(text) {
 		const note = document.createElement("div");
 		note.className = "hw-set-note";
-		note.textContent =
-			rotationKeys.length === 0
-				? "Empty: rotation moves through all readings of the picked sensor."
-				: rotationKeys.length === 1
-					? "Only one reading picked. Rotation needs two or more to move."
-					: `Rotation moves through these ${rotationKeys.length} readings only.`;
-		frag.appendChild(note);
+		note.textContent = text;
+		return note;
+	}
+
+	function setActions(actions) {
+		const row = document.createElement("div");
+		row.className = "hw-set-actions";
+		for (const [action, label] of actions) {
+			const button = document.createElement("button");
+			button.type = "button";
+			button.dataset.setAction = action;
+			button.textContent = label;
+			row.appendChild(button);
+		}
+		return row;
+	}
+
+	function groupHeader(group, index) {
+		const head = document.createElement("div");
+		head.className = "hw-group-head";
+		const collector = document.createElement("input");
+		collector.type = "radio";
+		collector.name = "hw-collector";
+		collector.className = "hw-collector";
+		collector.checked = index === collectorIndex;
+		collector.dataset.group = String(index);
+		collector.title = "New ticks land in this group";
+		const name = document.createElement("input");
+		name.type = "text";
+		name.className = "hw-group-name";
+		name.value = group.name;
+		name.placeholder = `Group ${index + 1}`;
+		name.dataset.group = String(index);
+		name.title = "Group name; the dial shows it when a jump lands here";
+		name.spellcheck = false;
+		const remove = document.createElement("button");
+		remove.type = "button";
+		remove.className = "hw-group-remove";
+		remove.dataset.group = String(index);
+		remove.title = "Remove this group (its readings leave the rotation)";
+		remove.textContent = "×";
+		head.append(collector, name, remove);
+		return head;
+	}
+
+	function updateRotationHelp() {
+		const help = document.getElementById("rotation-help");
+		if (help === null) return;
+		help.textContent =
+			rotationGroups === null
+				? "Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor."
+				: "Ticks land in the group marked by the radio. Plain rotate stays inside a group; a gesture set to “Switch sensor or group” (Elite press+rotate) jumps between groups and shows the group name on the dial. Legacy rotates through all groups as one list.";
+	}
+
+	function renderRotationSet() {
+		if (rotationSetEl === null) return;
+		// Never rebuild under a focused name field: a settings echo (rotation
+		// moved, autocycle stepped) would clobber the typing mid-word.
+		if (rotationSetEl.contains(document.activeElement) && document.activeElement.classList.contains("hw-group-name")) return;
+		const frag = document.createDocumentFragment();
+		if (rotationGroups === null) {
+			for (const key of rotationKeys) {
+				frag.appendChild(setChip(key, null));
+			}
+			frag.appendChild(
+				setNote(
+					rotationKeys.length === 0
+						? "Empty: rotation moves through all readings of the picked sensor."
+						: rotationKeys.length === 1
+							? "Only one reading picked. Rotation needs two or more to move."
+							: `Rotation moves through these ${rotationKeys.length} readings only.`
+				)
+			);
+			frag.appendChild(setActions([["split", "Split into groups"]]));
+		} else {
+			rotationGroups.forEach((group, index) => {
+				frag.appendChild(groupHeader(group, index));
+				const chips = document.createElement("div");
+				chips.className = "hw-set-chips";
+				for (const key of group.keys) {
+					chips.appendChild(setChip(key, index));
+				}
+				if (group.keys.length === 0) {
+					chips.appendChild(setNote("Empty: tick readings above to fill this group."));
+				}
+				frag.appendChild(chips);
+			});
+			const populated = rotationGroups.filter((g) => g.keys.length > 0).length;
+			frag.appendChild(
+				setNote(
+					rotationGroups.length === 1
+						? "One group only: it acts as a plain rotation set until you add a second."
+						: populated < 2
+							? `${rotationGroups.length} groups. They take effect once two of them hold readings; until then rotation runs as one flat list.`
+							: `${rotationGroups.length} groups. Rotation needs two or more readings in a group to move inside it.`
+				)
+			);
+			frag.appendChild(setActions([["add", "Add group"], ["merge", "Merge back into one set"]]));
+		}
 		rotationSetEl.replaceChildren(frag);
+		updateRotationHelp();
 	}
 
 	function fmt(value) {
@@ -233,8 +405,8 @@
 					const tick = document.createElement("input");
 					tick.type = "checkbox";
 					tick.className = "hw-tick";
-					tick.checked = rotationKeys.includes(reading.key);
-					tick.title = "Include in the rotation set";
+					tick.checked = memberOfRotation(reading.key);
+					tick.title = rotationGroups === null ? "Include in the rotation set" : "Include in the marked rotation group";
 					row.appendChild(tick);
 				}
 				const label = document.createElement("span");
@@ -289,6 +461,7 @@
 		selectedKey = row.dataset.key;
 		setReadingKey(selectedKey);
 		closeList();
+		renderRotationSet(); // own writes are not echoed back: move the highlight here
 	}
 
 	// --- wiring -------------------------------------------------------------
@@ -372,8 +545,38 @@
 	// very panel never fires the subscription. Poll the LOCAL settings cache
 	// (no round trip) so the rows follow the select while the panel is open.
 	if (controlsCustomEl !== null) {
+		// Switching Elite to Custom seeds Elite's map into every gesture field
+		// still unset, so "Elite minus one gesture" is a one-select change
+		// instead of rebuilding the whole map from the Legacy fallbacks.
+		// Fields the user ever set are never touched, and Legacy to Custom
+		// needs no writes because the unset fallbacks ARE the Legacy commands.
+		const ELITE_MAP = [
+			["gestureRotate", "step"],
+			["gesturePressedRotate", "stepGroup"],
+			["gestureShortPress", "pauseResume"],
+			["gestureLongPress", "resetStats"],
+			["gestureTap", "cycleStat"],
+			["gestureTouchHold", "backToCurrent"]
+		];
+		const gestureBindings = ELITE_MAP.map(([setting]) => useSettings(setting, () => {}, null));
+		const seedFromElite = () => {
+			ELITE_MAP.forEach(([setting, command], index) => {
+				const [getGesture, setGesture] = gestureBindings[index];
+				getGesture().then((value) => {
+					if (typeof value === "string" && value !== "") return; // user-set: keep
+					setGesture(command);
+					// The sdpi store does not notify components of the PI's own
+					// writes; poke the select so it displays the seeded command.
+					const el = document.querySelector(`sdpi-select[setting="${setting}"]`);
+					if (el) el.value = command;
+				});
+			});
+		};
+		let lastPreset = null;
 		const applyPreset = (value) => {
 			const preset = value === "elite" || value === "custom" ? value : "legacy";
+			if (lastPreset === "elite" && preset === "custom") seedFromElite();
+			lastPreset = preset;
 			controlsCustomEl.hidden = preset !== "custom";
 			if (controlsZonesEl !== null) controlsZonesEl.hidden = preset === "legacy";
 		};
@@ -547,14 +750,89 @@
 	getReadingKey().then((value) => {
 		selectedKey = typeof value === "string" ? value : "";
 		showSelection();
+		renderRotationSet(); // the set may have rendered before the key arrived
 	});
 	if (rotationBinding !== null) {
 		rotationSetEl.addEventListener("click", (ev) => {
+			const groupRemove = ev.target.closest(".hw-group-remove");
+			if (groupRemove) {
+				const index = Number(groupRemove.dataset.group);
+				if (rotationGroups !== null && rotationGroups[index] !== undefined) {
+					rotationGroups.splice(index, 1);
+					if (rotationGroups.length === 0) {
+						// Removing the last group keeps the button's promise
+						// ("its readings leave the rotation"): back to flat
+						// mode with an empty set, not a silent merge.
+						rotationGroups = null;
+						rotationKeys = [];
+					}
+					writeRotation(true);
+				}
+				return;
+			}
 			const remove = ev.target.closest(".hw-set-remove");
-			if (remove) setRotationMembership(remove.dataset.key, false);
+			if (remove) {
+				// A grouped chip leaves its own group only (the editor never
+				// creates overlap, but hand-edited settings may hold a reading
+				// in several groups); a flat chip leaves the set entirely.
+				const index = Number(remove.dataset.group);
+				if (remove.dataset.group !== undefined && rotationGroups !== null && rotationGroups[index] !== undefined) {
+					rotationGroups[index].keys = rotationGroups[index].keys.filter((k) => k !== remove.dataset.key);
+					writeRotation(true);
+				} else {
+					setRotationMembership(remove.dataset.key, false);
+				}
+				return;
+			}
+			const collector = ev.target.closest(".hw-collector");
+			if (collector) {
+				const index = Number(collector.dataset.group);
+				if (Number.isInteger(index)) collectorIndex = index;
+				return;
+			}
+			const action = ev.target.closest("button[data-set-action]");
+			if (action === null) return;
+			if (action.dataset.setAction === "split") {
+				// Group 1 inherits the current set; new ticks land in group 2.
+				rotationGroups = [
+					{ name: "", keys: [...rotationKeys] },
+					{ name: "", keys: [] }
+				];
+				collectorIndex = 1;
+				writeRotation(true);
+			} else if (action.dataset.setAction === "add") {
+				rotationGroups = rotationGroups ?? [{ name: "", keys: [...rotationKeys] }];
+				rotationGroups.push({ name: "", keys: [] });
+				collectorIndex = rotationGroups.length - 1;
+				writeRotation(true);
+			} else if (action.dataset.setAction === "merge") {
+				rotationKeys = unionKeys(rotationGroups ?? []);
+				rotationGroups = null;
+				writeRotation(true);
+			}
+		});
+		// Group names commit on change (blur or Enter); Enter blurs so the
+		// deferred re-render (skipped while the field is focused) happens.
+		rotationSetEl.addEventListener("change", (ev) => {
+			if (!(ev.target instanceof HTMLInputElement) || !ev.target.classList.contains("hw-group-name")) return;
+			const index = Number(ev.target.dataset.group);
+			if (rotationGroups === null || rotationGroups[index] === undefined) return;
+			rotationGroups[index].name = ev.target.value.trim();
+			writeRotation(true);
+		});
+		rotationSetEl.addEventListener("keydown", (ev) => {
+			if (ev.key === "Enter" && ev.target instanceof HTMLInputElement && ev.target.classList.contains("hw-group-name")) {
+				ev.target.blur();
+				renderRotationSet();
+			}
 		});
 		rotationBinding[0]().then((value) => {
 			rotationKeys = Array.isArray(value) ? value.filter((k) => typeof k === "string") : [];
+			renderRotationSet();
+		});
+		groupsBinding[0]().then((value) => {
+			rotationGroups = parseGroupsSetting(value);
+			clampCollector();
 			renderRotationSet();
 		});
 	}

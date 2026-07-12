@@ -191,6 +191,19 @@ details > summary:hover {
 	color: #f5a623;
 }
 
+/* The chip whose reading is on the dial right now. Rotation, group jumps
+   and the auto cycle move it live while the panel is open, so the set
+   doubles as a position indicator. Declared after .missing on purpose: a
+   current chip reads selection-blue even while its label resolves. */
+.hw-set-chip.current {
+	background: #2660aa;
+	color: #ffffff;
+}
+
+.hw-set-chip.current .hw-set-remove {
+	color: #cfe3ff;
+}
+
 .hw-set-chip > span {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -217,6 +230,92 @@ details > summary:hover {
 	color: #8a8a8a;
 	font-size: 8pt;
 	line-height: 1.35;
+}
+
+/* Rotation groups: each group is a header row (collector radio, name field,
+   remove) with its chips indented beneath, all inside the .hw-set flexbox. */
+
+.hw-group-head {
+	flex-basis: 100%;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+.hw-group-head:first-child {
+	margin-top: 0;
+}
+
+.hw-collector {
+	flex: 0 0 12px;
+	width: 12px;
+	height: 12px;
+	margin: 0;
+	accent-color: #2660aa;
+	cursor: pointer;
+}
+
+.hw-group-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	box-sizing: border-box;
+	background: #3d3d3d;
+	border: none;
+	border-radius: 3px;
+	color: #d8d8d8;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 8.5pt;
+	padding: 2px 6px;
+	outline: none;
+}
+
+.hw-group-name::placeholder {
+	color: #7f7f7f;
+}
+
+.hw-group-remove {
+	background: none;
+	border: none;
+	color: #969696;
+	cursor: pointer;
+	font-size: 10pt;
+	line-height: 1;
+	padding: 0 4px;
+}
+
+.hw-group-remove:hover {
+	color: #ffffff;
+}
+
+.hw-set-chips {
+	flex-basis: 100%;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 2px 0 2px 16px;
+}
+
+.hw-set-actions {
+	flex-basis: 100%;
+	display: flex;
+	gap: 6px;
+	margin-top: 6px;
+}
+
+.hw-set-actions button {
+	background: #3d3d3d;
+	border: 1px solid #555555;
+	border-radius: 3px;
+	color: #d8d8d8;
+	cursor: pointer;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 8pt;
+	padding: 2px 8px;
+}
+
+.hw-set-actions button:hover {
+	background: #4a4a4a;
 }
 
 /* "Copy support report" button (all PIs). */

@@ -11,8 +11,9 @@
  *   long touch  back to the current value
  *
  * The elite and custom presets classify presses on release through the
- * gesture machine (src/gestures.ts), route pressed rotation separately,
- * and can enable touch zones. Session stats are keyed per reading
+ * gesture machine (src/gestures.ts), route pressed rotation separately
+ * (jumping between named rotation groups once the settings define them,
+ * else between sensor sources), and can enable touch zones. Session stats are keyed per reading
  * (src/stats.ts) and, together with the display/pause/pin state, survive
  * page and profile navigation through a bounded hidden-state cache. The
  * Stream Deck app owns horizontal touch-strip swipes (page navigation);
@@ -23,15 +24,15 @@ import streamDeck, { action, SingletonAction, type DialAction, type DialDownEven
 import type { JsonValue } from "@elgato/utils";
 
 import { registerDialCommandHandler, type DialControlCommand } from "../commands";
-import { parseResetScope, resolveControls, triggerDescriptions, type ControlScheme, type GestureCommandId, type ResetScope } from "../controls";
+import { parseResetScope, resolveControls, schemeCanSwitchGroups, triggerDescriptions, type ControlScheme, type GestureCommandId, type ResetScope } from "../controls";
 import { deviceCapabilities, tapCanvasWidth } from "../devices";
 import { registerDiagnostics } from "../diagnostics";
 import { IDLE_GESTURE, routeGesture, type GestureState } from "../gestures";
-import type { SensorSnapshot } from "../hwinfo/types";
+import type { Reading, SensorSnapshot } from "../hwinfo/types";
 import { buildPreview, buildSensorTree, buildSupportReportPayload, buildThemesPayload } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
 import { describeGestureState, hashId, trace, traceEnabled } from "../recorder";
-import { autoCycleTarget, rotationReadings, stepReading, stepSensorSource } from "../rotation";
+import { activeGroupIndex, autoCycleTarget, groupDisplayName, groupReadings, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource, type RotationGroup } from "../rotation";
 import { SessionStatsStore } from "../stats";
 import { renderDial } from "../ui/dial-renderer";
 import { alertLevel, convertUnit, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, thresholdsApplyTo, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
@@ -55,6 +56,14 @@ export type DialSettings = {
 	theme?: string;
 	/** Rotation set: rotate/autocycle move only through these picked readings. */
 	rotationKeys?: string[];
+	/**
+	 * Named rotation groups (optional): plain rotate stays inside the active
+	 * group, a Switch gesture (Elite press+rotate) jumps between groups. The
+	 * PI keeps rotationKeys mirrored to the union of all group keys so
+	 * set-wide consumers (stats, reset reach) and older plugin versions after
+	 * a rollback keep reading the flat set unchanged.
+	 */
+	rotationGroups?: { name?: string; keys?: string[] }[];
 	/** Ignore dial turns entirely (protection against accidental bumps). */
 	rotationDisabled?: boolean;
 	/** Autocycle interval in ms as the PI select writes it; absent/"off" = off. */
@@ -179,7 +188,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		};
 		this.instances.set(ev.action.id, state);
 		if (ev.action.isDial()) {
-			this.pushTriggerDescriptions(ev.action, resolveControls(ev.payload.settings));
+			this.pushTriggerDescriptions(ev.action, ev.payload.settings);
 		}
 		this.renderAll(poller.getStatus());
 	}
@@ -233,7 +242,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			this.stampAlertUnit(ev.action, state);
 		}
 		if (ev.action.isDial()) {
-			this.pushTriggerDescriptions(ev.action, resolveControls(state.settings));
+			this.pushTriggerDescriptions(ev.action, state.settings);
 		}
 		this.renderAll(poller.getStatus());
 	}
@@ -350,7 +359,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 				await this.advance(action, state, ticks === 0 ? 1 : ticks, "reading");
 				return;
 			case "stepGroup":
-				await this.advance(action, state, ticks === 0 ? 1 : ticks, "sensor");
+				await this.advance(action, state, ticks === 0 ? 1 : ticks, "group");
 				return;
 			case "cycleStat":
 				state.statMode = STAT_MODES[(STAT_MODES.indexOf(state.statMode) + 1) % STAT_MODES.length] as StatMode;
@@ -413,7 +422,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 	}
 
 	/** Shared by rotate, taps, autocycle and the control action. */
-	private async advance(action: DialAction<DialSettings>, state: InstanceState, ticks: number, granularity: "reading" | "sensor"): Promise<void> {
+	private async advance(action: DialAction<DialSettings>, state: InstanceState, ticks: number, granularity: "reading" | "group"): Promise<void> {
 		const status = poller.getStatus();
 		if (status.state === "unavailable" || state.pinned) {
 			return;
@@ -426,16 +435,47 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		if (key !== undefined && !snapshot.byKey.has(key)) {
 			return;
 		}
-		// The reading list is scoped to the rotation set or the current sensor;
-		// a sensor jump with no set must roam the whole snapshot, or it could
-		// never leave the sensor it is scoped to.
-		const setKeys = rotationKeysOf(state.settings);
-		const list = granularity === "sensor" && setKeys === undefined ? snapshot.readings : rotationReadings(setKeys, key, snapshot);
-		const next = granularity === "sensor" ? stepSensorSource(list, key, ticks) : stepReading(list, key, ticks);
+		const groups = rotationGroupsOf(state.settings.rotationGroups);
+		let next: Reading | undefined;
+		if (granularity === "group") {
+			if (groups !== undefined) {
+				next = stepGroup(groups, key, ticks, snapshot);
+			} else {
+				// Without groups the jump moves between sensor sources, and with
+				// no rotation set either it must roam the whole snapshot, or it
+				// could never leave the sensor it is scoped to.
+				const setKeys = rotationKeysOf(state.settings);
+				next = stepSensorSource(setKeys === undefined ? snapshot.readings : rotationReadings(setKeys, key, snapshot), key, ticks);
+			}
+		} else {
+			next = stepReading(this.stepList(state.settings, key, groups, snapshot), key, ticks);
+		}
 		if (next === undefined || next.key === state.settings.readingKey) {
 			return;
 		}
+		// A group jump names its landing group; set before adopting so the
+		// adopt's own render already paints the overlay.
+		if (granularity === "group" && groups !== undefined) {
+			const landed = activeGroupIndex(groups, next.key);
+			if (landed !== -1) {
+				this.showOverlay(state, groupDisplayName(groups, landed));
+			}
+		}
 		await this.adoptReading(action, state, next.key, status);
+	}
+
+	/**
+	 * The list plain stepping and the auto cycle move through. Groups scope
+	 * it to the active group only while the scheme itself can jump groups
+	 * (schemeCanSwitchGroups); otherwise the union mirrored in rotationKeys
+	 * keeps the pre-groups behavior, so defined groups can never strand a
+	 * dial inside one of them, and Legacy stays exact.
+	 */
+	private stepList(settings: DialSettings, key: string | undefined, groups: readonly RotationGroup[] | undefined, snapshot: SensorSnapshot): readonly Reading[] {
+		if (groups !== undefined && schemeCanSwitchGroups(resolveControls(settings))) {
+			return groupReadings(groups, key, snapshot);
+		}
+		return rotationReadings(rotationKeysOf(settings), key, snapshot);
 	}
 
 	/** Moves the selection and persists it; per-reading stats stay intact. */
@@ -525,8 +565,15 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 				if (key !== undefined && !status.snapshot.byKey.has(key)) {
 					continue; // transient dropout: hold, retry next tick
 				}
-				const list = rotationReadings(rotationKeysOf(state.settings), key, status.snapshot);
-				const target = autoCycleTarget(list, key, this.criticalKeys(state, list), state.settings.alertInterrupt === true);
+				const groups = rotationGroupsOf(state.settings.rotationGroups);
+				const list = this.stepList(state.settings, key, groups, status.snapshot);
+				// While groups scope the step list, alerts are still hunted
+				// across every group. The scan list comes from the parsed
+				// groups (the authority), not the rotationKeys mirror, which
+				// can go stale after settings edits under a rolled-back
+				// version. Ungrouped and Legacy dials pass their own list.
+				const alertList = groups !== undefined && schemeCanSwitchGroups(resolveControls(state.settings)) ? rotationReadings(groups.flatMap((g) => g.keys), key, status.snapshot) : list;
+				const target = autoCycleTarget(list, alertList, key, this.criticalKeys(state, alertList), state.settings.alertInterrupt === true);
 				if (target === undefined || target.key === key) {
 					// Held (critical member on screen, or nowhere to go):
 					// wait a full interval before looking again.
@@ -637,10 +684,10 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 				await this.advance(action, state, -1, "reading");
 				return;
 			case "nextGroup":
-				await this.advance(action, state, 1, "sensor");
+				await this.advance(action, state, 1, "group");
 				return;
 			case "prevGroup":
-				await this.advance(action, state, -1, "sensor");
+				await this.advance(action, state, -1, "group");
 				return;
 			default:
 				this.executeStateCommand(state, command);
@@ -715,9 +762,10 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 	}
 
 	/** The app's own gesture hints follow the active scheme (6.4-era API). */
-	private pushTriggerDescriptions(action: DialAction<DialSettings>, scheme: ControlScheme): void {
+	private pushTriggerDescriptions(action: DialAction<DialSettings>, settings: DialSettings): void {
+		const scheme: ControlScheme = resolveControls(settings);
 		// Legacy matches the manifest text; undefined restores exactly that.
-		void action.setTriggerDescription(scheme.preset === "legacy" ? undefined : triggerDescriptions(scheme));
+		void action.setTriggerDescription(scheme.preset === "legacy" ? undefined : triggerDescriptions(scheme, rotationGroupsOf(settings.rotationGroups) !== undefined));
 	}
 
 	private renderAll(status: PollerStatus): void {
@@ -783,6 +831,8 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			selection: readingKeyOf(state.settings) === undefined ? null : hashId(readingKeyOf(state.settings) ?? ""),
 			statMode: state.statMode,
 			rotationSet: rotationKeysOf(state.settings)?.length ?? 0,
+			// Count only: group names carry user text, like reading keys.
+			rotationGroups: rotationGroupsOf(state.settings.rotationGroups)?.length ?? 0,
 			autoCycleMs: parseAutoCycleMs(state.settings.autoCycleMs),
 			cyclePaused: state.cyclePaused,
 			pinned: state.pinned,

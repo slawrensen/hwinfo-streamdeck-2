@@ -1,8 +1,9 @@
 // Captures the property inspectors (served by scripts/pi-harness.mjs) in
 // headless Chrome over CDP with real-time waits, so live WebSocket data and
-// the theme gallery are present. Six states: the key PI's settings view and
+// the theme gallery are present. Seven states: the key PI's settings view and
 // open picker (marketplace shot 3), the dial PI's rotation-set picker with
-// ticked rows and chips, the Elite preset view, the Custom gesture rows with
+// ticked rows and chips, the rotation-group editor (two named groups with
+// the collector radio), the Elite preset view, the Custom gesture rows with
 // touch zones, and the HWiNFO Control PI with a Link ID target.
 // Usage: node scripts/capture-pi.mjs <outDir>
 import { spawn, spawnSync } from "node:child_process";
@@ -187,6 +188,59 @@ try {
 	await sleep(600);
 	await capture("pi-dial-rotation.png");
 
+	// ---- dial PI: rotation groups (split set, named, collector radio) ----
+	// Split the set built above: group 1 inherits its three readings, the
+	// collector radio lands on the new empty group 2, two GPU readings are
+	// ticked into it, and both groups get names. Clipped to the set area
+	// plus its help line, which is the group editor itself.
+	expectOk("Split into groups button", await evaluate(`(() => {
+		const b = document.querySelector('#rotation-set button[data-set-action="split"]');
+		if (!b) return "missing";
+		b.click();
+		return "ok";
+	})()`));
+	await sleep(500);
+	const nameGroup = async (index, name) => {
+		const res = await evaluate(`(() => {
+			const el = document.querySelector('#rotation-set input.hw-group-name[data-group="${index}"]');
+			if (!el) return "missing";
+			el.value = ${JSON.stringify(name)};
+			el.dispatchEvent(new Event("change", { bubbles: true }));
+			return "ok";
+		})()`);
+		expectOk(`group ${index} name field`, res);
+	};
+	await nameGroup(0, "Overview");
+	await sleep(300);
+	for (const query of ["gpu hot", "gpu clock"]) {
+		await evaluate(`(() => { const el = document.getElementById("picker-search"); el.focus(); el.value = ${JSON.stringify(query)}; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+		await sleep(700);
+		await evaluate(`document.querySelector('#picker-list input.hw-tick:not(:checked)')?.click()`);
+		await sleep(400);
+	}
+	await nameGroup(1, "GPU");
+	await sleep(300);
+	await evaluate(`(() => { const el = document.getElementById("picker-search"); el.value = ""; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
+	await sleep(600);
+	const groupsRect = await evaluate(`(() => {
+		const item = document.getElementById("rotation-set").closest("sdpi-item");
+		const help = document.getElementById("rotation-help");
+		if (!item || !help) return "missing";
+		const a = item.getBoundingClientRect();
+		const b = help.getBoundingClientRect();
+		const top = Math.min(a.top, b.top) + window.scrollY;
+		const bottom = Math.max(a.bottom, b.bottom) + window.scrollY;
+		return { y: Math.max(0, Math.floor(top - 10)), h: Math.ceil(bottom - top + 20) };
+	})()`);
+	if (groupsRect.result?.value === "missing" || groupsRect.result?.value === undefined) {
+		throw new Error("rotation-set clip rect did not resolve");
+	}
+	const groupsClip = groupsRect.result.value;
+	const shotGroups = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: groupsClip.y, width: 400, height: groupsClip.h, scale: 1 } });
+	writeFileSync(path.join(outDir, "pi-dial-groups.png"), Buffer.from(shotGroups.data, "base64"));
+	log("pi-dial-groups.png captured");
+
 	// ---- dial PI: Elite preset under "Dial gestures & advanced" ----
 	const openGestures = `(() => {
 		const all = [...document.querySelectorAll("details")];
@@ -237,7 +291,7 @@ try {
 	await sleep(300);
 	await capture("pi-control.png");
 
-	console.log(`captured 6 PI states to ${outDir}`);
+	console.log(`captured 7 PI states to ${outDir}`);
 } finally {
 	// The open CDP socket would otherwise hold the event loop until the
 	// watchdog fires — close it, then take the browser tree down.

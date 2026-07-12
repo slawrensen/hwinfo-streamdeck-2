@@ -4,8 +4,9 @@
  * text items cannot mix font sizes on one line, which the spec's inline unit
  * requires).
  *
- * Spec geometry: title 18/600 x12 y24 · value 34/700 x12 y58 with inline
- * unit 17/600 · stats 12/600 x12 y78 · bar x12 y84 176×6 r3.
+ * Spec geometry: title 18/600 x12 y24 · value 34/700 x12 y58 (24/700 from
+ * 10 glyphs, 17/700 from 14, so prose faces never run off the slot) with
+ * inline unit 17/600 · stats 12/600 x12 y78 · bar x12 y84 176×6 r3.
  */
 import { truncateLabel } from "./format";
 import { escapeXml } from "./key-renderer";
@@ -16,6 +17,22 @@ const FONT = "Segoe UI, Arial, sans-serif";
 const BAR = { x: 12, y: 84, w: 176, h: 6, r: 3 } as const;
 /** 18 px/600 runs ~10 px per glyph; 17 chars keeps clear of the right edge. */
 const TITLE_MAX = 17;
+/** The smallest value tier fits ~19 glyphs; longer text ellipsizes. */
+const VALUE_MAX = 19;
+
+/**
+ * 34 px/700 runs ~19 px per glyph: right for numeric values ("56.3"), far
+ * too wide for the prose the status faces and the no-selection face put in
+ * the value slot ("not detected", "rotate to pick", "un-elevate HWiNFO").
+ * Two smaller tiers keep every such line inside the 200 px slot instead of
+ * clipping at the edge (seen on the + XL strip with HWiNFO stopped).
+ */
+function valueFontSize(text: string): 34 | 24 | 17 {
+	if (text.length <= 9) {
+		return 34;
+	}
+	return text.length <= 13 ? 24 : 17;
+}
 
 export interface DialRenderOptions {
 	title: string;
@@ -40,7 +57,8 @@ export function renderDial(opts: DialRenderOptions): string {
 		`<text x="12" y="24" text-anchor="start" font-family="${FONT}" font-size="18" font-weight="600" fill="${palette.label}">${escapeXml(truncateLabel(opts.title, TITLE_MAX))}</text>`
 	];
 	const unit = opts.unitText !== "" ? `<tspan dx="6" font-size="17" font-weight="600" fill="${palette.unit}">${escapeXml(opts.unitText)}</tspan>` : "";
-	parts.push(`<text x="12" y="58" text-anchor="start" font-family="${FONT}" font-size="34" font-weight="700" fill="${palette.value}">${escapeXml(opts.valueText)}${unit}</text>`);
+	const valueText = truncateLabel(opts.valueText, VALUE_MAX);
+	parts.push(`<text x="12" y="58" text-anchor="start" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="${palette.value}">${escapeXml(valueText)}${unit}</text>`);
 	if (opts.statsText !== "") {
 		parts.push(`<text x="12" y="78" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${palette.unit}">${escapeXml(opts.statsText)}</text>`);
 	}

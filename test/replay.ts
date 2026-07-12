@@ -6,10 +6,10 @@
  * use the recorder's field names, so a capture from real hardware can
  * replace a synthetic trace verbatim.
  */
-import { resolveControls, type GestureCommandId } from "../src/controls";
+import { resolveControls, schemeCanSwitchGroups, type GestureCommandId } from "../src/controls";
 import { IDLE_GESTURE, routeGesture, type GestureInput, type GestureState } from "../src/gestures";
 import type { Reading, SensorSnapshot } from "../src/hwinfo/types";
-import { rotationReadings, stepReading, stepSensorSource } from "../src/rotation";
+import { groupReadings, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource } from "../src/rotation";
 import { STAT_MODES, type StatMode } from "../src/ui/format";
 
 export type TraceFixture = {
@@ -96,11 +96,25 @@ export function replayTrace(fixture: TraceFixture, snapshot: SensorSnapshot = st
 				// count, and an effectively empty set means "no set".
 				const rawKeys = Array.isArray(model.settings.rotationKeys) ? model.settings.rotationKeys.filter((k): k is string => typeof k === "string") : [];
 				const keys = rawKeys.length > 0 ? rawKeys : undefined;
-				// Mirrors advance(): a sensor jump with no rotation set roams the
-				// whole snapshot; everything else uses the scoped rotation list.
-				const list = command === "stepGroup" && (keys?.length ?? 0) === 0 ? snapshot.readings : rotationReadings(keys, model.selection, snapshot);
+				const groups = rotationGroupsOf(model.settings.rotationGroups);
 				const stepTicks = ticks === 0 ? 1 : ticks;
-				const next = command === "step" ? stepReading(list, model.selection, stepTicks) : stepSensorSource(list, model.selection, stepTicks);
+				let next: Reading | undefined;
+				if (command === "stepGroup") {
+					// Mirrors advance(): user groups supersede the sensor jump; a
+					// sensor jump with no rotation set roams the whole snapshot.
+					next =
+						groups !== undefined
+							? stepGroup(groups, model.selection, stepTicks, snapshot)
+							: stepSensorSource(keys === undefined ? snapshot.readings : rotationReadings(keys, model.selection, snapshot), model.selection, stepTicks);
+				} else {
+					// Mirrors stepList(): groups scope plain stepping only while
+					// the scheme can jump them; otherwise the union keeps driving.
+					const list =
+						groups !== undefined && schemeCanSwitchGroups(resolveControls(model.settings))
+							? groupReadings(groups, model.selection, snapshot)
+							: rotationReadings(keys, model.selection, snapshot);
+					next = stepReading(list, model.selection, stepTicks);
+				}
 				if (next !== undefined && next.key !== model.selection) {
 					model.selection = next.key;
 					model.statMode = "current";

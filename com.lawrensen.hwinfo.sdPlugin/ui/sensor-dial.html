@@ -5,7 +5,7 @@
 		<title>Sensor Dial settings</title>
 		<script src="sdpi-components.js"></script>
 		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
-		<link rel="stylesheet" href="pi.css?v=1.1.10.0" />
+		<link rel="stylesheet" href="pi.css?v=1.1.11.0" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -39,7 +39,7 @@
 		<sdpi-item label="Rotation set">
 			<div class="hw-set" id="rotation-set"></div>
 		</sdpi-item>
-		<div class="hw-help">Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor.</div>
+		<div class="hw-help" id="rotation-help">Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor.</div>
 
 		<sdpi-item label="Rotation">
 			<sdpi-checkbox setting="rotationDisabled" label="Ignore turns (protects against accidental bumps)"></sdpi-checkbox>
@@ -118,12 +118,12 @@
 					<option value="custom">Custom</option>
 				</sdpi-select>
 			</sdpi-item>
-			<div class="hw-help" id="controls-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: plain rotate cycles readings without leaving the rotation set (or the picked sensor), pressed rotation moves to the next sensor, short push pauses the auto cycle, long push resets stats.</div>
+			<div class="hw-help" id="controls-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: plain rotate cycles readings without leaving the rotation set (or the picked sensor), pressed rotation jumps to the next rotation group (or the next sensor while no groups are defined), short push pauses the auto cycle, long push resets stats. Switching Elite to Custom copies the Elite map into the selects below, so you can change just the one gesture you want different.</div>
 			<div id="controls-custom" hidden>
 				<sdpi-item label="Rotate">
 					<sdpi-select setting="gestureRotate" default="step">
 						<option value="step">Cycle readings</option>
-						<option value="stepGroup">Switch sensor</option>
+						<option value="stepGroup">Switch sensor or group</option>
 						<option value="cycleStat">Cycle stat mode</option>
 						<option value="none">Do nothing</option>
 					</sdpi-select>
@@ -131,7 +131,8 @@
 				<sdpi-item label="Press+rotate">
 					<sdpi-select setting="gesturePressedRotate" default="step">
 						<option value="step">Cycle readings</option>
-						<option value="stepGroup">Switch sensor</option>
+						<option value="stepGroup">Switch sensor or group</option>
+						<option value="cycleStat">Cycle stat mode</option>
 						<option value="none">Do nothing</option>
 					</sdpi-select>
 				</sdpi-item>
@@ -150,6 +151,7 @@
 						<option value="resetStats">Reset session stats</option>
 						<option value="pauseResume">Pause/resume auto cycle</option>
 						<option value="pin">Pin/unpin this reading</option>
+						<option value="cycleStat">Cycle stat mode</option>
 						<option value="backToCurrent">Back to current value</option>
 						<option value="none">Do nothing</option>
 					</sdpi-select>
@@ -160,6 +162,7 @@
 						<option value="backToCurrent">Back to current value</option>
 						<option value="pauseResume">Pause/resume auto cycle</option>
 						<option value="pin">Pin/unpin this reading</option>
+						<option value="resetStats">Reset session stats</option>
 						<option value="none">Do nothing</option>
 					</sdpi-select>
 				</sdpi-item>
@@ -167,6 +170,8 @@
 					<sdpi-select setting="gestureTouchHold" default="backToCurrent">
 						<option value="backToCurrent">Back to current value</option>
 						<option value="cycleStat">Cycle stat mode</option>
+						<option value="pauseResume">Pause/resume auto cycle</option>
+						<option value="pin">Pin/unpin this reading</option>
 						<option value="resetStats">Reset session stats</option>
 						<option value="none">Do nothing</option>
 					</sdpi-select>
@@ -231,6 +236,6 @@
 			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-common.js?v=1.1.10.0"></script>
+		<script src="pi-common.js?v=1.1.11.0"></script>
 	</body>
 </html>

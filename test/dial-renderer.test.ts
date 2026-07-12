@@ -1,7 +1,8 @@
 /**
  * Dial (200×100) geometry per the locked spec: title 18/600 x12 y24, value
- * 34/700 x12 y58 with inline 17/600 unit, stats 12/600 y78, bar x12 y84
- * 176×6 r3 with track under fill.
+ * 34/700 x12 y58 (24/700 from 10 glyphs, 17/700 from 14, ellipsis past 19)
+ * with inline 17/600 unit, stats 12/600 y78, bar x12 y84 176×6 r3 with
+ * track under fill.
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -33,6 +34,18 @@ describe("dial geometry", () => {
 	it("value 34/700 at x=12 y=58 with inline 17/600 unit in unit color", () => {
 		const svg = render({});
 		assert.match(svg, new RegExp(`<text x="12" y="58" text-anchor="start" [^>]*font-size="34" font-weight="700" fill="${MIDNIGHT.value}">56\\.3<tspan dx="6" font-size="17" font-weight="600" fill="${MIDNIGHT.unit}">°C</tspan></text>`));
+	});
+
+	it("long value prose steps down so status faces never clip at the slot edge", () => {
+		// Numeric values keep the 34 px size up to 9 glyphs.
+		assert.match(render({ valueText: "12345.678", unitText: "" }), /y="58" [^>]*font-size="34"/);
+		// 10 to 13 glyphs ("not detected", "tick sensors"): 24 px.
+		assert.match(render({ valueText: "not detected", unitText: "" }), /y="58" [^>]*font-size="24"/);
+		// 14 and up ("rotate to pick", "un-elevate HWiNFO"): 17 px.
+		assert.match(render({ valueText: "rotate to pick", unitText: "" }), /y="58" [^>]*font-size="17"/);
+		assert.match(render({ valueText: "un-elevate HWiNFO", unitText: "" }), /y="58" [^>]*font-size="17"/);
+		// Belt and braces: text past the smallest tier's ~19-glyph fit ellipsizes.
+		assert.match(render({ valueText: "some very long prose that cannot fit", unitText: "" }), />some very long pro…</);
 	});
 
 	it("unit omitted when empty", () => {

@@ -179,6 +179,33 @@ async function scenario(send) {
 			.map((f) => decodeSvg(f.payload?.canvas))
 			.filter((s) => s !== null);
 
+		// Rotation groups: pressed rotation jumps between the user's own
+		// groups (k1 alone vs k2 alone), plain rotate then stays inside the
+		// landing group, and the group's name shows on the dial as it lands.
+		dialSet({
+			readingKey: k1,
+			controlPreset: "elite",
+			rotationGroups: [
+				{ name: "Group A", keys: [k1] },
+				{ name: "Group B", keys: [k2] }
+			],
+			rotationKeys: [k1, k2]
+		});
+		await sleep(300);
+		dialEvent("dialDown", {});
+		dialEvent("dialRotate", { ticks: 1, pressed: true });
+		dialEvent("dialUp", {});
+		await sleep(400);
+		results.groupJumpKey = dialWrites().at(-1)?.payload?.readingKey;
+		const writesBeforeInGroupRotate = dialWrites().length;
+		dialEvent("dialRotate", { ticks: 1, pressed: false });
+		await sleep(400);
+		results.inGroupRotateWrites = dialWrites().length - writesBeforeInGroupRotate;
+		results.groupOverlaySeen = results.feedbacks
+			.filter((f) => f.context === "ctx-dial")
+			.map((f) => decodeSvg(f.payload?.canvas))
+			.some((s) => s !== null && s.includes("Group B"));
+
 		// Six simultaneous + XL dial contexts: rotate exactly one; the others
 		// must render but never write settings (state isolation).
 		for (let c = 0; c < 5; c++) {
@@ -208,13 +235,23 @@ async function scenario(send) {
 			action: "com.lawrensen.hwinfo.dial",
 			context: "ctx-bad",
 			device: "devxl",
-			payload: { settings: { readingKey: 42, rotationKeys: "nope", controlPreset: { evil: true }, autoCycleMs: ["x"], touchZones: 7 }, coordinates: { column: 4, row: 0 }, controller: "Encoder", isInMultiAction: false }
+			payload: {
+				settings: { readingKey: 42, rotationKeys: "nope", rotationGroups: [{ name: 5, keys: "x" }, 7, null], controlPreset: { evil: true }, autoCycleMs: ["x"], touchZones: 7 },
+				coordinates: { column: 4, row: 0 },
+				controller: "Encoder",
+				isInMultiAction: false
+			}
 		});
 		await sleep(600);
 		send({ event: "dialRotate", action: "com.lawrensen.hwinfo.dial", context: "ctx-bad", device: "devxl", payload: { settings: {}, coordinates: { column: 4, row: 0 }, ticks: 1, pressed: false } });
 		await sleep(400);
 		results.badContextFrames = results.feedbacks.filter((f) => f.context === "ctx-bad").length;
-		results.badContextAdopted = results.setSettings.find((s) => s.context === "ctx-bad")?.payload?.readingKey;
+		const badWrite = results.setSettings.find((s) => s.context === "ctx-bad")?.payload;
+		results.badContextAdopted = badWrite?.readingKey;
+		// The write that adopts a reading must carry the malformed fields
+		// through VERBATIM: the runtime salvages a usable view but never
+		// rewrites settings it cannot parse (rollback and hand-edit safety).
+		results.badContextPreserved = badWrite !== undefined && badWrite.rotationKeys === "nope" && JSON.stringify(badWrite.rotationGroups) === JSON.stringify([{ name: 5, keys: "x" }, 7, null]);
 		send({ event: "willDisappear", action: "com.lawrensen.hwinfo.dial", context: "ctx-bad", device: "devxl", payload: { settings: {}, coordinates: { column: 4, row: 0 }, controller: "Encoder", isInMultiAction: false } });
 
 		// HWiNFO Control: a key on ANOTHER device (dev1) drives the + XL dial.
@@ -257,6 +294,21 @@ async function scenario(send) {
 		send({ event: "keyUp", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: {}, coordinates: { column: 1, row: 0 }, isInMultiAction: false } });
 		await sleep(300);
 		results.controlFreshKeyOk = ctlOks() === 4 && !results.showAlerts.includes("ctx-ctl");
+		// nextGroup honors the dial's rotation groups (group jumps do so on
+		// every preset; only plain-step scoping needs a Switch gesture).
+		dialSet({
+			readingKey: k1,
+			controlPreset: "",
+			rotationGroups: [
+				{ name: "A", keys: [k1] },
+				{ name: "B", keys: [k2] }
+			],
+			rotationKeys: [k1, k2]
+		});
+		await sleep(200);
+		send({ event: "keyUp", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: { command: "nextGroup", target: "" }, coordinates: { column: 1, row: 0 }, isInMultiAction: false } });
+		await sleep(300);
+		results.controlGroupJumpTo = dialWrites().at(-1)?.payload?.readingKey;
 		send({ event: "willDisappear", action: "com.lawrensen.hwinfo.control", context: "ctx-ctl", device: "dev1", payload: { settings: {}, coordinates: { column: 1, row: 0 }, controller: "Keypad", isInMultiAction: false } });
 		dialSet({ readingKey: k1 });
 		await sleep(200);
@@ -413,6 +465,11 @@ async function finish() {
 
 	// Elite preset: pressed rotation is a sensor jump, not a reading step.
 	check("elite pressed rotation switches sensor sources", results.pressedRotateCrossed === true, `landed on ${results.pressedRotateKey}`);
+
+	// Rotation groups end to end: jump between them, stay inside one, name it.
+	check("pressed rotation jumps to the next rotation group", results.groupJumpKey === results.rotationKeys?.[1], `landed on ${results.groupJumpKey}`);
+	check("plain rotate stays inside the active group (single member: no write)", results.inGroupRotateWrites === 0, `${results.inGroupRotateWrites} writes`);
+	check("the landing group's name shows on the dial", results.groupOverlaySeen === true);
 	check(
 		"stat mode survives page navigation (hidden-state cache)",
 		Array.isArray(results.dialReturnFrames) && results.dialReturnFrames.some((s) => s.includes("MIN")),
@@ -428,6 +485,7 @@ async function finish() {
 	// grep for both or a thrown rotate handler ships green.
 	check("malformed settings render without crashing", (results.badContextFrames ?? 0) > 0, `${results.badContextFrames} frames`);
 	check("malformed settings still rotate (adopted a reading)", typeof results.badContextAdopted === "string" && results.badContextAdopted.length > 0, `adopted ${results.badContextAdopted}`);
+	check("malformed rotation fields pass through writes verbatim (no salvage rewrite)", results.badContextPreserved === true);
 	check("no uncaught exception was logged", !loggedThisRun("Uncaught exception"));
 	check("no unhandled rejection was logged", !loggedThisRun("Unhandled rejection"));
 
@@ -437,6 +495,7 @@ async function finish() {
 	check("control key treats a malformed Target as no target (no crash)", results.controlMalformedTargetOk === true);
 	check("reset-all reaches the dials past a non-matching Target (as its panel says)", results.controlResetAllOk === true);
 	check("a never-configured control key acts as Next reading (panel default), not an alert", results.controlFreshKeyOk === true);
+	check("control key nextGroup honors rotation groups on any preset", results.controlGroupJumpTo === results.rotationKeys?.[1], `advanced to ${results.controlGroupJumpTo}`);
 
 	// Support report: valid JSON, models named, raw device IDs and names absent.
 	const supportMsg = results.piPayloads.find((p) => p?.event === "supportReport");

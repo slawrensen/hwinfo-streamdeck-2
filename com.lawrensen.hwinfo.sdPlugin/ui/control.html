@@ -5,7 +5,7 @@
 		<title>HWiNFO Control settings</title>
 		<script src="sdpi-components.js"></script>
 		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
-		<link rel="stylesheet" href="pi.css?v=1.1.10.0" />
+		<link rel="stylesheet" href="pi.css?v=1.1.11.0" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -22,8 +22,8 @@
 			<sdpi-select setting="command" default="next">
 				<option value="next">Next reading</option>
 				<option value="prev">Previous reading</option>
-				<option value="nextGroup">Next sensor</option>
-				<option value="prevGroup">Previous sensor</option>
+				<option value="nextGroup">Next sensor or group</option>
+				<option value="prevGroup">Previous sensor or group</option>
 				<option value="cycleStat">Cycle stat mode</option>
 				<option value="showCurrent">Show current value</option>
 				<option value="showMin">Show session min</option>
@@ -61,6 +61,6 @@
 			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-control.js?v=1.1.10.0"></script>
+		<script src="pi-control.js?v=1.1.11.0"></script>
 	</body>
 </html>

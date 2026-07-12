@@ -1,0 +1,123 @@
+{
+	"name": "rotation groups: plain rotate stays inside, pressed rotation jumps, legacy ignores boundaries",
+	"description": "ctx1 elite: rotate wraps INSIDE the CPU group, pressed rotation jumps to the GPU group, the release after it executes nothing. ctx2 legacy with the same groups: rotation walks the union straight across the boundary (the 1.1.x contract). ctx3 custom without any Switch gesture: groups dissolve into the union so group 2 is never stranded. ctx4 custom with rotate/pressed swapped: plain rotate jumps groups, pressed rotation steps inside. ctx5 a single group is no groups: the pressed jump falls back to sensor sources. ctx6 a key duplicated across groups belongs to the FIRST one: the jump enters group Two at its first effective member and stays there, instead of ping-ponging back to group One. ctx7 valid groups with a malformed rotationKeys mirror (rollback desync): groups stay the authority, the jump and the in-group step both work.",
+	"contexts": {
+		"ctx1": {
+			"settings": {
+				"readingKey": "a:0:1",
+				"controlPreset": "elite",
+				"rotationGroups": [
+					{ "name": "CPU", "keys": ["a:0:1", "a:0:2"] },
+					{ "name": "GPU", "keys": ["b:0:1", "b:0:2"] }
+				],
+				"rotationKeys": ["a:0:1", "a:0:2", "b:0:1", "b:0:2"]
+			},
+			"device": "devA"
+		},
+		"ctx2": {
+			"settings": {
+				"readingKey": "a:0:2",
+				"rotationGroups": [
+					{ "name": "CPU", "keys": ["a:0:1", "a:0:2"] },
+					{ "name": "GPU", "keys": ["b:0:1", "b:0:2"] }
+				],
+				"rotationKeys": ["a:0:1", "a:0:2", "b:0:1", "b:0:2"]
+			},
+			"device": "devA"
+		},
+		"ctx3": {
+			"settings": {
+				"readingKey": "a:0:2",
+				"controlPreset": "custom",
+				"rotationGroups": [
+					{ "name": "CPU", "keys": ["a:0:1", "a:0:2"] },
+					{ "name": "GPU", "keys": ["b:0:1", "b:0:2"] }
+				],
+				"rotationKeys": ["a:0:1", "a:0:2", "b:0:1", "b:0:2"]
+			},
+			"device": "devA"
+		},
+		"ctx4": {
+			"settings": {
+				"readingKey": "a:0:1",
+				"controlPreset": "custom",
+				"gestureRotate": "stepGroup",
+				"gesturePressedRotate": "step",
+				"rotationGroups": [
+					{ "name": "CPU", "keys": ["a:0:1", "a:0:2"] },
+					{ "name": "GPU", "keys": ["b:0:1", "b:0:2"] }
+				],
+				"rotationKeys": ["a:0:1", "a:0:2", "b:0:1", "b:0:2"]
+			},
+			"device": "devA"
+		},
+		"ctx5": {
+			"settings": {
+				"readingKey": "a:0:1",
+				"controlPreset": "elite",
+				"rotationGroups": [{ "name": "only", "keys": ["a:0:1", "b:0:1"] }],
+				"rotationKeys": ["a:0:1", "b:0:1"]
+			},
+			"device": "devA"
+		},
+		"ctx6": {
+			"settings": {
+				"readingKey": "a:0:1",
+				"controlPreset": "elite",
+				"rotationGroups": [
+					{ "name": "One", "keys": ["a:0:1", "a:0:2"] },
+					{ "name": "Two", "keys": ["a:0:1", "b:0:1"] }
+				],
+				"rotationKeys": ["a:0:1", "a:0:2", "b:0:1"]
+			},
+			"device": "devA"
+		},
+		"ctx7": {
+			"settings": {
+				"readingKey": "a:0:1",
+				"controlPreset": "elite",
+				"rotationGroups": [
+					{ "name": "One", "keys": ["a:0:1", "a:0:2"] },
+					{ "name": "Two", "keys": ["b:0:1", "b:0:2"] }
+				],
+				"rotationKeys": "stale-nonsense"
+			},
+			"device": "devA"
+		}
+	},
+	"events": [
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1000, "ticks": 1, "pressed": false },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 1200, "ticks": 1, "pressed": false },
+		{ "context": "ctx1", "event": "dialDown", "mono": 3000 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 3100, "ticks": 1, "pressed": true },
+		{ "context": "ctx1", "event": "dialUp", "mono": 3700 },
+		{ "context": "ctx1", "event": "dialRotate", "mono": 4000, "ticks": 1, "pressed": false },
+		{ "context": "ctx2", "event": "dialRotate", "mono": 5000, "ticks": 1, "pressed": false },
+		{ "context": "ctx2", "event": "dialRotate", "mono": 5200, "ticks": 1, "pressed": false },
+		{ "context": "ctx3", "event": "dialRotate", "mono": 6000, "ticks": 1, "pressed": false },
+		{ "context": "ctx4", "event": "dialRotate", "mono": 7000, "ticks": 1, "pressed": false },
+		{ "context": "ctx4", "event": "dialDown", "mono": 7500 },
+		{ "context": "ctx4", "event": "dialRotate", "mono": 7600, "ticks": 1, "pressed": true },
+		{ "context": "ctx4", "event": "dialUp", "mono": 7800 },
+		{ "context": "ctx5", "event": "dialDown", "mono": 8000 },
+		{ "context": "ctx5", "event": "dialRotate", "mono": 8100, "ticks": 1, "pressed": true },
+		{ "context": "ctx5", "event": "dialUp", "mono": 8300 },
+		{ "context": "ctx6", "event": "dialDown", "mono": 9000 },
+		{ "context": "ctx6", "event": "dialRotate", "mono": 9100, "ticks": 1, "pressed": true },
+		{ "context": "ctx6", "event": "dialUp", "mono": 9300 },
+		{ "context": "ctx6", "event": "dialRotate", "mono": 9600, "ticks": 1, "pressed": false },
+		{ "context": "ctx7", "event": "dialDown", "mono": 10000 },
+		{ "context": "ctx7", "event": "dialRotate", "mono": 10100, "ticks": 1, "pressed": true },
+		{ "context": "ctx7", "event": "dialUp", "mono": 10300 },
+		{ "context": "ctx7", "event": "dialRotate", "mono": 10600, "ticks": 1, "pressed": false }
+	],
+	"expect": {
+		"ctx1": { "commands": ["step:1", "step:1", "stepGroup:1", "step:1"], "selection": "b:0:2", "paused": false },
+		"ctx2": { "commands": ["step:1", "step:1"], "selection": "b:0:2" },
+		"ctx3": { "commands": ["step:1"], "selection": "b:0:1" },
+		"ctx4": { "commands": ["stepGroup:1", "step:1"], "selection": "b:0:2" },
+		"ctx5": { "commands": ["stepGroup:1"], "selection": "b:0:1" },
+		"ctx6": { "commands": ["stepGroup:1", "step:1"], "selection": "b:0:1" },
+		"ctx7": { "commands": ["stepGroup:1", "step:1"], "selection": "b:0:2" }
+	}
+}

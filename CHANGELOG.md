@@ -3,6 +3,44 @@
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
+## 1.1.11.0 - 2026-07-12
+
+- Named rotation groups for the dial, optional and off until you build
+  them. "Split into groups" under the rotation set turns the set into
+  group 1 and adds a collector group; tick readings into it, name the
+  groups, and the dial gets two speeds: plain rotate stays inside the
+  active group, while a gesture set to "Switch sensor or group" (Elite's
+  press+rotate) jumps between groups and shows the landing group's name
+  on the dial for a moment. The HWiNFO Control key's "Next/Previous
+  sensor or group" commands honor the groups on every preset. The auto
+  cycle steps inside the active group, and with "On alert" ticked it
+  still watches every group: a critical reading anywhere in the set
+  interrupts across group boundaries. Legacy keeps rotating through
+  everything as one flat list, exactly as before, and a Custom map with
+  no group-switching gesture does the same, so no group can ever become
+  unreachable. Dials without groups behave exactly as they did, and
+  older plugin versions read the groups as one flat rotation set, so
+  downgrading loses nothing.
+- The rotation set in the dial's settings panel now shows where the dial
+  is: the chip of the reading on screen is highlighted in blue and
+  follows rotation, group jumps and the auto cycle while the panel is
+  open.
+- Switching the Controls preset from Elite to Custom now copies Elite's
+  gesture map into every select you have not set yourself, so "Elite
+  minus the one gesture you want different" is a single change instead
+  of rebuilding the whole map from the Legacy defaults. Gestures you
+  already assigned are never touched.
+- The Custom preset's command lists are aligned across gestures:
+  Press+rotate gained "Cycle stat mode", and Short push, Long push and
+  Long touch now offer the same full command set (reset session stats,
+  pause/resume auto cycle, pin/unpin, cycle stat mode, back to current
+  value) instead of each listing a different subset.
+- Fixed: dial status faces ("Start HWiNFO, not detected", "Access
+  denied" and the rest) and the "rotate to pick" face drew their message
+  at the numeric value size and ran off the right edge of the
+  touchscreen slot. Longer value text now steps down to a size that
+  fits.
+
 ## 1.1.10.0 - 2026-07-11
 
 - New dial rotation controls. A rotation set: tick readings in the dial's

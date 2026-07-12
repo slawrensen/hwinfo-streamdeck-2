@@ -14,7 +14,7 @@ What this plugin has actually been proven on, and how. I distinguish four levels
 
 | Device | Keys | Dials | Status |
 | --- | --- | --- | --- |
-| Stream Deck + XL (9x4, 6 dials) | Yes | Yes | **Physically verified** 2026-07-09: 36 keys + 6 dials live, all themes, alerts, sparklines, touchscreen dials, 0.1 % CPU (see PERF.md). Elite/Custom preset gestures are newer than that session and are SDK simulated until the next hardware pass. |
+| Stream Deck + XL (9x4, 6 dials) | Yes | Yes | **Physically verified** 2026-07-09: 36 keys + 6 dials live, all themes, alerts, sparklines, touchscreen dials, 0.1 % CPU (see PERF.md). Elite/Custom preset gestures and rotation groups are newer than that session and are SDK simulated until the next hardware pass. |
 | Stream Deck +, 15-key, MK.2 | Yes | Yes (+) | SDK simulated: the e2e suite registers a 15-key (type 0) and a + (type 7) and drives keys on the former; every dial event is driven on the + XL, whose dials share the + code path. The + 4x2/4-encoder shape is locked by capability fixtures. |
 | Stream Deck XL, Mini, Neo | Yes | n/a | Compatible with limitations: XL, Mini and Neo grids are locked by capability fixtures (`test/devices.test.ts`), and the key rendering they share is device-independent and e2e-driven on a mock 5x3 deck. Neo's info bar and touch points are not used. |
 | Stream Deck Mobile / Virtual | Yes | n/a | Compatible with limitations: grids are taken from what the app reports; grid changes while running need Stream Deck 7.0 (below that, reconnect refreshes them). |

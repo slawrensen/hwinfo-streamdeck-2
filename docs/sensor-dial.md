@@ -39,11 +39,11 @@ These are the **Legacy** preset defaults, which every dial runs until you pick o
 
 Three settings control what rotation can reach:
 
-- **Rotation set.** Tick the checkbox on any rows in the sensor picker to build a custom list; the dial then rotates through *only* those readings, in the order you picked them, wrapping at the ends. The set can mix readings from different sensors. Picked readings show as removable chips under the picker. Leave the set empty for the default same-sensor behavior.
+- **Rotation set.** Tick the checkbox on any rows in the sensor picker to build a custom list; the dial then rotates through *only* those readings, in the order you picked them, wrapping at the ends. The set can mix readings from different sensors. Picked readings show as removable chips under the picker, and the chip of the reading on the dial right now is highlighted in blue: rotate, jump groups or let the auto cycle run with the panel open and the highlight moves with it. Leave the set empty for the default same-sensor behavior. The set can also be [split into named rotation groups](controls.md#rotation-groups): plain rotate then stays inside one group and press+rotate (Elite) jumps between groups.
 
   ![The dial's sensor picker open with "cpu" typed, each row carrying a rotation-set checkbox with its live value: two rows ticked, the rest unticked.]({{ '/assets/img/pi-dial-picker.png' | relative_url }})
 
-  ![The dial's settings panel with a rotation set of three readings from three different sensors (CPU temperature, GPU temperature, pump) shown as removable chips, above the Ignore turns checkbox, the Auto cycle select and the On alert option.]({{ '/assets/img/pi-dial-rotation.png' | relative_url }})
+  ![The dial's settings panel with a rotation set of three readings from three different sensors (CPU temperature, GPU temperature, pump) shown as removable chips with a Split into groups button, the CPU temperature chip highlighted blue as the reading on the dial, above the Ignore turns checkbox, the Auto cycle select and the On alert option.]({{ '/assets/img/pi-dial-rotation.png' | relative_url }})
 - **Ignore turns.** A checkbox that makes the dial ignore rotation entirely, so a bump against the deck can never move you off the reading you chose. Push, touch, and the settings panel still work.
 - **Auto cycle.** Steps to the next reading in the rotation set (or the picked sensor's readings) on a timer, from every 5 seconds to every 5 minutes. It runs even while turns are ignored, which makes a hands-off tour of your picked readings: build a set, ignore turns, set a cycle time. A manual turn restarts the timer, and each step clears the custom label just like a manual turn (unless **Label mode** is set to fixed). Timing rides the poll interval, so a step can land up to one poll late. Ticking **On alert** makes the cycle alert-aware: it holds instead of rotating away while the shown reading is critical, and its next step goes to a critical member of the set instead of the next one in order. Left unticked (the default), alerts do not steer the cycle; see [Dial controls & presets](controls.md#thresholds-and-mixed-units).
 
@@ -64,7 +64,7 @@ Open the dial's Property Inspector to configure it. Most fields mirror the key a
 | Setting | What it does |
 | --- | --- |
 | **Sensor** | Searchable picker over every reading HWiNFO publishes, with a live value preview. Same picker as keys, plus a checkbox per row for the rotation set. |
-| **Rotation set** | The readings rotation is limited to, shown as removable chips. Empty means the picked sensor's readings. |
+| **Rotation set** | The readings rotation is limited to, shown as removable chips. Empty means the picked sensor's readings. Can be split into named [rotation groups](controls.md#rotation-groups). |
 | **Rotation** | "Ignore turns" disables rotation for bump protection. |
 | **Auto cycle** | Timer that steps through the rotation set automatically. Off by default. |
 | **Label** | Custom label; blank falls back to the sensor's name. |
