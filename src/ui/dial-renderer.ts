@@ -52,6 +52,11 @@ const WIDE_VALUE_ROOM = 110;
  * The engine cannot be asked to measure; the end anchor makes alignment
  * exact regardless, and estimate error only moves the label budget. */
 const WIDE_VALUE_CHAR = 0.6;
+/** Gap between a row's label run and its value's booked start. Thin on
+ * purpose: labels fill all the way to their own row's value, because the
+ * bg mask and the value paint after (over) the label, so the value owns
+ * the pixels even when a width estimate runs hot. */
+const WIDE_LABEL_GAP = 2;
 /** Header position resolves the vertical layout. Bottom mode trades band
  * height for the rule separating rows from the context line. */
 const WIDE_GEO = {
@@ -73,16 +78,21 @@ export const FOOTER_PX = 188;
  * length flicker (99.9 to 100) cannot re-truncate labels every tick.
  * Returns the chosen size and the estimated width the column books.
  */
+/** One value's booked column width at `size`: the even-quantized character
+ * count (the flicker damping above) times the flat char factor. */
+function wideValueWidth(text: string, size: number): number {
+	return Math.ceil(Array.from(text).length / 2) * 2 * WIDE_VALUE_CHAR * size;
+}
+
 export function wideValueFit(values: readonly string[]): { size: number; maxW: number } {
-	const quantized = values.map((v) => Math.ceil(Array.from(v).length / 2) * 2);
-	const widest = Math.max(0, ...quantized);
 	for (const size of WIDE_LADDER) {
-		if (widest * WIDE_VALUE_CHAR * size <= WIDE_VALUE_ROOM) {
-			return { size, maxW: widest * WIDE_VALUE_CHAR * size };
+		const maxW = Math.max(0, ...values.map((v) => wideValueWidth(v, size)));
+		if (maxW <= WIDE_VALUE_ROOM) {
+			return { size, maxW };
 		}
 	}
 	const floor = WIDE_LADDER[WIDE_LADDER.length - 1] as number;
-	return { size: floor, maxW: widest * WIDE_VALUE_CHAR * floor };
+	return { size: floor, maxW: Math.max(0, ...values.map((v) => wideValueWidth(v, floor))) };
 }
 
 export interface OverviewRow {
@@ -144,8 +154,9 @@ function wideContextLine(baseline: number, contextText: string, statsText: strin
 /**
  * The overview face, V3 wide tile: rail groove and thumb on the left, one
  * shared right-anchored value column (ladder-sized) with a fixed unit
- * column, UPPERCASE pixel-fitted labels, optional separators, and the
- * stats-priority context line. Same 200×100 pixmap contract as renderDial.
+ * column, UPPERCASE pixel-fitted labels that fill to their own row's value,
+ * optional separators, and the stats-priority context line. Same 200×100
+ * pixmap contract as renderDial.
  */
 export function renderDialOverview(opts: DialOverviewOptions): string {
 	const { palette } = opts;
@@ -156,10 +167,6 @@ export function renderDialOverview(opts: DialOverviewOptions): string {
 		return { ...row, valueText, unitText: row.unitText === "" ? "" : truncateLabel(row.unitText, WIDE_UNIT_MAX) };
 	});
 	const fit = wideValueFit(rows.map((row) => row.valueText));
-	const labelRight = WIDE.valueRight - fit.maxW - 8;
-	// Estimation slack: a flat 4 px plus ~6% for the 0.4 letter-spacing the
-	// estimator does not model, so a hot estimate cannot reach the column.
-	const labelBudget = Math.max(0, (labelRight - WIDE.labelX - 4) * 0.94);
 	const pitch = (g.rowsBottom - g.rowsTop) / 3;
 	const parts: string[] = [
 		...svgOpen(200, 100, palette.bg),
@@ -182,12 +189,18 @@ export function renderDialOverview(opts: DialOverviewOptions): string {
 		if (row.selected) {
 			parts.push(`<rect x="0" y="${bandTop}" width="4" height="${g.bandH}" rx="2" fill="${palette.accent}"/>`);
 		}
-		const label = fitFooter(row.label.toUpperCase(), labelBudget);
+		// The label fills to ITS OWN row's value, not the widest row's, and
+		// ellipsizes only when genuinely longer (~6% held back for the 0.4
+		// letter-spacing the estimator does not model). Painting order is
+		// the real guarantee: the mask and the value draw after the label,
+		// so a hot estimate ends up under the value, never over it.
+		const labelRight = WIDE.valueRight - wideValueWidth(row.valueText, fit.size) - WIDE_LABEL_GAP;
+		const label = fitFooter(row.label.toUpperCase(), Math.max(0, (labelRight - WIDE.labelX) * 0.94));
 		parts.push(
 			`<text x="${WIDE.labelX}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" letter-spacing="0.4" fill="${row.selected ? palette.label : palette.unit}">${escapeXml(label)}</text>`,
-			// Bg-colored insurance between label and value column: invisible
-			// (rows sit on plain bg now), and renderer-proof where the width
-			// estimate ran hot (clipPath is unproven on this engine).
+			// Bg-colored insurance between the label run and this row's value:
+			// invisible (rows sit on plain bg), and renderer-proof where the
+			// label estimate ran hot (clipPath is unproven on this engine).
 			`<rect x="${labelRight.toFixed(1)}" y="${bandTop}" width="${(200 - labelRight).toFixed(1)}" height="${g.bandH}" fill="${palette.bg}"/>`,
 			`<text x="${WIDE.valueRight}" y="${baseline}" text-anchor="end" font-family="${FONT}" font-size="${fit.size}" font-weight="700" fill="${row.valueColor}">${escapeXml(row.valueText)}</text>`
 		);

@@ -187,15 +187,49 @@ describe("overview geometry (V3 wide tile: rail, fixed columns, context line)", 
 		assert.match(svg, new RegExp(`<rect x="0" y="16" width="4" height="84" fill="${MIDNIGHT.track}"/>`));
 	});
 
-	it("an opaque bg mask separates label and value column (estimate insurance)", () => {
-		// Four-glyph values at the 20px step book 48px: labelRight = 112.
+	it("an opaque bg mask separates the label run from its row's value (estimate insurance)", () => {
+		// A four-glyph value at the 20px step books 48px: labelRight = 118.
 		const svg = renderOverview({ rows: [overviewRow({ label: "GPU Memory Junction Temperature", selected: true })] });
-		const label = svg.indexOf(">GPU MEMORY…<");
-		const mask = svg.indexOf(`<rect x="112.0" y="17" width="88.0" height="26" fill="${MIDNIGHT.bg}"/>`);
+		const label = svg.indexOf(">GPU MEMORY J…<");
+		const mask = svg.indexOf(`<rect x="118.0" y="17" width="82.0" height="26" fill="${MIDNIGHT.bg}"/>`);
 		const value = svg.indexOf(`<text x="168" y="36.8"`);
 		assert.ok(label !== -1, "fitted label missing");
 		assert.ok(mask !== -1, "bg mask missing");
 		assert.ok(label < mask && mask < value, "mask must draw after the label and before the value");
+	});
+
+	it("labels budget per row, against their OWN value, not the widest row's", () => {
+		// Shared ladder size 14 (the 12-glyph row); the 4-glyph row books
+		// 33.6px (labelRight 132.4), the 12-glyph row 100.8px (labelRight
+		// 65.2), so the same long name keeps ten more characters beside the
+		// short value than beside the long one.
+		const svg = renderOverview({
+			rows: [
+				overviewRow({ label: "GPU Memory Junction Temperature", valueText: "39.0" }),
+				overviewRow({ label: "GPU Memory Junction Temperature", valueText: "123456789012" })
+			]
+		});
+		assert.match(svg, />GPU MEMORY JUN…</);
+		assert.match(svg, />GPU M…</);
+		assert.match(svg, new RegExp(`<rect x="132.4" y="17" width="67.6" height="26" fill="${MIDNIGHT.bg}"/>`));
+		assert.match(svg, new RegExp(`<rect x="65.2" y="45" width="134.8" height="26" fill="${MIDNIGHT.bg}"/>`));
+	});
+
+	it("nine-glyph memory labels render whole beside five-glyph values (the Committed regression)", () => {
+		// The prefix-deduped Virtual Memory face: 63.5K books 72px at the
+		// 20px step, leaving a 77px label budget, so COMMITTED (est 68.4px)
+		// stays whole instead of ellipsizing a third of the way out.
+		const svg = renderOverview({
+			rows: [
+				overviewRow({ label: "Committed", valueText: "63.5K", unitText: "MB", selected: true }),
+				overviewRow({ label: "Available", valueText: "11.1K", unitText: "MB" }),
+				overviewRow({ label: "Load", valueText: "85.1", unitText: "%" })
+			]
+		});
+		assert.match(svg, />COMMITTED</);
+		assert.match(svg, />AVAILABLE</);
+		assert.match(svg, />LOAD</);
+		assert.doesNotMatch(svg, /…/);
 	});
 
 	it("renders one or two rows without inventing empty ones", () => {
