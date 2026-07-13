@@ -185,6 +185,25 @@ export function stepSensorSource(list: readonly Reading[], currentKey: string | 
 }
 
 /**
+ * The overview viewport: which slice of the rotation list the three-row
+ * touchscreen face shows, and where the selection sits inside it. Stateless
+ * by design (centered selection, clamped at both ends), so the window is a
+ * pure function of (list, selection) and survives page navigation, hidden
+ * state restoration and reconnects with no bookkeeping. A selection outside
+ * the list (stray pick, set edited underneath) anchors the window at the
+ * top with no highlighted row, which is also the honest render.
+ */
+export function overviewWindow(list: readonly Reading[], currentKey: string | undefined, size: number): { rows: readonly Reading[]; selectedIndex: number } {
+	if (list.length === 0 || size <= 0) {
+		return { rows: [], selectedIndex: -1 };
+	}
+	const index = currentKey === undefined ? -1 : list.findIndex((r) => r.key === currentKey);
+	const start = index === -1 ? 0 : Math.max(0, Math.min(index - Math.floor((size - 1) / 2), list.length - size));
+	const rows = list.slice(start, start + size);
+	return { rows, selectedIndex: index === -1 ? -1 : index - start };
+}
+
+/**
  * Where an auto-cycle step should land, or undefined to hold this tick.
  *
  * Plain cycling ignores alerts entirely. With `alertAware` (the "On alert"

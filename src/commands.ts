@@ -12,7 +12,7 @@
  */
 import type { ResetScope } from "./controls";
 
-export const CONTROL_COMMANDS = [
+const CONTROL_COMMANDS = [
 	"next",
 	"prev",
 	"nextGroup",

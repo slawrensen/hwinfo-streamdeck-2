@@ -5,7 +5,7 @@
 		<title>Sensor Dial settings</title>
 		<script src="sdpi-components.js"></script>
 		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
-		<link rel="stylesheet" href="pi.css?v=1.1.11.0" />
+		<link rel="stylesheet" href="pi.css?v=1.2.0.0-5" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -39,7 +39,38 @@
 		<sdpi-item label="Rotation set">
 			<div class="hw-set" id="rotation-set"></div>
 		</sdpi-item>
-		<div class="hw-help" id="rotation-help">Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor.</div>
+		<div class="hw-help" id="rotation-help">Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor. Click a chip's name to rename that reading on this dial.</div>
+
+		<sdpi-item label="View">
+			<sdpi-select setting="dialView" default="single">
+				<option value="single">One reading (default)</option>
+				<option value="tworow">Overview (two rows, big values + trend)</option>
+				<option value="overview">Overview (three rows)</option>
+			</sdpi-select>
+		</sdpi-item>
+		<div id="overview-rows" hidden>
+			<sdpi-item label="Row labels">
+				<sdpi-select setting="overviewLabels" default="shorten">
+					<option value="shorten">Shorten shared prefixes, name in the context line</option>
+					<option value="full">Always full labels</option>
+				</sdpi-select>
+			</sdpi-item>
+			<div id="overview-three-rows" hidden>
+				<sdpi-item label="Context line">
+					<sdpi-select setting="overviewHeader" default="top">
+						<option value="top">Above the rows (default)</option>
+						<option value="bottom">Below the rows</option>
+					</sdpi-select>
+				</sdpi-item>
+				<sdpi-item label="Separators">
+					<sdpi-select setting="overviewSeparators" default="on">
+						<option value="on">Thin lines between rows (default)</option>
+						<option value="off">No separator lines</option>
+					</sdpi-select>
+				</sdpi-item>
+			</div>
+			<div class="hw-help">The overviews list what rotation moves through: the rotation set, the active group, or the picked sensor's readings. Three rows marks the reading on the dial with a thumb on the left rail and keeps the shared name and session min/max on one context line (only the name shortens); two rows trades a row for big values and a trend sparkline.</div>
+		</div>
 
 		<sdpi-item label="Rotation">
 			<sdpi-checkbox setting="rotationDisabled" label="Ignore turns (protects against accidental bumps)"></sdpi-checkbox>
@@ -118,7 +149,7 @@
 					<option value="custom">Custom</option>
 				</sdpi-select>
 			</sdpi-item>
-			<div class="hw-help" id="controls-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: plain rotate cycles readings without leaving the rotation set (or the picked sensor), pressed rotation jumps to the next rotation group (or the next sensor while no groups are defined), short push pauses the auto cycle, long push resets stats. Switching Elite to Custom copies the Elite map into the selects below, so you can change just the one gesture you want different.</div>
+			<div class="hw-help">Legacy: rotate cycles readings (pressed or not), push resets session stats, touch cycles the stat, long touch returns to current. Elite: plain rotate cycles readings without leaving the rotation set (or the picked sensor), pressed rotation jumps to the next rotation group (or the next sensor while no groups are defined), short push pauses the auto cycle, long push resets stats. Switching Elite to Custom copies the Elite map into the selects below, so you can change just the one gesture you want different.</div>
 			<div id="controls-custom" hidden>
 				<sdpi-item label="Rotate">
 					<sdpi-select setting="gestureRotate" default="step">
@@ -236,6 +267,7 @@
 			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-common.js?v=1.1.11.0"></script>
+		<script src="pi-common.js?v=1.2.0.0-5"></script>
+		<script src="pi-control.js?v=1.2.0.0-5"></script>
 	</body>
 </html>

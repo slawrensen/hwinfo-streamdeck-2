@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-export type TraceEvent = {
+type TraceEvent = {
 	/** Wall-clock epoch ms and monotonic ms, stamped at capture. */
 	wall?: number;
 	mono?: number;

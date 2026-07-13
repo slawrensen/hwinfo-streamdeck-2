@@ -1,9 +1,10 @@
 # Agent & contributor guide
 
 Windows-only Elgato Stream Deck plugin that renders live [HWiNFO](https://www.hwinfo.com)
-sensor readings on keys and Stream Deck + / + XL dials (rotation sets with
-named groups, Legacy/Elite/Custom control presets, themes, alert thresholds,
-an HWiNFO Control key action). TypeScript on the Elgato Stream Deck SDK
+sensor readings on keys and Stream Deck + / + XL dials (single or dual key
+readouts, a three-row dial overview, rotation sets with named groups,
+Legacy/Elite/Custom control presets, themes, alert thresholds, an HWiNFO
+Control key action). TypeScript on the Elgato Stream Deck SDK
 (`@elgato/streamdeck` v2), `koffi` FFI for the shared-memory reader,
 dual data source (Shared Memory preferred, Gadget registry fallback). Solo
 project, MIT, no ads, no telemetry.

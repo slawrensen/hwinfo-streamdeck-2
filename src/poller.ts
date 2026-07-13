@@ -28,9 +28,9 @@ export type PollerStatus =
 	| { state: "stale"; snapshot: SensorSnapshot; source: SnapshotSource; staleForMs: number }
 	| { state: "unavailable"; reason: HwinfoUnavailableReason; message: string };
 
-export type SourceMode = "auto" | "shared-memory" | "gadget";
+type SourceMode = "auto" | "shared-memory" | "gadget";
 
-export const DEFAULT_INTERVAL_MS = 1000;
+const DEFAULT_INTERVAL_MS = 1000;
 const MIN_INTERVAL_MS = 250;
 const MAX_INTERVAL_MS = 60_000;
 // Both timings are env-overridable so the resilience e2e can force the
@@ -99,9 +99,10 @@ class HwinfoPoller extends EventEmitter {
 		this.on("tick", listener);
 	}
 
-	/** A key action subscribes its reading so the poller keeps that sparkline's
-	 *  history alive across the action's own appear/disappear churn. Only the
-	 *  key action calls this; dials have no sparkline. */
+	/** An action subscribes a reading so the poller keeps that sparkline's
+	 *  history alive across the action's own appear/disappear churn. Keys
+	 *  subscribe their selection; dials subscribe the two-row view's visible
+	 *  rows. */
 	subscribeSeries(key: string): void {
 		const evict = this.seriesEvict.get(key);
 		if (evict !== undefined) {

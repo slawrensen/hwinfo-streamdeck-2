@@ -2,9 +2,9 @@
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"UUID": "com.lawrensen.hwinfo",
 	"Name": "HWiNFO Sensors",
-	"Version": "1.1.11.0",
+	"Version": "1.2.0.0",
 	"Author": "Stephen Lawrensen",
-	"Description": "Live HWiNFO sensor readings on your Stream Deck: temperatures, clocks, fan speeds, voltages, power and usage, rendered with seven display themes, sensor-type accents, warn/critical alert colors, sparklines and stat modes, plus dial and touchscreen support on the Stream Deck + and Stream Deck + XL. Requires HWiNFO with Shared Memory Support or Gadget reporting enabled; auto mode picks the best available source and recovers on its own when HWiNFO restarts.",
+	"Description": "Live HWiNFO sensor readings on your Stream Deck: temperatures, clocks, fan speeds, voltages, power and usage, rendered with seven display themes, sensor-type accents, warn/critical alert colors, sparklines and stat modes, plus dial and touchscreen support on the Stream Deck + and Stream Deck + XL. A key can stack two readings or show four in a quad grid with per-cell colors, and a dial's touchscreen can list the rotation set as an overview: three compact rows, or two rows with big values and trend sparklines. Requires HWiNFO with Shared Memory Support or Gadget reporting enabled; auto mode picks the best available source and recovers on its own when HWiNFO restarts.",
 	"Category": "HWiNFO Sensors",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
@@ -28,7 +28,7 @@
 			"Name": "Sensor Reading",
 			"UUID": "com.lawrensen.hwinfo.reading",
 			"Icon": "imgs/actions/reading/icon",
-			"Tooltip": "Display a live HWiNFO sensor reading on a key, with thresholds and sparkline.",
+			"Tooltip": "Display one or two live HWiNFO sensor readings on a key, with thresholds and sparkline.",
 			"PropertyInspectorPath": "ui/sensor-reading.html",
 			"Controllers": [
 				"Keypad"
@@ -61,7 +61,7 @@
 			"Name": "Sensor Dial",
 			"UUID": "com.lawrensen.hwinfo.dial",
 			"Icon": "imgs/actions/dial/icon",
-			"Tooltip": "Show a HWiNFO sensor on the touchscreen. Rotate to switch readings, press to reset session min/max.",
+			"Tooltip": "Show a HWiNFO sensor on the touchscreen, as one readout or a three-row overview. Rotate to switch readings, press to reset session min/max.",
 			"PropertyInspectorPath": "ui/sensor-dial.html",
 			"Controllers": [
 				"Encoder"

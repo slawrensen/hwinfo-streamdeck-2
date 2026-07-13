@@ -7,7 +7,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { renderDial, type DialRenderOptions } from "../src/ui/dial-renderer";
+import { renderDial, renderDialOverview, renderDialTwoRow, twoRowValueFontSize, wideValueFit, type DialOverviewOptions, type DialRenderOptions, type DialTwoRowOptions, type OverviewRow, type TwoRowRow } from "../src/ui/dial-renderer";
+import { dedupeSharedLabelPrefix, wrapLabelTwoLines } from "../src/ui/format";
 import { loadThemes, resolvePalette } from "../src/ui/themes";
 
 const config = loadThemes();
@@ -93,5 +94,326 @@ describe("dial bar (x12 y84 176×6 r3)", () => {
 	it("alerting swaps the fill to the alert field color", () => {
 		const svg = render({ barColor: config.alerts.crit.bg });
 		assert.match(svg, new RegExp(`<rect x="12" y="84" width="88\\.0" height="6" rx="3" fill="${config.alerts.crit.bg}"/>`));
+	});
+});
+
+// --- overview view ------------------------------------------------------------
+
+function overviewRow(overrides: Partial<OverviewRow>): OverviewRow {
+	return { label: "CPU Package", valueText: "56.3", unitText: "°C", selected: false, valueColor: MIDNIGHT.value, ...overrides };
+}
+
+function renderOverview(overrides: Partial<DialOverviewOptions>): string {
+	return renderDialOverview({
+		rows: [overviewRow({ selected: true }), overviewRow({ label: "GPU Temp", valueText: "48.2" }), overviewRow({ label: "SSD", valueText: "39.0" })],
+		contextText: "session",
+		statsText: "▼42.0 ▲78.5",
+		palette: MIDNIGHT,
+		...overrides
+	});
+}
+
+describe("overview geometry (V3 wide tile: rail, fixed columns, context line)", () => {
+	it("rail groove x0-4 spans the rows region; the thumb marks the selected row", () => {
+		const svg = renderOverview({});
+		const groove = svg.indexOf(`<rect x="0" y="16" width="4" height="84" fill="${MIDNIGHT.track}"/>`);
+		const thumb = svg.indexOf(`<rect x="0" y="17" width="4" height="26" rx="2" fill="${MIDNIGHT.accent}"/>`);
+		assert.ok(groove !== -1, "rail groove missing");
+		assert.ok(thumb !== -1, "rail thumb missing");
+		assert.ok(groove < thumb, "thumb must draw on top of the groove");
+		assert.doesNotMatch(svg, /width="200" height="26"/); // no full-width band anymore
+	});
+
+	it("the thumb follows the selected row (top mode band tops 17/45/73)", () => {
+		const svg = renderOverview({ rows: [overviewRow({}), overviewRow({ selected: true }), overviewRow({})] });
+		assert.match(svg, new RegExp(`<rect x="0" y="45" width="4" height="26" rx="2" fill="${MIDNIGHT.accent}"/>`));
+		assert.doesNotMatch(svg, /<rect x="0" y="17" width="4" height="26"/);
+	});
+
+	it("UPPERCASE labels 12/600 +0.4 tracking at x=12; the selected label lifts to label color", () => {
+		const svg = renderOverview({});
+		assert.match(svg, new RegExp(`<text x="12" y="36.8" text-anchor="start" [^>]*font-size="12" font-weight="600" letter-spacing="0.4" fill="${MIDNIGHT.label}">CPU PACKAGE</text>`));
+		assert.match(svg, new RegExp(`<text x="12" y="64.8" text-anchor="start" [^>]*font-size="12" font-weight="600" letter-spacing="0.4" fill="${MIDNIGHT.unit}">GPU TEMP</text>`));
+		assert.match(svg, new RegExp(`<text x="12" y="92.8" [^>]*fill="${MIDNIGHT.unit}">SSD</text>`));
+	});
+
+	it("values end-anchor at the fixed x=168 column, units start at x=172", () => {
+		const svg = renderOverview({});
+		assert.match(svg, new RegExp(`<text x="168" y="36.8" text-anchor="end" [^>]*font-size="20" font-weight="700" fill="${MIDNIGHT.value}">56\\.3</text>`));
+		assert.match(svg, new RegExp(`<text x="172" y="36.8" text-anchor="start" [^>]*font-size="12" font-weight="600" fill="${MIDNIGHT.unit}">°C</text>`));
+		assert.match(svg, /<text x="168" y="64.8" text-anchor="end" /);
+		assert.match(svg, /<text x="168" y="92.8" text-anchor="end" /);
+	});
+
+	it("a unitless value keeps the same fixed column (numbers never move)", () => {
+		const svg = renderOverview({ rows: [overviewRow({ valueText: "37.4", unitText: "" })] });
+		assert.match(svg, /<text x="168" y="36.8" text-anchor="end" [^>]*font-weight="700"/);
+		assert.doesNotMatch(svg, /x="172"/);
+	});
+
+	it("separators: thin track lines between rows, none past the last row", () => {
+		const svg = renderOverview({});
+		assert.match(svg, new RegExp(`<rect x="4" y="44" width="196" height="1" fill="${MIDNIGHT.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="4" y="72" width="196" height="1" fill="${MIDNIGHT.track}"/>`));
+		assert.equal(svg.match(/height="1"/g)?.length, 2);
+	});
+
+	it("separators off removes the lines and the bottom-mode rule", () => {
+		const svg = renderOverview({ separators: false, header: "bottom" });
+		assert.doesNotMatch(svg, /height="1"/);
+	});
+
+	it("bottom mode: rows y2-80, separators at 28/54, rule at y=81, context baseline y=95", () => {
+		const svg = renderOverview({ header: "bottom" });
+		assert.match(svg, new RegExp(`<rect x="0" y="2" width="4" height="78" fill="${MIDNIGHT.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="4" y="28" width="196" height="1" fill="${MIDNIGHT.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="4" y="54" width="196" height="1" fill="${MIDNIGHT.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="0" y="81" width="200" height="1" fill="${MIDNIGHT.track}"/>`));
+		assert.equal(svg.match(/height="1"/g)?.length, 3); // two separators + the rule
+		assert.match(svg, new RegExp(`<rect x="0" y="3" width="4" height="24" rx="2" fill="${MIDNIGHT.accent}"/>`));
+		assert.match(svg, /<text x="12" y="21.8" /);
+		assert.match(svg, /<text x="196" y="95" text-anchor="end" /);
+		assert.doesNotMatch(svg, /y="11"/);
+	});
+
+	it("the thumb walks to the bottom band at a window clamp (band top 73)", () => {
+		const svg = renderOverview({ rows: [overviewRow({}), overviewRow({}), overviewRow({ selected: true })] });
+		assert.match(svg, new RegExp(`<rect x="0" y="73" width="4" height="26" rx="2" fill="${MIDNIGHT.accent}"/>`));
+	});
+
+	it("no selected row renders the groove without a thumb", () => {
+		const svg = renderOverview({ rows: [overviewRow({}), overviewRow({}), overviewRow({})] });
+		assert.doesNotMatch(svg, /rx="2"/);
+		assert.match(svg, new RegExp(`<rect x="0" y="16" width="4" height="84" fill="${MIDNIGHT.track}"/>`));
+	});
+
+	it("an opaque bg mask separates label and value column (estimate insurance)", () => {
+		// Four-glyph values at the 20px step book 48px: labelRight = 112.
+		const svg = renderOverview({ rows: [overviewRow({ label: "GPU Memory Junction Temperature", selected: true })] });
+		const label = svg.indexOf(">GPU MEMORY…<");
+		const mask = svg.indexOf(`<rect x="112.0" y="17" width="88.0" height="26" fill="${MIDNIGHT.bg}"/>`);
+		const value = svg.indexOf(`<text x="168" y="36.8"`);
+		assert.ok(label !== -1, "fitted label missing");
+		assert.ok(mask !== -1, "bg mask missing");
+		assert.ok(label < mask && mask < value, "mask must draw after the label and before the value");
+	});
+
+	it("renders one or two rows without inventing empty ones", () => {
+		const svg = renderOverview({ rows: [overviewRow({ selected: true }), overviewRow({ label: "GPU Temp" })] });
+		assert.match(svg, /y="36.8"/);
+		assert.match(svg, /y="64.8"/);
+		assert.doesNotMatch(svg, /y="92.8"/);
+		assert.equal(svg.match(/height="1"/g)?.length, 1); // one separator for two rows
+	});
+
+	it("caps at three rows even when handed more", () => {
+		const rows = [overviewRow({}), overviewRow({}), overviewRow({}), overviewRow({ label: "Fourth" })];
+		assert.doesNotMatch(renderOverview({ rows }), />FOURTH</);
+	});
+
+	it("no range bar in the overview", () => {
+		assert.doesNotMatch(renderOverview({}), /y="84" width="176"/);
+	});
+});
+
+describe("overview context line (stats-priority)", () => {
+	it("stats 12/600 end-anchored at x=196 y=11; context 13/600 from x=2", () => {
+		const svg = renderOverview({});
+		assert.match(svg, new RegExp(`<text x="196" y="11" text-anchor="end" [^>]*font-size="12" font-weight="600" fill="${MIDNIGHT.unit}">▼42\\.0 ▲78\\.5</text>`));
+		assert.match(svg, new RegExp(`<text x="2" y="11" text-anchor="start" [^>]*font-size="13" font-weight="600" fill="${MIDNIGHT.label}">session</text>`));
+	});
+
+	it("the stats never clip; only the context text yields (fill-to-width ellipsis)", () => {
+		const svg = renderOverview({ contextText: "GPU Memory Controller", statsText: "▼73.0k ▲83.1k" });
+		assert.match(svg, />▼73\.0k ▲83\.1k</); // stats whole, always
+		assert.match(svg, /<text x="2" y="11" [^>]*font-size="12"[^>]*>GPU Memory [^<]*…</);
+	});
+
+	it("a missing stat reclaims its width: the same name fits whole at 13px", () => {
+		const svg = renderOverview({ contextText: "GPU Memory Controller", statsText: "" });
+		assert.doesNotMatch(svg, /x="196"/);
+		assert.match(svg, /<text x="2" y="11" [^>]*font-size="13"[^>]*>GPU Memory Controller</);
+	});
+
+	it("an empty context line renders neither element", () => {
+		const svg = renderOverview({ contextText: "", statsText: "" });
+		assert.doesNotMatch(svg, /y="11"/);
+	});
+
+	it("a name in the middle band drops to 12px and stays whole (no ellipsis)", () => {
+		// est 112.4px: past the 13px try (times 13/12 exceeds the budget),
+		// inside the 12px budget, so the drop must not also ellipsize.
+		const svg = renderOverview({ contextText: "Virtual Memory Ctrls" });
+		assert.match(svg, /<text x="2" y="11" [^>]*font-size="12"[^>]*>Virtual Memory Ctrls</);
+	});
+
+	it("a physically impossible stats width pixel-fits instead of leaving the canvas", () => {
+		// Decimals "3" on a 1e9-scale counter: the pair estimates past the
+		// whole 194px line, so the stats trim (the canvas outranks the
+		// never-yield contract) and the name region reports no room.
+		const svg = renderOverview({ contextText: "session", statsText: "▼1234567890.000 ▲1234567890.000" });
+		assert.match(svg, /<text x="196" y="11" text-anchor="end" [^>]*>▼1234567890\.000 [^<]*…</);
+		assert.doesNotMatch(svg, /x="2" y="11"/);
+	});
+});
+
+describe("overview content fitting", () => {
+	it("value ladder: largest step where the widest visible value fits the column", () => {
+		assert.equal(wideValueFit(["56.3"]).size, 20);
+		assert.equal(wideValueFit(["49.6", "5250.00"]).size, 20); // 8 quantized glyphs still fit at 20
+		assert.equal(wideValueFit(["123456789"]).size, 18); // 10 quantized
+		assert.equal(wideValueFit(["123456789012"]).size, 14); // 12 quantized
+		assert.equal(wideValueFit(["1234567890123"]).size, 13); // 14 quantized
+		assert.equal(wideValueFit(["1234567890123456"]).size, 12); // floor
+	});
+
+	it("length flicker damping: counts quantize up to even", () => {
+		assert.equal(wideValueFit(["99.9"]).maxW, wideValueFit(["100"]).maxW);
+	});
+
+	it("values ellipsize at 12 glyphs and units at 4; the ladder sizes the truncated text", () => {
+		const svg = renderOverview({ rows: [overviewRow({ label: "Short", valueText: "123456789012345", unitText: "Mbit/s" })] });
+		assert.match(svg, /font-size="14" font-weight="700"[^>]*>12345678901…</);
+		assert.match(svg, />Mbi…</);
+	});
+
+	it("a row's value color passes through for alert tinting (value text only)", () => {
+		const svg = renderOverview({ rows: [overviewRow({ valueColor: config.alerts.crit.bg })] });
+		assert.match(svg, new RegExp(`font-weight="700" fill="${config.alerts.crit.bg}"`));
+		assert.doesNotMatch(svg, new RegExp(`fill="${config.alerts.crit.bg}"[^>]*letter-spacing`));
+	});
+
+	it("escapes XML in labels, values and units", () => {
+		const svg = renderOverview({ rows: [overviewRow({ label: "A&B<C>", valueText: `1"2`, unitText: "'u" })] });
+		assert.match(svg, />A&amp;B&lt;C&gt;</);
+		assert.match(svg, />1&quot;2</);
+		assert.match(svg, />&apos;u</);
+	});
+});
+
+describe("overview label prefix dedup (the shared words truncation would waste)", () => {
+	const open = (labels: string[]) => dedupeSharedLabelPrefix(labels, labels.map(() => false));
+
+	it("drops the leading word every label shares and reports it as the prefix", () => {
+		assert.deepEqual(open(["GPU Temperature", "GPU Hot Spot", "GPU Thermal Limit"]), { labels: ["Temperature", "Hot Spot", "Thermal Limit"], prefix: "GPU" });
+	});
+
+	it("drops multi-word shared prefixes", () => {
+		assert.deepEqual(open(["Virtual Memory Committed", "Virtual Memory Available"]), { labels: ["Committed", "Available"], prefix: "Virtual Memory" });
+	});
+
+	it("whole words only, never substrings", () => {
+		assert.deepEqual(open(["GPUA Temp", "GPUB Temp"]), { labels: ["GPUA Temp", "GPUB Temp"], prefix: "" });
+	});
+
+	it("leaves labels alone when nothing is shared", () => {
+		assert.deepEqual(open(["CPU Package", "GPU Temp", "Pump"]), { labels: ["CPU Package", "GPU Temp", "Pump"], prefix: "" });
+	});
+
+	it("a label that IS the prefix keeps its text; the others still shorten", () => {
+		assert.deepEqual(open(["GPU", "GPU Temp", "GPU Hot"]), { labels: ["GPU", "Temp", "Hot"], prefix: "GPU" });
+	});
+
+	it("identical labels stay whole and report no prefix", () => {
+		assert.deepEqual(open(["CPU Temp", "CPU Temp"]), { labels: ["CPU Temp", "CPU Temp"], prefix: "" });
+	});
+
+	it("locked labels (user-typed names) are kept verbatim and not considered", () => {
+		assert.deepEqual(dedupeSharedLabelPrefix(["My GPU", "GPU Temperature", "GPU Hot Spot"], [true, false, false]), { labels: ["My GPU", "Temperature", "Hot Spot"], prefix: "GPU" });
+	});
+
+	it("fewer than two unlocked labels change nothing", () => {
+		assert.deepEqual(dedupeSharedLabelPrefix(["GPU Temp", "GPU Hot"], [true, true]), { labels: ["GPU Temp", "GPU Hot"], prefix: "" });
+		assert.deepEqual(open(["GPU Temp"]), { labels: ["GPU Temp"], prefix: "" });
+	});
+});
+
+// --- two-row view ------------------------------------------------------------
+
+function twoRowRow(overrides: Partial<TwoRowRow>): TwoRowRow {
+	return { label: "CPU Package", valueText: "56.3", unitText: "°C", selected: false, valueColor: MIDNIGHT.value, ...overrides };
+}
+
+function renderTwoRow(overrides: Partial<DialTwoRowOptions>): string {
+	return renderDialTwoRow({
+		rows: [twoRowRow({ selected: true, history: [50, 52, 51, 55, 58, 56] }), twoRowRow({ label: "GPU Temp", valueText: "48.2" })],
+		footerText: "▼ 42.0  ▲ 78.5  session",
+		palette: MIDNIGHT,
+		...overrides
+	});
+}
+
+describe("two-row view (40px rows, big values, trend or wrapped label)", () => {
+	it("rows sit at y=4 and y=46 with label and value lines", () => {
+		const svg = renderTwoRow({});
+		assert.match(svg, /<text x="12" y="17" text-anchor="start" [^>]*font-size="13" font-weight="600"/);
+		assert.match(svg, /<text x="12" y="59" text-anchor="start" [^>]*font-size="13" font-weight="600"/);
+		assert.match(svg, /<text x="172.0" y="40" text-anchor="end" [^>]*font-size="26" font-weight="700"/);
+		assert.match(svg, /<text x="172.0" y="82" text-anchor="end" [^>]*font-size="26" font-weight="700"/);
+	});
+
+	it("values and units share the table columns at 26px scale", () => {
+		const svg = renderTwoRow({});
+		assert.match(svg, new RegExp(`<text x="172.0" y="40" text-anchor="end" [^>]*fill="${MIDNIGHT.value}">56\\.3</text>`));
+		assert.match(svg, new RegExp(`<text x="176.0" y="40" text-anchor="start" [^>]*font-size="13" font-weight="600" fill="${MIDNIGHT.unit}">°C</text>`));
+	});
+
+	it("the selected row band spans the 40px row with a taller accent bar", () => {
+		const svg = renderTwoRow({});
+		assert.match(svg, new RegExp(`<rect x="0" y="4" width="200" height="40" fill="${MIDNIGHT.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="2" y="8" width="4" height="32" rx="2" fill="${MIDNIGHT.accent}"/>`));
+		assert.doesNotMatch(svg, /<rect x="0" y="46"/);
+	});
+
+	it("a short label frees its second line for the sparkline (key idiom)", () => {
+		const svg = renderTwoRow({});
+		assert.match(svg, new RegExp(`<polyline points="[^"]+" fill="none" stroke="${MIDNIGHT.accent}" stroke-width="3"`));
+		assert.match(svg, new RegExp(`<path d="M12\\.0,41[^"]+" fill="${MIDNIGHT.track}"/>`));
+		assert.match(svg, new RegExp(`<circle cx="[\\d.]+" cy="[\\d.]+" r="3.5" fill="${MIDNIGHT.accent}"/>`));
+	});
+
+	it("a long label wraps onto the second line instead of the sparkline", () => {
+		const svg = renderTwoRow({
+			rows: [twoRowRow({ label: "GPU Memory Junction Temperature", selected: true, history: [1, 2, 3, 4] })]
+		});
+		assert.match(svg, /<text x="12" y="17" [^>]*>GPU Memory Junction</);
+		assert.match(svg, /<text x="12" y="40" [^>]*>Temperature</);
+		assert.doesNotMatch(svg, /polyline/);
+	});
+
+	it("no sparkline without history or with one point", () => {
+		assert.doesNotMatch(renderTwoRow({ rows: [twoRowRow({})] }), /polyline/);
+		assert.doesNotMatch(renderTwoRow({ rows: [twoRowRow({ history: [42] })] }), /polyline/);
+	});
+
+	it("caps at two rows and keeps the footer slot", () => {
+		const rows = [twoRowRow({}), twoRowRow({}), twoRowRow({ label: "Third" })];
+		const svg = renderTwoRow({ rows });
+		assert.doesNotMatch(svg, />Third</);
+		assert.match(svg, /<text x="6" y="96" [^>]*font-size="12"/);
+	});
+
+	it("two-row value tiers 26/20/16 by character count", () => {
+		assert.equal(twoRowValueFontSize("56.3"), 26);
+		assert.equal(twoRowValueFontSize("5250.001"), 20);
+		assert.equal(twoRowValueFontSize("1234567890"), 16);
+	});
+});
+
+describe("two-line label wrap", () => {
+	it("keeps a fitting label on one line", () => {
+		assert.deepEqual(wrapLabelTwoLines("CPU Package", 27, 13), ["CPU Package"]);
+	});
+
+	it("wraps whole words onto the second line", () => {
+		assert.deepEqual(wrapLabelTwoLines("GPU Memory Junction Temperature", 27, 13), ["GPU Memory Junction", "Temperature"]);
+	});
+
+	it("ellipsizes a second line that still overflows", () => {
+		assert.deepEqual(wrapLabelTwoLines("GPU Memory Junction Temperature Sensor Values", 27, 13), ["GPU Memory Junction", "Temperature …"]);
+	});
+
+	it("truncates a single unbreakable word", () => {
+		assert.deepEqual(wrapLabelTwoLines("Supercalifragilisticexpialidocious", 27, 13), ["Supercalifragilisticexpial…"]);
 	});
 });

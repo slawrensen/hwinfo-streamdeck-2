@@ -1,10 +1,12 @@
 // Captures the property inspectors (served by scripts/pi-harness.mjs) in
 // headless Chrome over CDP with real-time waits, so live WebSocket data and
-// the theme gallery are present. Seven states: the key PI's settings view and
-// open picker (marketplace shot 3), the dial PI's rotation-set picker with
-// ticked rows and chips, the rotation-group editor (two named groups with
-// the collector radio), the Elite preset view, the Custom gesture rows with
-// touch zones, and the HWiNFO Control PI with a Link ID target.
+// the theme gallery are present. Eleven states: the key PI's settings view,
+// open picker (marketplace shot 3), dual layout, and quad layout with the
+// cell-colors row; the dial PI's rotation-set picker with ticked rows and
+// chips, the rotation-group editor (two named groups with the collector
+// radio), the Elite preset view, the Custom gesture rows with touch zones,
+// and the overview view's Context line + Separators controls; and the
+// HWiNFO Control PI with a Link ID target.
 // Usage: node scripts/capture-pi.mjs <outDir>
 import { spawn, spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -52,13 +54,13 @@ function killChromeTree() {
 }
 
 // Hard stop so a wedged CDP call can never hang the caller — but never at
-// the price of an orphaned chrome tree. Six captures with real-time waits
-// need more headroom than the old two.
+// the price of an orphaned chrome tree. Eleven captures with real-time
+// waits need more headroom than the old two.
 const watchdog = setTimeout(() => {
-	console.error("[capture] watchdog: 180s elapsed — aborting");
+	console.error("[capture] watchdog: 240s elapsed — aborting");
 	killChromeTree();
 	process.exit(2);
-}, 180000);
+}, 240000);
 watchdog.unref();
 
 let cdpSocket = null;
@@ -157,6 +159,52 @@ try {
 	await evaluate(`(() => { const el = document.getElementById("picker-search"); el.focus(); el.value = "gpu"; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
 	await sleep(1500);
 	await capture("pi-picker.png");
+
+	// ---- key PI: dual layout (second picker + label + stat, sparkline row hidden) ----
+	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
+	await setSelect("keyLayout", "dual");
+	await sleep(900); // the layout poll reveals #dual-rows within 400 ms
+	expectOk("dual rows revealed", await evaluate(`document.getElementById("dual-rows").hidden === false ? "ok" : "hidden"`));
+	// Pick a second reading the way a user would: search, take the top row.
+	await evaluate(`(() => { const el = document.getElementById("picker2-search"); el.focus(); el.value = "gpu temp"; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+	await sleep(700);
+	expectOk("second picker row", await evaluate(`(() => {
+		const row = document.querySelector("#picker2-list .hw-row");
+		if (!row) return "missing";
+		row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+		return "ok";
+	})()`));
+	await sleep(500);
+	const dualHeight = await evaluate(`Math.ceil([...document.body.children].reduce((m, el) => Math.max(m, el.getBoundingClientRect().bottom), 0))`);
+	await viewport(Math.min(2400, Math.max(880, Number(dualHeight.result?.value ?? 880) + 16)));
+	await sleep(300);
+	await capture("pi-key-dual.png");
+	await viewport(880);
+
+	// ---- key PI: quad layout (third/fourth pickers picked, cell colors row) ----
+	// The first two cells inherit the single and dual picks made above, so
+	// this shot shows all four slots filled the way a user reaches quad.
+	await setSelect("keyLayout", "quad");
+	await sleep(900); // the layout poll reveals #quad-rows within 400 ms
+	expectOk("quad rows revealed", await evaluate(`document.getElementById("quad-rows").hidden === false ? "ok" : "hidden"`));
+	for (const [box, query] of [["picker3", "gpu clock"], ["picker4", "pump"]]) {
+		await evaluate(`(() => { const el = document.getElementById("${box}-search"); el.focus(); el.value = ${JSON.stringify(query)}; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+		await sleep(700);
+		expectOk(`${box} row`, await evaluate(`(() => {
+			const row = document.querySelector("#${box}-list .hw-row");
+			if (!row) return "missing";
+			row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+			return "ok";
+		})()`));
+		await sleep(500);
+	}
+	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
+	await sleep(400);
+	const quadHeight = await evaluate(`Math.ceil([...document.body.children].reduce((m, el) => Math.max(m, el.getBoundingClientRect().bottom), 0))`);
+	await viewport(Math.min(2400, Math.max(880, Number(quadHeight.result?.value ?? 880) + 16)));
+	await sleep(300);
+	await capture("pi-key-quad.png");
+	await viewport(880);
 
 	// ---- dial PI: the picker's rotation-set checkboxes, mid-tick ----
 	log("navigating: sensor-dial");
@@ -275,6 +323,35 @@ try {
 	writeFileSync(path.join(outDir, "pi-dial-custom.png"), Buffer.from(shotCustom.data, "base64"));
 	log("pi-dial-custom.png captured");
 
+	// ---- dial PI: overview view (Context line + Separators selects) ----
+	await viewport(880);
+	await evaluate(`(() => { for (const d of document.querySelectorAll("details")) d.open = false; window.scrollTo(0, 0); return "ok"; })()`);
+	await setSelect("dialView", "overview");
+	await sleep(900); // the view poll reveals #overview-rows within 400 ms
+	expectOk("overview rows revealed", await evaluate(
+		`document.getElementById("overview-rows").hidden === false && document.getElementById("overview-three-rows").hidden === false ? "ok" : "hidden"`
+	));
+	// Clip to the View select plus the controls it revealed: row labels,
+	// context line and separators, with the help line under them.
+	const overviewRect = await evaluate(`(() => {
+		const sel = document.querySelector('sdpi-select[setting="dialView"]');
+		const block = document.getElementById("overview-rows");
+		if (!sel || !block) return "missing";
+		const item = sel.closest("sdpi-item") ?? sel;
+		const a = item.getBoundingClientRect();
+		const b = block.getBoundingClientRect();
+		const top = Math.min(a.top, b.top) + window.scrollY;
+		const bottom = Math.max(a.bottom, b.bottom) + window.scrollY;
+		return { y: Math.max(0, Math.floor(top - 10)), h: Math.ceil(bottom - top + 20) };
+	})()`);
+	if (overviewRect.result?.value === "missing" || overviewRect.result?.value === undefined) {
+		throw new Error("overview clip rect did not resolve");
+	}
+	const overviewClip = overviewRect.result.value;
+	const shotOverview = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: overviewClip.y, width: 400, height: overviewClip.h, scale: 1 } });
+	writeFileSync(path.join(outDir, "pi-dial-overview.png"), Buffer.from(shotOverview.data, "base64"));
+	log("pi-dial-overview.png captured");
+
 	// ---- HWiNFO Control PI: command + Link ID target ----
 	log("navigating: control");
 	await viewport(880);
@@ -291,7 +368,7 @@ try {
 	await sleep(300);
 	await capture("pi-control.png");
 
-	console.log(`captured 7 PI states to ${outDir}`);
+	console.log(`captured 11 PI states to ${outDir}`);
 } finally {
 	// The open CDP socket would otherwise hold the event loop until the
 	// watchdog fires — close it, then take the browser tree down.

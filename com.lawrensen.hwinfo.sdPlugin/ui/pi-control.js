@@ -1,6 +1,6 @@
-/* HWiNFO Control settings panel: everything persists through sdpi
-   components; the only scripted part is the support-report copy button.
-   (pi-common.js is the picker-page script and expects picker DOM.) */
+/* The support-report copy button, shared by all three property inspectors
+   (control, sensor-reading, sensor-dial): asks the plugin for the redacted
+   report and puts it on the clipboard. Expects #support-report. */
 /* global SDPIComponents */
 (() => {
 	"use strict";

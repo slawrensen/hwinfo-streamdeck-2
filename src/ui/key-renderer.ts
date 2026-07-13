@@ -9,7 +9,16 @@
 import { truncateLabel } from "./format";
 import type { Palette } from "./themes";
 
-const FONT = "Segoe UI, Arial, sans-serif";
+export const FONT = "Segoe UI, Arial, sans-serif";
+
+/** The canvas open every renderer shares: the SVG header plus the full-bleed
+ * background rect. */
+export function svgOpen(w: number, h: number, bg: string): string[] {
+	return [
+		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">`,
+		`<rect width="${w}" height="${h}" fill="${bg}"/>`
+	];
+}
 
 /** Spark strip box: x 8–136, y 120–134. Sits above a bottom margin so the
  * line at a session low and the r=5 end dot (down to y≈139) never clip the
@@ -56,8 +65,9 @@ export function valueFontSize(text: string): number {
 	return 48 - (count - 3) * 4;
 }
 
-/** Maps a value series onto polyline points within the given box. */
-function sparklinePoints(values: readonly number[], x: number, y: number, w: number, h: number): Array<{ px: number; py: number }> {
+/** Maps a value series onto polyline points within the given box. Exported
+ * for the dial's two-row view, which draws the same self-normalizing line. */
+export function sparklinePoints(values: readonly number[], x: number, y: number, w: number, h: number): Array<{ px: number; py: number }> {
 	if (values.length < 2 || values.some((v) => !Number.isFinite(v))) {
 		return [];
 	}
@@ -78,6 +88,20 @@ function sparklinePoints(values: readonly number[], x: number, y: number, w: num
 	return points;
 }
 
+/** Composes the sparkline triple (track under-fill, accent line, end dot)
+ * from placed points. Exported for the dial's two-row view, which draws the
+ * same idiom at its own bottom edge, stroke and dot radius. */
+export function sparklineSvg(points: ReadonlyArray<{ px: number; py: number }>, bottom: number, stroke: number, dotR: number, palette: Palette): string[] {
+	const line = points.map((p) => `${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
+	const first = points[0] as { px: number; py: number };
+	const last = points[points.length - 1] as { px: number; py: number };
+	return [
+		`<path d="M${first.px.toFixed(1)},${bottom} L${line.split(" ").join(" L")} L${last.px.toFixed(1)},${bottom} Z" fill="${palette.track}"/>`,
+		`<polyline points="${line}" fill="none" stroke="${palette.accent}" stroke-width="${stroke}" stroke-linejoin="round" stroke-linecap="round"/>`,
+		`<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="${dotR}" fill="${palette.accent}"/>`
+	];
+}
+
 export interface ReadingKeyOptions {
 	label: string;
 	valueText: string;
@@ -94,10 +118,7 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 	const { valueText, unitText, statBadge, history, palette } = opts;
 	const hasBadge = statBadge !== "";
 	const label = truncateLabel(opts.label, hasBadge ? LABEL_MAX_WITH_BADGE : LABEL_MAX);
-	const parts: string[] = [
-		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">`,
-		`<rect width="144" height="144" fill="${palette.bg}"/>`
-	];
+	const parts: string[] = svgOpen(144, 144, palette.bg);
 	if (hasBadge) {
 		// Left-anchored label hard-clipped at x=92 (max 80 px) so it can never
 		// reach the end-anchored badge, which owns x≥96. The clip is an opaque
@@ -120,16 +141,206 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 		const samples = history.slice(-SPARK_SAMPLES);
 		const points = sparklinePoints(samples, SPARK.x, SPARK.y, SPARK.w, SPARK.h);
 		if (points.length > 0) {
-			const line = points.map((p) => `${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
-			const first = points[0] as { px: number; py: number };
-			const last = points[points.length - 1] as { px: number; py: number };
-			const bottom = SPARK.y + SPARK.h;
-			parts.push(
-				`<path d="M${first.px.toFixed(1)},${bottom} L${line.split(" ").join(" L")} L${last.px.toFixed(1)},${bottom} Z" fill="${palette.track}"/>`,
-				`<polyline points="${line}" fill="none" stroke="${palette.accent}" stroke-width="${SPARK_STROKE}" stroke-linejoin="round" stroke-linecap="round"/>`,
-				`<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="5" fill="${palette.accent}"/>`
-			);
+			parts.push(...sparklineSvg(points, SPARK.y + SPARK.h, SPARK_STROKE, 5, palette));
 		}
+	}
+	parts.push("</svg>");
+	return parts.join("");
+}
+
+/** Dual rows: label baselines y=22/94, value baselines y=56/128 — row B is
+ * row A shifted exactly 72 px, the key's midline, with a 2 px track-color
+ * divider centered between them. Everything centers on x=72 like the single
+ * layout (keys are optically centered surfaces; the divider badge already
+ * was). A stat badge shared by both rows sits in a gap at the divider's
+ * center; a per-row badge rides inline after the unit, the dial's own
+ * idiom, so a row label always keeps its full 16 characters and nothing
+ * crowds the key's corners. */
+const DUAL = { labelY: 22, valueY: 56, rowPitch: 72, dividerY: 71 } as const;
+const DUAL_LABEL_MAX = 16;
+const DUAL_VALUE_MAX = 14;
+/** The divider gap that hosts the shared badge: centered on x=72. */
+const DUAL_BADGE_GAP = { x: 47, y: 63, w: 50, h: 14 } as const;
+
+/** Gap first (opaque bg over the divider or cross arms), then the badge into
+ * it: solid fills, the only clipping primitive proven on this engine. */
+function sharedBadgeSvg(badge: string, palette: Palette): [string, string] {
+	return [
+		`<rect x="${DUAL_BADGE_GAP.x}" y="${DUAL_BADGE_GAP.y}" width="${DUAL_BADGE_GAP.w}" height="${DUAL_BADGE_GAP.h}" fill="${palette.bg}"/>`,
+		`<text x="72" y="76" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${palette.accent}">${escapeXml(badge.toUpperCase())}</text>`
+	];
+}
+
+/**
+ * Dual-row value size by character count. One readout per half key: 32 px
+ * for the numeric norm, stepped tiers for fixed-decimals extremes, never
+ * below 14 px (the 12 px legibility floor plus margin). An inline badge
+ * shares the line, so a badged row steps down exactly one tier.
+ */
+export function dualValueFontSize(text: string, badged = false): 32 | 24 | 17 | 14 {
+	const count = Array.from(text).length;
+	const tier = count <= 4 ? 0 : count <= 6 ? 1 : count <= 9 ? 2 : 3;
+	const sizes = [32, 24, 17, 14] as const;
+	return sizes[Math.min(3, tier + (badged ? 1 : 0))] as 32 | 24 | 17 | 14;
+}
+
+export interface DualKeyRow {
+	label: string;
+	valueText: string;
+	unitText: string;
+	/** This row's own "MIN" | "MAX" | "AVG", drawn inline after the unit;
+	 * empty for the live value or when sharedBadge covers both rows. */
+	statBadge: string;
+}
+
+export interface DualKeyOptions {
+	top: DualKeyRow;
+	bottom: DualKeyRow;
+	/** Stat both rows display; drawn once, centered in the divider gap.
+	 * The caller sets this INSTEAD of the per-row badges when the rows
+	 * show the same stat. Empty for none. */
+	sharedBadge?: string;
+	/** Fully resolved tokens (alert override and type accent already applied;
+	 * alerts come from the primary reading's thresholds only). */
+	palette: Palette;
+}
+
+/**
+ * The dual layout: two stacked readouts on one key, each a label line plus a
+ * value line with the unit inline (the dial's proven tspan idiom), separated
+ * by a track-color divider. No sparkline in this layout — two rows use the
+ * full face.
+ */
+export function renderDualKey(opts: DualKeyOptions): string {
+	const { palette } = opts;
+	const sharedBadge = opts.sharedBadge ?? "";
+	const parts: string[] = svgOpen(144, 144, palette.bg);
+	[opts.top, opts.bottom].forEach((row, i) => {
+		const labelY = DUAL.labelY + i * DUAL.rowPitch;
+		const valueY = DUAL.valueY + i * DUAL.rowPitch;
+		parts.push(`<text x="72" y="${labelY}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${palette.label}">${escapeXml(truncateLabel(row.label, DUAL_LABEL_MAX))}</text>`);
+		const valueText = truncateLabel(row.valueText, DUAL_VALUE_MAX);
+		const badged = row.statBadge !== "";
+		const unit = row.unitText !== "" ? `<tspan dx="6" font-size="14" font-weight="600" fill="${palette.unit}">${escapeXml(row.unitText)}</tspan>` : "";
+		const badge = badged ? `<tspan dx="6" font-size="12" font-weight="700" letter-spacing="0.5" fill="${palette.accent}">${escapeXml(row.statBadge.toUpperCase())}</tspan>` : "";
+		// One middle-anchored chunk: the engine centers the value, unit and
+		// badge as a unit, exactly like the single layout centers its value.
+		parts.push(`<text x="72" y="${valueY}" text-anchor="middle" font-family="${FONT}" font-size="${dualValueFontSize(valueText, badged)}" font-weight="700" fill="${palette.value}">${escapeXml(valueText)}${unit}${badge}</text>`);
+	});
+	parts.push(`<rect x="12" y="${DUAL.dividerY}" width="120" height="2" fill="${palette.track}"/>`);
+	if (sharedBadge !== "") {
+		parts.push(...sharedBadgeSvg(sharedBadge, palette));
+	}
+	parts.push("</svg>");
+	return parts.join("");
+}
+
+/** Quad grid: four readouts in a 2x2 grid split by a hairline track-color
+ * cross. Cell centers sit at x=36/108 with the two rows at y offsets 0/72,
+ * so each quadrant is one 72 px cell of the 144 canvas. The shared stat
+ * badge reuses the dual layout's divider-gap idiom, centered where the
+ * cross arms meet. */
+const QUAD = { cellCenterX: [36, 108], rowTop: [0, 72] } as const;
+/** The cross arms: the dual divider plus its vertical twin. */
+const QUAD_CROSS_H = { x: 12, y: 71, w: 120, h: 2 } as const;
+const QUAD_CROSS_V = { x: 71, y: 12, w: 2, h: 120 } as const;
+/** Micro-label budget: 4 code points, hard cut (an ellipsis would eat a
+ * third of a 12 px identifier). */
+const QUAD_LABEL_MAX = 4;
+/** Values ellipsize here; the quad formatter caps at 4 glyphs, so any longer
+ * text is a defensive path, and 7 glyphs at the ramp's 14 px still fit the
+ * 72 px cell. */
+const QUAD_VALUE_MAX = 7;
+
+/** Default per-slot identity colors (top-left, top-right, bottom-left,
+ * bottom-right): four hues apart in both hue and lightness, picked to hold
+ * against every theme background. The action salvages user overrides per
+ * entry against these; the PI's preset list starts from the same four. */
+export const QUAD_DEFAULT_COLORS = ["#4CC2FF", "#FF7E8E", "#38CD89", "#D4AB33"] as const;
+
+/**
+ * Quad-cell value size by character count. The quad formatter caps values
+ * at 4 glyphs, where the base size holds (26 px, or 24 px when a micro-label
+ * shares the cell); anything longer steps down 4 px per extra glyph rather
+ * than overflow a 72 px cell, never below the 12 px legibility floor.
+ */
+export function quadValueFontSize(text: string, labeled = false): number {
+	const count = Array.from(text).length;
+	const base = labeled ? 24 : 26;
+	if (count <= 4) {
+		return base;
+	}
+	return Math.max(12, base - (count - 4) * 4);
+}
+
+export interface QuadKeyCell {
+	/** Micro-label source; drawn only in the labeled variant, hard-cut to 4
+	 * code points and uppercased. Empty draws no label. */
+	label: string;
+	valueText: string;
+	unitText: string;
+	/** This slot's identity color, already salvaged by the caller. It fills
+	 * the value in the default variant and the micro-label in the labeled
+	 * one. On alert the caller passes the alert palette's own text token
+	 * instead, so the whole key stays inside the global alert palette. */
+	color: string;
+}
+
+export interface QuadKeyOptions {
+	/** Up to four cells in reading order (top-left, top-right, bottom-left,
+	 * bottom-right). A null slot draws an empty quadrant. */
+	cells: readonly (QuadKeyCell | null)[];
+	/** Micro-label variant: a slot-colored 12 px label above a value in the
+	 * theme's value color, instead of color-as-identity values. */
+	labels?: boolean;
+	/** Stat every slot displays; one badge centered at the cross
+	 * intersection in the dual layout's gap idiom. Empty for the live value. */
+	sharedBadge?: string;
+	/** Fully resolved tokens (alert override and type accent already applied;
+	 * alerts come from the primary reading's thresholds only). */
+	palette: Palette;
+}
+
+/**
+ * The quad layout: a 2x2 grid of readouts behind a hairline cross. No
+ * sparkline and no per-cell badges in this layout; four cells use the whole
+ * face and the one shared badge sits at the cross center.
+ */
+export function renderQuadKey(opts: QuadKeyOptions): string {
+	const { palette } = opts;
+	const labeled = opts.labels === true;
+	const sharedBadge = opts.sharedBadge ?? "";
+	const parts: string[] = svgOpen(144, 144, palette.bg);
+	for (let i = 0; i < 4; i++) {
+		const cell = opts.cells[i] ?? null;
+		if (cell === null) {
+			continue;
+		}
+		const cx = QUAD.cellCenterX[i % 2] as number;
+		const top = QUAD.rowTop[i < 2 ? 0 : 1] as number;
+		const valueText = truncateLabel(cell.valueText, QUAD_VALUE_MAX);
+		if (labeled) {
+			// Uppercase before the cut: locale expansions (ß to SS) must never
+			// push a micro-label past its 4-glyph budget.
+			const micro = Array.from(cell.label.trim().toUpperCase()).slice(0, QUAD_LABEL_MAX).join("").trimEnd();
+			if (micro !== "") {
+				parts.push(`<text x="${cx}" y="${top + 20}" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${cell.color}">${escapeXml(micro)}</text>`);
+			}
+		}
+		parts.push(`<text x="${cx}" y="${top + (labeled ? 45 : 40)}" text-anchor="middle" font-family="${FONT}" font-size="${quadValueFontSize(valueText, labeled)}" font-weight="700" fill="${labeled ? palette.value : cell.color}">${escapeXml(valueText)}</text>`);
+		if (cell.unitText !== "") {
+			// 14 px matches the dual layout's unit step (single 16, dual 14,
+			// quad 14): the empty band under the value has the room, and the
+			// unit is what tells 1785 RPM from 1785 MHz at a glance.
+			parts.push(`<text x="${cx}" y="${top + (labeled ? 61 : 58)}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${palette.unit}">${escapeXml(cell.unitText)}</text>`);
+		}
+	}
+	parts.push(
+		`<rect x="${QUAD_CROSS_H.x}" y="${QUAD_CROSS_H.y}" width="${QUAD_CROSS_H.w}" height="${QUAD_CROSS_H.h}" fill="${palette.track}"/>`,
+		`<rect x="${QUAD_CROSS_V.x}" y="${QUAD_CROSS_V.y}" width="${QUAD_CROSS_V.w}" height="${QUAD_CROSS_V.h}" fill="${palette.track}"/>`
+	);
+	if (sharedBadge !== "") {
+		parts.push(...sharedBadgeSvg(sharedBadge, palette));
 	}
 	parts.push("</svg>");
 	return parts.join("");
@@ -158,13 +369,9 @@ export interface StatusKeyOptions {
 }
 
 export function renderStatusKey(opts: StatusKeyOptions): string {
-	const parts: string[] = [
-		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">`,
-		// True black so the key vanishes into an OLED panel (no backlight glow,
-		// no burn-in worry) and stays calm on the desk.
-		`<rect width="144" height="144" fill="#000000"/>`,
-		ICONS[opts.icon](opts.accent)
-	];
+	// True black so the key vanishes into an OLED panel (no backlight glow,
+	// no burn-in worry) and stays calm on the desk.
+	const parts: string[] = [...svgOpen(144, 144, "#000000"), ICONS[opts.icon](opts.accent)];
 	// One soft-white headline (never pure #fff — it blooms on OLED and tires the
 	// eye) and at most one dim sub-line. Two lines, not three: the full recovery
 	// step already lives in the PI hint, so the key can breathe.

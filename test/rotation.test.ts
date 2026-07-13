@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { Reading, SensorSnapshot } from "../src/hwinfo/types";
-import { activeGroupIndex, autoCycleTarget, groupDisplayName, groupReadings, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource } from "../src/rotation";
+import { activeGroupIndex, autoCycleTarget, groupDisplayName, groupReadings, overviewWindow, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource } from "../src/rotation";
 
 function reading(key: string, sensorIndex: number): Reading {
 	return { key, type: 1, sensorIndex, id: 0, label: key, unit: "°C", value: 50, valueMin: 40, valueMax: 60, valueAvg: 50 };
@@ -360,5 +360,42 @@ describe("rotation groups", () => {
 		assert.equal(activeGroupIndex(grouped, pulled?.key ?? ""), 1);
 		// After the alert clears, the cycle continues inside the new group.
 		assert.equal(autoCycleTarget(groupReadings(grouped, "b:0:2", snap), union, "b:0:2", new Set(), true)?.key, "b:0:1");
+	});
+});
+
+describe("overviewWindow (the three-row touchscreen viewport)", () => {
+	const five = [reading("v:0:1", 5), reading("v:0:2", 5), reading("v:0:3", 5), reading("v:0:4", 5), reading("v:0:5", 5)];
+
+	it("centers the selection once it is away from the ends", () => {
+		const { rows, selectedIndex } = overviewWindow(five, "v:0:3", 3);
+		assert.deepEqual(rows.map((r) => r.key), ["v:0:2", "v:0:3", "v:0:4"]);
+		assert.equal(selectedIndex, 1);
+	});
+
+	it("clamps at the top: the first two selections share the first window", () => {
+		assert.deepEqual(overviewWindow(five, "v:0:1", 3), { rows: five.slice(0, 3), selectedIndex: 0 });
+		assert.deepEqual(overviewWindow(five, "v:0:2", 3), { rows: five.slice(0, 3), selectedIndex: 1 });
+	});
+
+	it("clamps at the bottom: the last two selections share the last window", () => {
+		assert.deepEqual(overviewWindow(five, "v:0:4", 3), { rows: five.slice(2, 5), selectedIndex: 1 });
+		assert.deepEqual(overviewWindow(five, "v:0:5", 3), { rows: five.slice(2, 5), selectedIndex: 2 });
+	});
+
+	it("a list shorter than the window shows whole, selection where it is", () => {
+		const two = five.slice(0, 2);
+		assert.deepEqual(overviewWindow(two, "v:0:2", 3), { rows: two, selectedIndex: 1 });
+	});
+
+	it("a selection outside the list anchors at the top with no highlight", () => {
+		const { rows, selectedIndex } = overviewWindow(five, "stray:0:1", 3);
+		assert.deepEqual(rows.map((r) => r.key), ["v:0:1", "v:0:2", "v:0:3"]);
+		assert.equal(selectedIndex, -1);
+		assert.equal(overviewWindow(five, undefined, 3).selectedIndex, -1);
+	});
+
+	it("an empty list (or nonsense size) renders no rows, never throws", () => {
+		assert.deepEqual(overviewWindow([], "v:0:1", 3), { rows: [], selectedIndex: -1 });
+		assert.deepEqual(overviewWindow(five, "v:0:1", 0), { rows: [], selectedIndex: -1 });
 	});
 });

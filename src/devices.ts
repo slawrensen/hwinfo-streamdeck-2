@@ -16,7 +16,7 @@
  */
 import { DeviceType } from "@elgato/schemas/streamdeck/plugins";
 
-export type DeviceKind = "keys" | "keys+dials" | "dials" | "headless";
+type DeviceKind = "keys" | "keys+dials" | "dials" | "headless";
 
 export type DeviceCapabilities = {
 	/** DeviceType as reported by the app; undefined when it sent none. */

@@ -14,6 +14,89 @@ hand.
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
+## 1.2.0.0 - 2026-07-12
+
+- Two readings on one key. A new Layout setting on the Sensor Reading
+  action stacks a second readout under the first: two rows, each with
+  its own label, value and inline unit, split by a thin divider. The
+  second reading has its own sensor picker and label (so one key can
+  pair CPU with GPU, both RAM sticks, or the same sensor's minimum and
+  maximum). By default the second row follows the first's stat, the key
+  press cycles both rows together, and a non-current stat shows as one
+  MIN/MAX/AVG badge centered in the divider gap; "Second shows" can
+  instead pin the second row to a fixed stat. When the rows show
+  different stats, each non-current row carries its own badge inline
+  after its unit, the dial's idiom, so labels never lose width to a
+  corner badge. Decimals and the °F toggle apply to both rows;
+  warn/critical thresholds and the type accent follow the first
+  reading, and an alert recolors the whole key
+  exactly like the single layout. The sparkline stays a single-layout
+  feature: the second row takes its space. Existing keys are untouched;
+  the single layout remains the default and renders exactly as before.
+  (Requested in issue #1.)
+- Four readings on one key: the quad grid. A third Layout option splits
+  the key into a 2x2 grid, one reading per cell, behind a hairline
+  cross. The first two cells reuse the single and dual fields, so
+  switching from the stacked layout keeps both sensors; cells three and
+  four get their own pickers, and a quad with only two or three sensors
+  picked leaves the spare cells empty. By default each value is drawn
+  in its cell's color, so you can tell the four readings apart at a
+  glance: a preset select offers four hues, row pairs, or uniform
+  blue, and four color wells set any cell individually. A "Cell
+  labels" toggle switches to a short uppercase label above a plain
+  value instead.
+  Values compact to at most four characters per cell (48700 shows as
+  49k) and the font steps down rather than overflow a cell. Every cell
+  shows the same stat, the key press cycles them together, and a
+  non-current stat badges once at the cross center. Decimals and the
+  °F toggle apply to all cells; warn/critical thresholds and the
+  type accent follow the first sensor, and an alert recolors the whole
+  key over the cell colors, so warn and crit stay unmistakable. A cell
+  whose sensor drops out of HWiNFO's output shows a placeholder while
+  the rest keep updating, and junk in any slot costs only that cell.
+  The sparkline stays a single-layout feature.
+- Overview views for the dial touchscreen. "Overview (three rows)"
+  lists up to three readings of whatever rotation already moves
+  through (the rotation set, the active rotation group, or the picked
+  sensor's readings), each with its label and live value. "Overview
+  (two rows, big values + trend)" trades one row for size: two tall
+  rows with 26 px values, a full label line each, and the space beside
+  the value put to work: a long label word-wraps onto it, a short one
+  frees it for a live sparkline of that reading's recent values (the
+  keys' own recent-history line, fed for the visible rows; the reading
+  on the dial is marked with a full-width highlight band and an accent
+  bar). The three-row face is the wide tile: the reading on the dial is
+  a small accent thumb riding a left rail that spans the rows, which
+  also shows where the window sits in the full list; rotating moves the
+  thumb and scrolls the window. One context line (top by default, or
+  below the rows via the new Context line setting) carries the shared
+  name and the session low/high: the numbers always render in full,
+  right-anchored, and only the name shortens, so a long name can never
+  eat a stat. Values share one right-anchored column at a fixed
+  edge, sized by a ladder so the widest visible value fits, with units
+  in a fixed column beside it; row labels draw as small uppercase text
+  and thin separator lines between rows can be turned off with the new
+  Separators setting. The pinned and cycle-paused tags and the stat
+  badge share the context line's name region; a transient hint (a
+  group-jump name, a reset confirmation) briefly takes the whole line,
+  then the name and numbers return. Alerts recolor a row's value text
+  only. Rows stay readable the same three ways in both views:
+  leading words the visible rows share are lifted
+  into the context line ("GPU Temperature / GPU Hot Spot" reads as
+  "Temperature / Hot Spot" beside a "GPU" context; a Row labels setting
+  restores full names), values line up in one column, and any reading
+  can be renamed by clicking its chip's name in the rotation set (the
+  name also titles the dial when that reading is selected). Auto cycle,
+  alert interrupts (an alerting row can pull the window to itself),
+  pin, pause, touch taps, group jumps and the HWiNFO Control key all
+  drive the overview unchanged. The single view remains the default
+  and is pixel-identical to 1.1.11.
+- All of 1.2.0's additions are append-only settings: profiles written
+  by 1.2.0 degrade cleanly on older plugin versions (the extra fields
+  are ignored and the dial or key runs its single face), and malformed
+  values resolve to the nearest working layout, down to the single
+  face.
+
 ## 1.1.11.0 - 2026-07-12
 
 - Named rotation groups for the dial, optional and off until you build

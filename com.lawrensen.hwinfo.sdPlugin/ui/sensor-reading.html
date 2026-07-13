@@ -5,7 +5,7 @@
 		<title>Sensor Reading settings</title>
 		<script src="sdpi-components.js"></script>
 		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
-		<link rel="stylesheet" href="pi.css?v=1.1.11.0" />
+		<link rel="stylesheet" href="pi.css?v=1.2.0.0-5" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -54,6 +54,78 @@
 			</sdpi-select>
 		</sdpi-item>
 
+		<sdpi-item label="Layout">
+			<sdpi-select setting="keyLayout" default="single">
+				<option value="single">One reading (default)</option>
+				<option value="dual">Two readings, stacked</option>
+				<option value="quad">Four readings, quad grid</option>
+			</sdpi-select>
+		</sdpi-item>
+		<div id="second-slot" hidden>
+			<sdpi-item label="Second sensor">
+				<div class="hw-picker">
+					<input id="picker2-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
+					<button id="picker2-refresh" type="button" title="Reload sensor list">⟳</button>
+					<div class="hw-picker-list" id="picker2-list" hidden></div>
+				</div>
+			</sdpi-item>
+			<sdpi-item label="Second label">
+				<sdpi-textfield setting="secondaryLabel" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
+			</sdpi-item>
+		</div>
+		<div id="dual-rows" hidden>
+			<sdpi-item label="Second shows">
+				<sdpi-select setting="secondaryStatMode" default="follow">
+					<option value="follow">Follows the first reading (default)</option>
+					<option value="current">Always current value</option>
+					<option value="min">Always minimum (since HWiNFO start)</option>
+					<option value="max">Always maximum (since HWiNFO start)</option>
+					<option value="avg">Always average (since HWiNFO start)</option>
+				</sdpi-select>
+			</sdpi-item>
+			<div class="hw-help">Two rows on one key: the sensor above on top, this one below. By default both rows show the same stat and the key press cycles them together, with one badge centered on the divider. Pin this row to a fixed stat for pairs like minimum and maximum; when the stats differ, each non-current row badges inline after its unit. Thresholds and the theme accent follow the first reading; the sparkline is a single-layout feature.</div>
+		</div>
+		<div id="quad-rows" hidden>
+			<sdpi-item label="Third sensor">
+				<div class="hw-picker">
+					<input id="picker3-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
+					<button id="picker3-refresh" type="button" title="Reload sensor list">⟳</button>
+					<div class="hw-picker-list" id="picker3-list" hidden></div>
+				</div>
+			</sdpi-item>
+			<sdpi-item label="Third label">
+				<sdpi-textfield setting="quadLabel3" placeholder="Short name; 4 characters show"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item label="Fourth sensor">
+				<div class="hw-picker">
+					<input id="picker4-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
+					<button id="picker4-refresh" type="button" title="Reload sensor list">⟳</button>
+					<div class="hw-picker-list" id="picker4-list" hidden></div>
+				</div>
+			</sdpi-item>
+			<sdpi-item label="Fourth label">
+				<sdpi-textfield setting="quadLabel4" placeholder="Short name; 4 characters show"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item label="Cell colors">
+				<div class="hw-quad-colors">
+					<select id="quad-color-preset" title="Color preset for the four cells">
+						<option value="signal">Signal (four hues)</option>
+						<option value="pairs">Pairs (top row, bottom row)</option>
+						<option value="uniform">Uniform (accent blue)</option>
+						<option value="custom" hidden>Custom</option>
+					</select>
+					<input type="color" id="quad-color-1" title="Top left cell color" />
+					<input type="color" id="quad-color-2" title="Top right cell color" />
+					<input type="color" id="quad-color-3" title="Bottom left cell color" />
+					<input type="color" id="quad-color-4" title="Bottom right cell color" />
+				</div>
+			</sdpi-item>
+			<sdpi-item label="Cell labels">
+				<sdpi-checkbox setting="quadLabels" label="Show a small label in each cell"></sdpi-checkbox>
+			</sdpi-item>
+			<div class="hw-help">Cells fill in reading order: the sensor above top left, then second, third and fourth. Every cell shows the same stat (the press cycles all four together), and thresholds follow the first sensor, recoloring the whole key on alert.</div>
+		</div>
+
 		<sdpi-item label="Decimals">
 			<sdpi-select setting="decimals" default="auto">
 				<option value="auto">Auto</option>
@@ -68,9 +140,11 @@
 			<sdpi-checkbox setting="fahrenheit" label="Show temperatures in °F"></sdpi-checkbox>
 		</sdpi-item>
 
-		<sdpi-item label="Sparkline">
-			<sdpi-checkbox setting="sparkline" label="Show recent history"></sdpi-checkbox>
-		</sdpi-item>
+		<div id="sparkline-item">
+			<sdpi-item label="Sparkline">
+				<sdpi-checkbox setting="sparkline" label="Show recent history"></sdpi-checkbox>
+			</sdpi-item>
+		</div>
 
 		<sdpi-item label="Warn at">
 			<sdpi-textfield setting="warnValue" pattern="^-?\d*([.,]\d+)?$" placeholder="key turns amber (display units)"></sdpi-textfield>
@@ -129,6 +203,7 @@
 			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-common.js?v=1.1.11.0"></script>
+		<script src="pi-common.js?v=1.2.0.0-5"></script>
+		<script src="pi-control.js?v=1.2.0.0-5"></script>
 	</body>
 </html>

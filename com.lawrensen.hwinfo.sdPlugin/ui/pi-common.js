@@ -1,19 +1,22 @@
-/* Shared property-inspector logic: the searchable sensor picker, the live
-   preview line, and the status hint. Persists the selection through
+/* Shared property-inspector logic: the searchable sensor picker(s), the live
+   preview line, and the status hint. Persists selections through
    SDPIComponents.useSettings so sdpi-managed fields are never clobbered.
 
    Expected DOM (see sensor-reading.html / sensor-dial.html):
      #picker-search, #picker-refresh, #picker-list, #preview-value,
-     #preview-stats, #status-hint                                      */
+     #preview-stats, #status-hint, #theme-gallery
+   Optional (sensor-reading.html dual and quad layouts):
+     #picker2-search, #picker2-refresh, #picker2-list, #second-slot,
+     #dual-rows, #sparkline-item, #quad-rows, #picker3-*, #picker4-*,
+     #quad-color-preset, #quad-color-1..4
+   Optional (sensor-dial.html overview views):
+     #overview-rows, #overview-three-rows                              */
 /* global SDPIComponents */
 (() => {
 	"use strict";
 
 	const { streamDeckClient, useSettings } = SDPIComponents;
 
-	const searchEl = document.getElementById("picker-search");
-	const refreshEl = document.getElementById("picker-refresh");
-	const listEl = document.getElementById("picker-list");
 	const previewValueEl = document.getElementById("preview-value");
 	const previewStatsEl = document.getElementById("preview-stats");
 	const hintEl = document.getElementById("status-hint");
@@ -21,77 +24,89 @@
 	const rotationSetEl = document.getElementById("rotation-set"); // dial PI only
 	const controlsCustomEl = document.getElementById("controls-custom"); // dial PI only
 	const controlsZonesEl = document.getElementById("controls-zones"); // dial PI only
-	const supportEl = document.getElementById("support-report");
+	const dualRowsEl = document.getElementById("dual-rows"); // reading PI only
 
 	const MAX_ROWS = 150;
-	const SENSOR_TYPE_NAMES = ["", "Temp", "Voltage", "Fan", "Current", "Power", "Clock", "Usage", ""];
+	const SENSOR_TYPE_NAMES = ["", "Temp", "Voltage", "Fan", "Current", "Power", "Clock", "Usage"];
 
 	let tree = null; // [{ name, readings: [{ key, label, unit, value, type }] }]
 	let treeFetchedOk = false; // last sensorTree arrived while HWiNFO was up
 	let treeRequestPending = false;
-	let selectedKey = "";
-	let listOpen = false;
-	// True only after a real keystroke in the search box; cleared whenever the
-	// box is programmatically rewritten. The old proxy (box text differs from
-	// the selection display) misfired when rotation moved the selection under
-	// a focused box: the stale display text filtered the list to nothing.
-	let searchTyped = false;
 
-	// Immediate (non-debounced) persistence; third arg null disables debounce.
-	const [getReadingKey, setReadingKey] = useSettings(
-		"readingKey",
-		(value) => {
-			selectedKey = typeof value === "string" ? value : "";
-			showSelection();
-			renderList();
-			renderRotationSet(); // the current-chip highlight follows the move
-			// Rotating the dial (or autocycle) moves the selection while the
-			// list is open: keep the highlighted row in view so the movement
-			// is visible. "nearest" only scrolls when it left the viewport,
-			// and a hand-typed filter is never yanked around.
-			if (listOpen && !searchTyped) {
-				listEl.querySelector(".hw-row.selected")?.scrollIntoView({ block: "nearest" });
+	function requestTree() {
+		treeRequestPending = true;
+		streamDeckClient.send("sendToPlugin", { event: "getSensorTree" });
+	}
+
+	function fmt(value) {
+		if (!Number.isFinite(value)) return "—";
+		const abs = Math.abs(value);
+		if (abs >= 10000) return `${(value / 1000).toFixed(1)}k`;
+		if (abs >= 100) return value.toFixed(0);
+		if (abs >= 10) return value.toFixed(1);
+		return value.toFixed(2);
+	}
+
+	function readingLabelOf(key) {
+		if (tree !== null) {
+			for (const group of tree) {
+				for (const reading of group.readings) {
+					if (reading.key === key) return reading.label;
+				}
 			}
-		},
-		null
-	);
+		}
+		return null;
+	}
 
-	// Rotation set (dial PI only): the readings dial rotation is limited to,
-	// ticked in the picker rows. Shown under the picker as one flat chips row,
-	// or split into named groups (plain rotate stays inside a group, a gesture
-	// set to "Switch sensor or group" jumps between them). rotationKeys is
-	// kept mirrored to the union of all group keys, so set-wide consumers
-	// (stats, reset reach) and older plugin versions after a rollback keep
-	// reading the flat set unchanged. The plugin ignores anything under two
-	// non-empty groups; the PI still renders those editing states.
+	// --- rotation set (dial PI only) -----------------------------------------
+	// The readings dial rotation is limited to, ticked in the primary picker's
+	// rows. Shown under the picker as one flat chips row, or split into named
+	// groups (plain rotate stays inside a group, a gesture set to "Switch
+	// sensor or group" jumps between them). rotationKeys is kept mirrored to
+	// the union of all group keys, so set-wide consumers (stats, reset reach)
+	// and older plugin versions after a rollback keep reading the flat set
+	// unchanged. The plugin ignores anything under two non-empty groups; the
+	// PI still renders those editing states. Declared before the pickers so
+	// every reference below is initialized by the time async callbacks fire.
 	let rotationKeys = [];
 	let rotationGroups = null; // null = flat set; else [{ name, keys }]
+	let rotationNames = {}; // per-reading display names, keyed by reading key
 	let collectorIndex = 0; // which group new ticks land in (PI-local, not persisted)
-	const rotationBinding =
-		rotationSetEl === null
-			? null
-			: useSettings(
-					"rotationKeys",
-					(value) => {
-						rotationKeys = Array.isArray(value) ? value.filter((k) => typeof k === "string") : [];
-						renderRotationSet();
-						renderList();
-					},
-					null
-				);
-	const groupsBinding =
-		rotationSetEl === null
-			? null
-			: useSettings(
-					"rotationGroups",
-					(value) => {
-						rotationGroups = parseGroupsSetting(value);
-						clampCollector();
-						renderRotationSet();
-						renderList();
-					},
-					null
-				);
+
+	function adoptRotationKeys(value) {
+		rotationKeys = Array.isArray(value) ? value.filter((k) => typeof k === "string") : [];
+		renderRotationSet();
+		primaryPicker.renderList();
+	}
+
+	function adoptRotationGroups(value) {
+		rotationGroups = parseGroupsSetting(value);
+		clampCollector();
+		renderRotationSet();
+		primaryPicker.renderList();
+	}
+
+	function adoptRotationNames(value) {
+		rotationNames = parseNamesSetting(value);
+		renderRotationSet();
+	}
+
+	const rotationBinding = rotationSetEl === null ? null : useSettings("rotationKeys", adoptRotationKeys, null);
+	const groupsBinding = rotationSetEl === null ? null : useSettings("rotationGroups", adoptRotationGroups, null);
+	// Per-reading names: shown on the chip, the overview rows, and as the
+	// dial title while that reading is selected. Unticking a reading keeps
+	// its name, so re-adding it restores the rename.
+	const namesBinding = rotationSetEl === null ? null : useSettings("rotationNames", adoptRotationNames, null);
+
+	// Settings are untyped JSON: keep non-empty string names only.
+	function parseNamesSetting(value) {
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+		const names = {};
+		for (const [key, name] of Object.entries(value)) {
+			if (typeof name === "string" && name.trim() !== "") names[key] = name;
+		}
+		return names;
+	}
 
 	// Settings are untyped JSON: keep what renders (name string, string keys)
 	// and treat an empty or non-array value as "no groups" (the flat set).
@@ -142,7 +157,7 @@
 		}
 		rotationBinding[1](rotationKeys);
 		renderRotationSet();
-		for (const row of listEl.querySelectorAll(".hw-row")) {
+		for (const row of primaryPicker.list.querySelectorAll(".hw-row")) {
 			const tick = row.querySelector(".hw-tick");
 			if (tick !== null) tick.checked = memberOfRotation(row.dataset.key);
 		}
@@ -166,25 +181,17 @@
 		writeRotation(rotationGroups !== null);
 	}
 
-	function readingLabelOf(key) {
-		if (tree !== null) {
-			for (const group of tree) {
-				for (const reading of group.readings) {
-					if (reading.key === key) return reading.label;
-				}
-			}
-		}
-		return null;
-	}
-
 	function setChip(key, groupIndex) {
 		const label = readingLabelOf(key);
 		const chip = document.createElement("span");
 		// "current" paints the chip of the reading on the dial right now, so
 		// the open panel shows where rotation (and a group jump) landed.
-		chip.className = "hw-set-chip" + (tree !== null && label === null ? " missing" : "") + (key === selectedKey ? " current" : "");
+		chip.className = "hw-set-chip" + (tree !== null && label === null ? " missing" : "") + (key === primaryPicker.selectedKey() ? " current" : "");
+		chip.dataset.key = key;
 		const name = document.createElement("span");
-		name.textContent = label ?? key;
+		name.className = "hw-set-name";
+		name.textContent = rotationNames[key] ?? label ?? key;
+		name.title = "Click to rename how this reading shows on the dial";
 		const remove = document.createElement("button");
 		remove.type = "button";
 		remove.className = "hw-set-remove";
@@ -302,44 +309,294 @@
 		updateRotationHelp();
 	}
 
-	function fmt(value) {
-		if (!Number.isFinite(value)) return "—";
-		const abs = Math.abs(value);
-		if (abs >= 10000) return `${(value / 1000).toFixed(1)}k`;
-		if (abs >= 100) return value.toFixed(0);
-		if (abs >= 10) return value.toFixed(1);
-		return value.toFixed(2);
-	}
+	// --- sensor pickers -------------------------------------------------------
+	// One factory, one instance per search box. The tree is shared; rotation
+	// ticks exist only on the dial PI's primary picker. Each picker owns its
+	// open/typed state so the reading PI's two pickers never fight.
+	const pickers = [];
 
-	function findSelected() {
-		if (tree === null || selectedKey === "") return null;
-		for (const group of tree) {
-			for (const reading of group.readings) {
-				if (reading.key === selectedKey) return { group, reading };
+	function createPicker(config) {
+		const searchEl = config.search;
+		const listEl = config.list;
+		let selectedKey = "";
+		let listOpen = false;
+		// True only after a real keystroke in the search box; cleared whenever
+		// the box is programmatically rewritten. The old proxy (box text
+		// differs from the selection display) misfired when rotation moved the
+		// selection under a focused box: the stale display text filtered the
+		// list to nothing.
+		let searchTyped = false;
+
+		// Immediate (non-debounced) persistence; third arg null disables debounce.
+		const [getKey, setKey] = useSettings(
+			config.setting,
+			(value) => {
+				selectedKey = typeof value === "string" ? value : "";
+				showSelection();
+				renderList();
+				config.onSelectionEcho?.(); // chip highlight follows the move
+				// Rotating the dial (or autocycle) moves the selection while the
+				// list is open: keep the highlighted row in view so the movement
+				// is visible. "nearest" only scrolls when it left the viewport,
+				// and a hand-typed filter is never yanked around.
+				if (listOpen && !searchTyped) {
+					listEl.querySelector(".hw-row.selected")?.scrollIntoView({ block: "nearest" });
+				}
+			},
+			null
+		);
+
+		function findSelected() {
+			if (tree === null || selectedKey === "") return null;
+			for (const group of tree) {
+				for (const reading of group.readings) {
+					if (reading.key === selectedKey) return { group, reading };
+				}
+			}
+			return null;
+		}
+
+		function showSelection() {
+			if (document.activeElement === searchEl && listOpen && searchTyped) return; // don't fight the user mid-search
+			searchTyped = false;
+			const found = findSelected();
+			if (found !== null) {
+				searchEl.value = `${found.reading.label}  ·  ${found.group.name}`;
+				searchEl.placeholder = "Search sensors…";
+				searchEl.classList.remove("missing");
+			} else if (selectedKey !== "") {
+				// Never put the warning into .value; it would act as a search filter.
+				searchEl.value = "";
+				searchEl.placeholder = "⚠ selected sensor not present. Pick again";
+				searchEl.classList.add("missing");
+			} else {
+				searchEl.value = "";
+				searchEl.placeholder = "Search sensors…";
+				searchEl.classList.remove("missing");
 			}
 		}
-		return null;
+
+		function tokensOf(text) {
+			return text.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+		}
+
+		function renderList() {
+			if (!listOpen) return;
+			if (tree === null) {
+				listEl.innerHTML = `<div class="hw-more">Loading sensors…</div>`;
+				return;
+			}
+			const raw = searchEl.value;
+			// Only a filter the user actually typed filters the list.
+			const filtering = searchTyped && raw !== "";
+			const tokens = filtering ? tokensOf(raw) : [];
+
+			const frag = document.createDocumentFragment();
+			let shown = 0;
+			let hidden = 0;
+			for (const group of tree) {
+				const groupLower = group.name.toLowerCase();
+				let header = null;
+				for (const reading of group.readings) {
+					const hay = `${groupLower} ${reading.label.toLowerCase()}`;
+					if (tokens.length > 0 && !tokens.every((t) => hay.includes(t))) continue;
+					if (shown >= MAX_ROWS) {
+						hidden++;
+						continue;
+					}
+					if (header === null) {
+						header = document.createElement("div");
+						header.className = "hw-group";
+						header.textContent = group.name;
+						frag.appendChild(header);
+					}
+					const row = document.createElement("div");
+					row.className = "hw-row" + (reading.key === selectedKey ? " selected" : "");
+					row.dataset.key = reading.key;
+					if (config.withTicks) {
+						const tick = document.createElement("input");
+						tick.type = "checkbox";
+						tick.className = "hw-tick";
+						tick.checked = memberOfRotation(reading.key);
+						tick.title = rotationGroups === null ? "Include in the rotation set" : "Include in the marked rotation group";
+						row.appendChild(tick);
+					}
+					const label = document.createElement("span");
+					label.className = "hw-label";
+					label.textContent = reading.label;
+					const val = document.createElement("span");
+					val.className = "hw-val";
+					const typeName = SENSOR_TYPE_NAMES[reading.type] || "";
+					val.textContent = `${fmt(reading.value)} ${reading.unit}${typeName ? " · " + typeName : ""}`;
+					row.append(label, val);
+					frag.appendChild(row);
+					shown++;
+				}
+			}
+			if (shown === 0) {
+				const none = document.createElement("div");
+				none.className = "hw-more";
+				none.textContent = tokens.length > 0 ? "No sensors match." : "No sensors reported. Check HWiNFO's sensor window.";
+				frag.appendChild(none);
+			}
+			if (hidden > 0) {
+				const more = document.createElement("div");
+				more.className = "hw-more";
+				more.textContent = `…${hidden} more. Refine the search.`;
+				frag.appendChild(more);
+			}
+			listEl.replaceChildren(frag);
+		}
+
+		function openList() {
+			if (listOpen) return;
+			listOpen = true;
+			listEl.hidden = false;
+			renderList();
+			const sel = listEl.querySelector(".hw-row.selected");
+			if (sel) sel.scrollIntoView({ block: "center" });
+		}
+
+		function closeList() {
+			listOpen = false;
+			listEl.hidden = true;
+			showSelection();
+		}
+
+		function selectRow(row) {
+			if (!row || !row.dataset.key) return;
+			selectedKey = row.dataset.key;
+			setKey(selectedKey);
+			closeList();
+			config.onSelectionEcho?.(); // own writes are not echoed back
+		}
+
+		searchEl.addEventListener("focus", () => {
+			searchEl.select();
+			openList();
+		});
+
+		// After a selection the input keeps focus (the row's mousedown is
+		// preventDefault-ed), so no focus event fires; reopen on click too.
+		searchEl.addEventListener("mousedown", () => {
+			if (!listOpen && document.activeElement === searchEl) {
+				searchEl.select();
+				openList();
+			}
+		});
+
+		searchEl.addEventListener("input", () => {
+			searchTyped = true;
+			openList();
+			renderList();
+		});
+
+		searchEl.addEventListener("keydown", (ev) => {
+			if (ev.key === "Escape") {
+				closeList();
+				searchEl.blur();
+			} else if (ev.key === "Enter" && listOpen) {
+				// Only treat Enter as "pick the top row" when the user actually typed
+				// a filter (same condition renderList uses). With the box still showing
+				// the current selection (or the ⚠ missing-sensor placeholder), the list
+				// is the full unfiltered tree, whose top row is unrelated; picking it
+				// would silently swap the user's saved sensor. Just close instead.
+				if (searchTyped && searchEl.value !== "") {
+					selectRow(listEl.querySelector(".hw-row"));
+				} else {
+					closeList();
+				}
+			}
+		});
+
+		// mousedown fires before the input's blur, keeping selection handling simple.
+		listEl.addEventListener("mousedown", (ev) => {
+			const row = ev.target.closest(".hw-row");
+			if (!row) return;
+			// Membership ticks toggle natively on the CLICK that follows; fighting
+			// that from mousedown left the box visually inverted. Let it be.
+			if (ev.target.classList.contains("hw-tick")) return;
+			ev.preventDefault();
+			selectRow(row);
+		});
+
+		if (config.withTicks) {
+			// The checkbox's own activation already flipped it; adopt its new state.
+			listEl.addEventListener("click", (ev) => {
+				if (!ev.target.classList.contains("hw-tick")) return;
+				const row = ev.target.closest(".hw-row");
+				setRotationMembership(row?.dataset.key, ev.target.checked);
+			});
+		}
+
+		if (config.refresh) {
+			config.refresh.addEventListener("click", () => {
+				tree = null;
+				renderList();
+				requestTree();
+			});
+		}
+
+		const picker = {
+			root: searchEl.closest(".hw-picker"),
+			list: listEl,
+			isOpen: () => listOpen,
+			close: closeList,
+			selectedKey: () => selectedKey,
+			renderList,
+			/** Refresh after the shared tree changed (labels resolve, rows fill). */
+			onTree: () => {
+				showSelection();
+				renderList();
+			},
+			/** Pull the initial value (useSettings callbacks fire on echoes only). */
+			init: () =>
+				getKey().then((value) => {
+					selectedKey = typeof value === "string" ? value : "";
+					showSelection();
+					config.onSelectionEcho?.(); // the set may render before the key arrives
+				})
+		};
+		pickers.push(picker);
+		return picker;
 	}
 
-	function showSelection() {
-		if (document.activeElement === searchEl && listOpen && searchTyped) return; // don't fight the user mid-search
-		searchTyped = false;
-		const found = findSelected();
-		if (found !== null) {
-			searchEl.value = `${found.reading.label}  ·  ${found.group.name}`;
-			searchEl.placeholder = "Search sensors…";
-			searchEl.classList.remove("missing");
-		} else if (selectedKey !== "") {
-			// Never put the warning into .value; it would act as a search filter.
-			searchEl.value = "";
-			searchEl.placeholder = "⚠ selected sensor not present. Pick again";
-			searchEl.classList.add("missing");
-		} else {
-			searchEl.value = "";
-			searchEl.placeholder = "Search sensors…";
-			searchEl.classList.remove("missing");
+	const primaryPicker = createPicker({
+		search: document.getElementById("picker-search"),
+		refresh: document.getElementById("picker-refresh"),
+		list: document.getElementById("picker-list"),
+		setting: "readingKey",
+		withTicks: rotationSetEl !== null,
+		onSelectionEcho: renderRotationSet
+	});
+
+	// The extra-slot pickers (reading PI only in the markup): slot 2 serves
+	// the dual AND quad layouts, slots 3 and 4 are quad-only.
+	const extraPicker = (n, setting) => {
+		const searchEl = document.getElementById(`picker${n}-search`);
+		return searchEl === null
+			? null
+			: createPicker({
+					search: searchEl,
+					refresh: document.getElementById(`picker${n}-refresh`),
+					list: document.getElementById(`picker${n}-list`),
+					setting
+				});
+	};
+	const secondaryPicker = extraPicker(2, "secondaryReadingKey");
+	const quadPicker3 = extraPicker(3, "quadReadingKey3");
+	const quadPicker4 = extraPicker(4, "quadReadingKey4");
+
+	document.addEventListener("mousedown", (ev) => {
+		// composedPath, not target.closest: toggling a rotation tick re-renders
+		// the rows mid-bubble, detaching ev.target; closest() on a detached node
+		// would misread the click as outside the picker and close the list.
+		// Checked per picker so opening one never strands the other open.
+		const path = ev.composedPath();
+		for (const picker of pickers) {
+			if (picker.isOpen() && !path.includes(picker.root)) picker.close();
 		}
-	}
+	});
 
 	function setHint(text) {
 		hintEl.hidden = !text;
@@ -364,186 +621,18 @@
 		previewStatsEl.title = previewStatsEl.textContent;
 	}
 
-	function tokensOf(text) {
-		return text.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
-	}
-
-	function renderList() {
-		if (!listOpen) return;
-		if (tree === null) {
-			listEl.innerHTML = `<div class="hw-more">Loading sensors…</div>`;
-			return;
-		}
-		const raw = searchEl.value;
-		// Only a filter the user actually typed filters the list.
-		const filtering = searchTyped && raw !== "";
-		const tokens = filtering ? tokensOf(raw) : [];
-
-		const frag = document.createDocumentFragment();
-		let shown = 0;
-		let hidden = 0;
-		for (const group of tree) {
-			const groupLower = group.name.toLowerCase();
-			let header = null;
-			for (const reading of group.readings) {
-				const hay = `${groupLower} ${reading.label.toLowerCase()}`;
-				if (tokens.length > 0 && !tokens.every((t) => hay.includes(t))) continue;
-				if (shown >= MAX_ROWS) {
-					hidden++;
-					continue;
-				}
-				if (header === null) {
-					header = document.createElement("div");
-					header.className = "hw-group";
-					header.textContent = group.name;
-					frag.appendChild(header);
-				}
-				const row = document.createElement("div");
-				row.className = "hw-row" + (reading.key === selectedKey ? " selected" : "");
-				row.dataset.key = reading.key;
-				if (rotationSetEl !== null) {
-					const tick = document.createElement("input");
-					tick.type = "checkbox";
-					tick.className = "hw-tick";
-					tick.checked = memberOfRotation(reading.key);
-					tick.title = rotationGroups === null ? "Include in the rotation set" : "Include in the marked rotation group";
-					row.appendChild(tick);
-				}
-				const label = document.createElement("span");
-				label.className = "hw-label";
-				label.textContent = reading.label;
-				const val = document.createElement("span");
-				val.className = "hw-val";
-				const typeName = SENSOR_TYPE_NAMES[reading.type] || "";
-				val.textContent = `${fmt(reading.value)} ${reading.unit}${typeName ? " · " + typeName : ""}`;
-				row.append(label, val);
-				frag.appendChild(row);
-				shown++;
-			}
-		}
-		if (shown === 0) {
-			const none = document.createElement("div");
-			none.className = "hw-more";
-			none.textContent = tokens.length > 0 ? "No sensors match." : "No sensors reported. Check HWiNFO's sensor window.";
-			frag.appendChild(none);
-		}
-		if (hidden > 0) {
-			const more = document.createElement("div");
-			more.className = "hw-more";
-			more.textContent = `…${hidden} more. Refine the search.`;
-			frag.appendChild(more);
-		}
-		listEl.replaceChildren(frag);
-	}
-
-	function openList() {
-		if (listOpen) return;
-		listOpen = true;
-		listEl.hidden = false;
-		renderList();
-		const sel = listEl.querySelector(".hw-row.selected");
-		if (sel) sel.scrollIntoView({ block: "center" });
-	}
-
-	function closeList() {
-		listOpen = false;
-		listEl.hidden = true;
-		showSelection();
-	}
-
-	function requestTree() {
-		treeRequestPending = true;
-		streamDeckClient.send("sendToPlugin", { event: "getSensorTree" });
-	}
-
-	function selectRow(row) {
-		if (!row || !row.dataset.key) return;
-		selectedKey = row.dataset.key;
-		setReadingKey(selectedKey);
-		closeList();
-		renderRotationSet(); // own writes are not echoed back: move the highlight here
-	}
-
-	// --- wiring -------------------------------------------------------------
-
-	searchEl.addEventListener("focus", () => {
-		searchEl.select();
-		openList();
-	});
-
-	// After a selection the input keeps focus (the row's mousedown is
-	// preventDefault-ed), so no focus event fires; reopen on click too.
-	searchEl.addEventListener("mousedown", () => {
-		if (!listOpen && document.activeElement === searchEl) {
-			searchEl.select();
-			openList();
-		}
-	});
-
-	searchEl.addEventListener("input", () => {
-		searchTyped = true;
-		openList();
-		renderList();
-	});
-
-	searchEl.addEventListener("keydown", (ev) => {
-		if (ev.key === "Escape") {
-			closeList();
-			searchEl.blur();
-		} else if (ev.key === "Enter" && listOpen) {
-			// Only treat Enter as "pick the top row" when the user actually typed
-			// a filter (same condition renderList uses). With the box still showing
-			// the current selection (or the ⚠ missing-sensor placeholder), the list
-			// is the full unfiltered tree, whose top row is unrelated; picking it
-			// would silently swap the user's saved sensor. Just close instead.
-			if (searchTyped && searchEl.value !== "") {
-				selectRow(listEl.querySelector(".hw-row"));
-			} else {
-				closeList();
-			}
-		}
-	});
-
-	// mousedown fires before the input's blur, keeping selection handling simple.
-	listEl.addEventListener("mousedown", (ev) => {
-		const row = ev.target.closest(".hw-row");
-		if (!row) return;
-		// Membership ticks toggle natively on the CLICK that follows; fighting
-		// that from mousedown left the box visually inverted. Let it be.
-		if (ev.target.classList.contains("hw-tick")) return;
-		ev.preventDefault();
-		selectRow(row);
-	});
-
-	// The checkbox's own activation already flipped it; adopt its new state.
-	listEl.addEventListener("click", (ev) => {
-		if (!ev.target.classList.contains("hw-tick")) return;
-		const row = ev.target.closest(".hw-row");
-		setRotationMembership(row?.dataset.key, ev.target.checked);
-	});
-
-	document.addEventListener("mousedown", (ev) => {
-		// composedPath, not target.closest: toggling a rotation tick re-renders
-		// the rows mid-bubble, detaching ev.target; closest() on a detached node
-		// would misread the click as outside the picker and close the list.
-		const insidePicker = ev.composedPath().some((el) => el instanceof Element && el.classList.contains("hw-picker"));
-		if (listOpen && !insidePicker) closeList();
-	});
-
-	if (refreshEl) {
-		refreshEl.addEventListener("click", () => {
-			tree = null;
-			renderList();
-			requestTree();
-		});
-	}
+	// The sdpi store notifies subscribers on didReceiveSettings only, and the
+	// app does NOT echo a PI's own setSettings back to it, so picking a value
+	// in this very panel never fires the subscription. Poll the LOCAL settings
+	// cache (no round trip) so dependent rows follow while the panel is open.
+	const followSetting = (setting, apply) => {
+		const [get] = useSettings(setting, apply, null);
+		get().then(apply);
+		setInterval(() => get().then(apply), 400);
+	};
 
 	// Control preset (dial PI only): the custom gesture rows only exist for
-	// "custom", the touch-zone picker for anything beyond legacy. The sdpi
-	// store notifies subscribers on didReceiveSettings only, and the app does
-	// NOT echo a PI's own setSettings back to it, so picking a preset in this
-	// very panel never fires the subscription. Poll the LOCAL settings cache
-	// (no round trip) so the rows follow the select while the panel is open.
+	// "custom", the touch-zone picker for anything beyond legacy.
 	if (controlsCustomEl !== null) {
 		// Switching Elite to Custom seeds Elite's map into every gesture field
 		// still unset, so "Elite minus one gesture" is a one-select change
@@ -580,43 +669,91 @@
 			controlsCustomEl.hidden = preset !== "custom";
 			if (controlsZonesEl !== null) controlsZonesEl.hidden = preset === "legacy";
 		};
-		const [getPreset] = useSettings("controlPreset", applyPreset, null);
-		getPreset().then(applyPreset);
-		setInterval(() => getPreset().then(applyPreset), 400);
+		followSetting("controlPreset", applyPreset);
 	}
 
-	// "Copy support report": ask the plugin for the redacted report, copy it.
-	if (supportEl !== null) {
-		supportEl.addEventListener("click", () => {
-			supportEl.disabled = true;
-			streamDeckClient.send("sendToPlugin", { event: "getSupportReport" });
+	// Key layout (reading PI only): the second-slot rows serve "dual" and
+	// "quad" (the quad's slots 1 and 2 ARE the single/dual fields, so
+	// switching layouts keeps both sensors), the "Second shows" pin is
+	// dual-only, the quad rows (slots 3/4, cell colors, micro-labels) are
+	// quad-only, and the sparkline row hides on both multi layouts (their
+	// faces have no sparkline strip).
+	if (dualRowsEl !== null) {
+		const secondSlotEl = document.getElementById("second-slot");
+		const quadRowsEl = document.getElementById("quad-rows");
+		const sparklineItemEl = document.getElementById("sparkline-item");
+		const applyLayout = (value) => {
+			const dual = value === "dual";
+			const quad = value === "quad";
+			if (secondSlotEl !== null) secondSlotEl.hidden = !dual && !quad;
+			dualRowsEl.hidden = !dual;
+			if (quadRowsEl !== null) quadRowsEl.hidden = !quad;
+			if (sparklineItemEl !== null) sparklineItemEl.hidden = dual || quad;
+		};
+		followSetting("keyLayout", applyLayout);
+	}
+
+	// Dial view (dial PI only): the overview rows serve both multi-row
+	// views; the Context line and Separators selects are three-row only.
+	const overviewRowsEl = document.getElementById("overview-rows");
+	if (overviewRowsEl !== null) {
+		const overviewThreeEl = document.getElementById("overview-three-rows");
+		const applyView = (value) => {
+			overviewRowsEl.hidden = value !== "overview" && value !== "tworow";
+			if (overviewThreeEl !== null) overviewThreeEl.hidden = value !== "overview";
+		};
+		followSetting("dialView", applyView);
+	}
+
+	// Quad cell colors (reading PI only): one preset select plus four
+	// per-cell wells, all writing the single quadColors setting. The plugin
+	// salvages per entry, so a bad hex costs exactly that cell; the select
+	// snaps to "Custom" whenever the wells match no preset.
+	const quadPresetEl = document.getElementById("quad-color-preset");
+	if (quadPresetEl !== null) {
+		// Mirrors QUAD_DEFAULT_COLORS in src/ui/key-renderer.ts.
+		const QUAD_DEFAULTS = ["#4CC2FF", "#FF7E8E", "#38CD89", "#D4AB33"];
+		const QUAD_PRESETS = {
+			signal: QUAD_DEFAULTS,
+			pairs: ["#4CC2FF", "#4CC2FF", "#FF7E8E", "#FF7E8E"],
+			uniform: ["#4CC2FF", "#4CC2FF", "#4CC2FF", "#4CC2FF"]
+		};
+		const QUAD_HEX = /^#[0-9A-Fa-f]{6}$/;
+		const cellInputs = [1, 2, 3, 4].map((n) => document.getElementById(`quad-color-${n}`));
+		let quadColors = [...QUAD_DEFAULTS];
+		const adoptQuadColors = (value) => {
+			const raw = Array.isArray(value) ? value : [];
+			quadColors = QUAD_DEFAULTS.map((fallback, i) => (typeof raw[i] === "string" && QUAD_HEX.test(raw[i]) ? raw[i] : fallback));
+		};
+		const showQuadColors = () => {
+			cellInputs.forEach((input, i) => {
+				if (input !== null) input.value = quadColors[i].toLowerCase();
+			});
+			const match = Object.keys(QUAD_PRESETS).find((name) => QUAD_PRESETS[name].every((c, i) => c.toLowerCase() === quadColors[i].toLowerCase()));
+			quadPresetEl.value = match ?? "custom";
+		};
+		const applyQuadColors = (value) => {
+			adoptQuadColors(value);
+			showQuadColors();
+		};
+		const [getQuadColors, writeQuadColors] = useSettings("quadColors", applyQuadColors, null);
+		quadPresetEl.addEventListener("change", () => {
+			const preset = QUAD_PRESETS[quadPresetEl.value];
+			if (preset === undefined) return; // "Custom" is a display state, not a preset
+			quadColors = [...preset];
+			writeQuadColors([...quadColors]);
+			showQuadColors();
 		});
-	}
-
-	async function copyText(text) {
-		try {
-			await navigator.clipboard.writeText(text);
-			return true;
-		} catch {
-			const scratch = document.createElement("textarea");
-			scratch.value = text;
-			document.body.appendChild(scratch);
-			scratch.select();
-			const ok = document.execCommand("copy");
-			scratch.remove();
-			return ok;
-		}
-	}
-
-	function deliverSupportReport(report) {
-		if (supportEl === null) return;
-		copyText(report).then((ok) => {
-			supportEl.disabled = false;
-			supportEl.textContent = ok ? "Copied to clipboard" : "Copy failed";
-			setTimeout(() => {
-				supportEl.textContent = "Copy support report";
-			}, 2000);
+		cellInputs.forEach((input, i) => {
+			if (input === null) return;
+			// change (picker closed), not input: no write per drag frame.
+			input.addEventListener("change", () => {
+				quadColors[i] = input.value;
+				writeQuadColors([...quadColors]);
+				showQuadColors();
+			});
 		});
+		getQuadColors().then(applyQuadColors);
 	}
 
 	// --- theme preset gallery -------------------------------------------------
@@ -628,17 +765,14 @@
 	let themesConfig = null; // { defaultTheme, effectiveDeckTheme, themes: { id: { bg, ... } } }
 	let themeOverride = "";
 
-	const setThemeOverride =
-		galleryEl === null
-			? null
-			: useSettings(
-					"theme",
-					(value) => {
-						themeOverride = typeof value === "string" ? value : "";
-						renderGallery();
-					},
-					null
-				)[1];
+	const setThemeOverride = useSettings(
+		"theme",
+		(value) => {
+			themeOverride = typeof value === "string" ? value : "";
+			renderGallery();
+		},
+		null
+	)[1];
 
 	// A monochrome "link" glyph marking the follow chip. Drawn (not an emoji or
 	// theme color) so it stays legible on any resolved palette, sitting on a
@@ -684,7 +818,7 @@
 	}
 
 	function renderGallery() {
-		if (galleryEl === null || themesConfig === null) return;
+		if (themesConfig === null) return;
 		const frag = document.createDocumentFragment();
 		// The plugin resolves the effective deck default (theme store, incl.
 		// legacy migration); never guess it from raw global settings here.
@@ -703,18 +837,16 @@
 		galleryEl.replaceChildren(frag);
 	}
 
-	if (galleryEl !== null) {
-		galleryEl.addEventListener("click", (ev) => {
-			const chip = ev.target.closest(".hw-theme");
-			if (!chip) return;
-			themeOverride = chip.dataset.theme;
-			setThemeOverride(themeOverride);
-			renderGallery();
-		});
-		// The plugin pushes a fresh themes payload (with effectiveDeckTheme)
-		// whenever the deck theme changes; no global-settings guessing here.
-		streamDeckClient.send("sendToPlugin", { event: "getThemes" });
-	}
+	galleryEl.addEventListener("click", (ev) => {
+		const chip = ev.target.closest(".hw-theme");
+		if (!chip) return;
+		themeOverride = chip.dataset.theme;
+		setThemeOverride(themeOverride);
+		renderGallery();
+	});
+	// The plugin pushes a fresh themes payload (with effectiveDeckTheme)
+	// whenever the deck theme changes; no global-settings guessing here.
+	streamDeckClient.send("sendToPlugin", { event: "getThemes" });
 
 	streamDeckClient.sendToPropertyInspector.subscribe((ev) => {
 		const p = ev && ev.payload;
@@ -724,17 +856,12 @@
 			renderGallery();
 			return;
 		}
-		if (p.event === "supportReport" && typeof p.report === "string") {
-			deliverSupportReport(p.report);
-			return;
-		}
 		if (p.event === "sensorTree") {
 			tree = p.groups;
 			treeFetchedOk = p.state === "ok";
 			treeRequestPending = false;
 			setHint(p.hint);
-			showSelection();
-			renderList();
+			for (const picker of pickers) picker.onTree();
 			renderRotationSet(); // chip labels resolve once the tree is here
 		} else if (p.event === "preview") {
 			renderPreview(p);
@@ -747,13 +874,31 @@
 		}
 	});
 
-	getReadingKey().then((value) => {
-		selectedKey = typeof value === "string" ? value : "";
-		showSelection();
-		renderRotationSet(); // the set may have rendered before the key arrived
-	});
+	primaryPicker.init();
+	if (secondaryPicker !== null) secondaryPicker.init();
+	if (quadPicker3 !== null) quadPicker3.init();
+	if (quadPicker4 !== null) quadPicker4.init();
 	if (rotationBinding !== null) {
 		rotationSetEl.addEventListener("click", (ev) => {
+			// Chip rename: the name swaps to an inline input; commit on
+			// change (Enter blurs, like group names), empty restores the
+			// HWiNFO label.
+			const nameEl = ev.target.closest(".hw-set-name");
+			if (nameEl) {
+				const key = nameEl.closest(".hw-set-chip")?.dataset.key;
+				if (!key) return;
+				const input = document.createElement("input");
+				input.type = "text";
+				input.className = "hw-group-name hw-chip-rename";
+				input.value = rotationNames[key] ?? "";
+				input.placeholder = readingLabelOf(key) ?? key;
+				input.dataset.key = key;
+				input.spellcheck = false;
+				nameEl.replaceWith(input);
+				input.focus();
+				input.select();
+				return;
+			}
 			const groupRemove = ev.target.closest(".hw-group-remove");
 			if (groupRemove) {
 				const index = Number(groupRemove.dataset.group);
@@ -811,14 +956,31 @@
 				writeRotation(true);
 			}
 		});
-		// Group names commit on change (blur or Enter); Enter blurs so the
-		// deferred re-render (skipped while the field is focused) happens.
+		// Group and chip names commit on change (blur or Enter); Enter blurs
+		// so the deferred re-render (skipped while a field is focused) happens.
 		rotationSetEl.addEventListener("change", (ev) => {
-			if (!(ev.target instanceof HTMLInputElement) || !ev.target.classList.contains("hw-group-name")) return;
+			if (!(ev.target instanceof HTMLInputElement)) return;
+			if (ev.target.classList.contains("hw-chip-rename")) {
+				const key = ev.target.dataset.key;
+				const name = ev.target.value.trim();
+				if (name === "") delete rotationNames[key];
+				else rotationNames[key] = name;
+				namesBinding[1]({ ...rotationNames });
+				renderRotationSet();
+				return;
+			}
+			if (!ev.target.classList.contains("hw-group-name")) return;
 			const index = Number(ev.target.dataset.group);
 			if (rotationGroups === null || rotationGroups[index] === undefined) return;
 			rotationGroups[index].name = ev.target.value.trim();
 			writeRotation(true);
+		});
+		// A rename abandoned unchanged (blur without an edit) fires no change
+		// event; restore the chip's span once focus has left the input.
+		rotationSetEl.addEventListener("focusout", (ev) => {
+			if (ev.target instanceof HTMLInputElement && ev.target.classList.contains("hw-chip-rename")) {
+				setTimeout(renderRotationSet, 0);
+			}
 		});
 		rotationSetEl.addEventListener("keydown", (ev) => {
 			if (ev.key === "Enter" && ev.target instanceof HTMLInputElement && ev.target.classList.contains("hw-group-name")) {
@@ -826,15 +988,9 @@
 				renderRotationSet();
 			}
 		});
-		rotationBinding[0]().then((value) => {
-			rotationKeys = Array.isArray(value) ? value.filter((k) => typeof k === "string") : [];
-			renderRotationSet();
-		});
-		groupsBinding[0]().then((value) => {
-			rotationGroups = parseGroupsSetting(value);
-			clampCollector();
-			renderRotationSet();
-		});
+		rotationBinding[0]().then(adoptRotationKeys);
+		groupsBinding[0]().then(adoptRotationGroups);
+		namesBinding[0]().then(adoptRotationNames);
 	}
 	requestTree();
 })();

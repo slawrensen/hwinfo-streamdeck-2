@@ -24,6 +24,17 @@ const config = {
 	// koffi is a native module — it cannot be bundled; scripts/copy-koffi.mjs vendors it
 	// into the .sdPlugin's bin/node_modules so the import resolves at runtime.
 	external: ["koffi"],
+	// @elgato/utils declares no sideEffects, so rollup keeps its barrel's
+	// Option/OptionGroup modules for their top-level z.object() calls even
+	// though nothing imports a binding from them — dragging all of zod
+	// (~14 KB minified) into the bundle. The SDK runtime only uses
+	// Enumerable/EventEmitter/withResolvers/Lazy. Marking the lists/ modules
+	// side-effect free lets rollup drop them, and zod falls out with its
+	// last importer; if a future SDK version starts importing Option, the
+	// modules are retained again automatically.
+	treeshake: {
+		moduleSideEffects: (id) => !/[\\/]@elgato[\\/]utils[\\/]dist[\\/]lists[\\/]/.test(id)
+	},
 	plugins: [
 		typescript({
 			mapRoot: isWatching ? "./" : undefined

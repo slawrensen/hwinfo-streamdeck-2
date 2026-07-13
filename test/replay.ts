@@ -107,8 +107,8 @@ export function replayTrace(fixture: TraceFixture, snapshot: SensorSnapshot = st
 							? stepGroup(groups, model.selection, stepTicks, snapshot)
 							: stepSensorSource(keys === undefined ? snapshot.readings : rotationReadings(keys, model.selection, snapshot), model.selection, stepTicks);
 				} else {
-					// Mirrors stepList(): groups scope plain stepping only while
-					// the scheme can jump them; otherwise the union keeps driving.
+					// Mirrors the dial's stepListOf() pick: groups scope plain stepping
+					// only while the scheme can jump them; otherwise the union drives.
 					const list =
 						groups !== undefined && schemeCanSwitchGroups(resolveControls(model.settings))
 							? groupReadings(groups, model.selection, snapshot)

@@ -23,22 +23,22 @@
 import streamDeck, { action, SingletonAction, type DialAction, type DialDownEvent, type DialRotateEvent, type DialUpEvent, type DidReceiveSettingsEvent, type SendToPluginEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 
-import { registerDialCommandHandler, type DialControlCommand } from "../commands";
+import { registerDialCommandHandler, type ControlCommandId, type DialControlCommand } from "../commands";
 import { parseResetScope, resolveControls, schemeCanSwitchGroups, triggerDescriptions, type ControlScheme, type GestureCommandId, type ResetScope } from "../controls";
 import { deviceCapabilities, tapCanvasWidth } from "../devices";
 import { registerDiagnostics } from "../diagnostics";
 import { IDLE_GESTURE, routeGesture, type GestureState } from "../gestures";
 import type { Reading, SensorSnapshot } from "../hwinfo/types";
-import { buildPreview, buildSensorTree, buildSupportReportPayload, buildThemesPayload } from "../pi-protocol";
+import { buildThemesPayload, handlePiRequest, pushPreviewToPi } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
 import { describeGestureState, hashId, trace, traceEnabled } from "../recorder";
-import { activeGroupIndex, autoCycleTarget, groupDisplayName, groupReadings, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource, type RotationGroup } from "../rotation";
-import { SessionStatsStore } from "../stats";
-import { renderDial } from "../ui/dial-renderer";
-import { alertLevel, convertUnit, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, thresholdsApplyTo, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
+import { activeGroupIndex, autoCycleTarget, groupDisplayName, groupReadings, overviewWindow, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource, type RotationGroup } from "../rotation";
+import { SessionStatsStore, type SessionStats } from "../stats";
+import { FOOTER_PX, renderDial, renderDialOverview, renderDialTwoRow, type OverviewRow } from "../ui/dial-renderer";
+import { alertLevel, convertUnit, dedupeSharedLabelPrefix, estimateFooterWidth, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, thresholdsApplyTo, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
 import { statusDialText } from "../ui/state-screens";
 import { decideLegacyDefault, getDeckTheme, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
-import { classifyTypeAccent, loadThemes, resolvePalette } from "../ui/themes";
+import { classifyTypeAccent, loadThemes, resolvePalette, type ThemesConfig } from "../ui/themes";
 
 /** Persisted per-dial settings (written by the PI; all optional). */
 export type DialSettings = {
@@ -93,6 +93,38 @@ export type DialSettings = {
 	 * after rotating to a different kind of reading.
 	 */
 	alertUnit?: string;
+	/**
+	 * "overview" lists up to three rotation-list rows at once, "tworow" two
+	 * bigger ones with sparklines (the selected row marked, the window
+	 * following rotation in both); anything else renders the unchanged
+	 * single view, so settings from a newer version degrade safely after a
+	 * rollback and old profiles are never migrated or rewritten.
+	 */
+	dialView?: string;
+	/**
+	 * Per-reading display names, keyed by the stable reading identity
+	 * (renamed by clicking a rotation-set chip's name in the PI). Shown as
+	 * the overview row label and as the dial title while that reading is
+	 * selected; the per-dial `label` field still overrides while set.
+	 */
+	rotationNames?: Record<string, string>;
+	/**
+	 * Overview row labels: anything but the exact "full" shortens shared
+	 * label prefixes and shows them once in the context line (the default);
+	 * "full" keeps every row label exactly as named.
+	 */
+	overviewLabels?: string;
+	/**
+	 * Three-row overview context line position: the exact "bottom" moves it
+	 * under the rows (above a thin rule); anything else is the top default,
+	 * so rolled-back or hand-edited settings degrade safely.
+	 */
+	overviewHeader?: string;
+	/**
+	 * Three-row overview separators: the exact "off" hides the thin lines
+	 * between rows (and the bottom-mode rule); anything else keeps them.
+	 */
+	overviewSeparators?: string;
 };
 
 type InstanceState = {
@@ -114,6 +146,11 @@ type InstanceState = {
 	deviceId: string;
 	/** A threshold edit is waiting for a resolvable reading to stamp its unit. */
 	pendingAlertUnitStamp: boolean;
+	/** Readings this instance holds poller series subscriptions for (the
+	 * two-row view's sparklines); synced each tick, released on disappear.
+	 * Not restored across hiding: the poller's grace window keeps the rings
+	 * warm and the first tick back resubscribes. */
+	rowSeries: Set<string>;
 };
 
 /** How long a hidden dial's state (stats, pause, pin) is kept for its return. */
@@ -184,7 +221,8 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			overlay: null,
 			overlayTimer: null,
 			deviceId: ev.action.device.id,
-			pendingAlertUnitStamp: restored?.pendingAlertUnitStamp ?? false
+			pendingAlertUnitStamp: restored?.pendingAlertUnitStamp ?? false,
+			rowSeries: new Set()
 		};
 		this.instances.set(ev.action.id, state);
 		if (ev.action.isDial()) {
@@ -200,6 +238,12 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			return;
 		}
 		poller.release();
+		// Sparkline series go back to the poller's grace window; the rings
+		// stay warm for a quick return and evict on their own otherwise.
+		for (const key of state.rowSeries) {
+			poller.unsubscribeSeries(key);
+		}
+		state.rowSeries.clear();
 		// A press cannot span a disappearance; drop any half-tracked gesture
 		// and its overlay timer, then park the state for the action's return.
 		state.gesture = routeGesture(state.gesture, { kind: "detach" }, "off").state;
@@ -337,17 +381,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 	}
 
 	override onSendToPlugin(ev: SendToPluginEvent<JsonValue, DialSettings>): void {
-		const payload = ev.payload;
-		if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-			return;
-		}
-		if (payload.event === "getSensorTree") {
-			void streamDeck.ui.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
-		} else if (payload.event === "getThemes") {
-			void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
-		} else if (payload.event === "getSupportReport") {
-			void streamDeck.ui.sendToPropertyInspector(buildSupportReportPayload());
-		}
+		handlePiRequest(ev.payload);
 	}
 
 	/** One gesture (or control command) becomes exactly one of these. */
@@ -361,21 +395,8 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			case "stepGroup":
 				await this.advance(action, state, ticks === 0 ? 1 : ticks, "group");
 				return;
-			case "cycleStat":
-				state.statMode = STAT_MODES[(STAT_MODES.indexOf(state.statMode) + 1) % STAT_MODES.length] as StatMode;
-				break;
-			case "backToCurrent":
-				state.statMode = "current";
-				break;
-			case "pauseResume":
-				this.setPaused(state, !state.cyclePaused);
-				break;
-			case "pin":
-				this.setPinned(state, !state.pinned);
-				break;
-			case "resetStats":
-				this.resetStats(state, parseResetScope(state.settings.resetScope));
-				break;
+			default:
+				this.executeStateCommand(state, { command: GESTURE_STATE_COMMANDS[command], target: "", scope: parseResetScope(state.settings.resetScope) });
 		}
 		this.renderAll(poller.getStatus());
 	}
@@ -448,7 +469,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 				next = stepSensorSource(setKeys === undefined ? snapshot.readings : rotationReadings(setKeys, key, snapshot), key, ticks);
 			}
 		} else {
-			next = stepReading(this.stepList(state.settings, key, groups, snapshot), key, ticks);
+			next = stepReading(stepListOf(state.settings, key, groups, snapshot), key, ticks);
 		}
 		if (next === undefined || next.key === state.settings.readingKey) {
 			return;
@@ -462,20 +483,6 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			}
 		}
 		await this.adoptReading(action, state, next.key, status);
-	}
-
-	/**
-	 * The list plain stepping and the auto cycle move through. Groups scope
-	 * it to the active group only while the scheme itself can jump groups
-	 * (schemeCanSwitchGroups); otherwise the union mirrored in rotationKeys
-	 * keeps the pre-groups behavior, so defined groups can never strand a
-	 * dial inside one of them, and Legacy stays exact.
-	 */
-	private stepList(settings: DialSettings, key: string | undefined, groups: readonly RotationGroup[] | undefined, snapshot: SensorSnapshot): readonly Reading[] {
-		if (groups !== undefined && schemeCanSwitchGroups(resolveControls(settings))) {
-			return groupReadings(groups, key, snapshot);
-		}
-		return rotationReadings(rotationKeysOf(settings), key, snapshot);
 	}
 
 	/** Moves the selection and persists it; per-reading stats stay intact. */
@@ -499,9 +506,11 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			const now = Date.now();
 			// Stats accumulate for the selected reading and every rotation-set
 			// member, visible or hidden, so rotating (back) to a member shows
-			// its true session, and hidden members keep alert coverage.
+			// its true session, and hidden members keep alert coverage. The
+			// two-row view's sparkline subscriptions ride the same sweep.
 			for (const state of this.instances.values()) {
 				this.sampleStats(state, status.snapshot);
+				this.syncRowSeries(state, status.snapshot);
 			}
 			// Completes a unit stamp whose threshold edit landed while the
 			// reading was unresolvable; no-op otherwise.
@@ -523,7 +532,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			this.autoCycle(status, now);
 		}
 		this.renderAll(status);
-		this.pushPreview(status);
+		pushPreviewToPi(status, this.manifestId, this.instances);
 	}
 
 	private sampleStats(state: InstanceState, snapshot: SensorSnapshot): void {
@@ -531,6 +540,15 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		const current = readingKeyOf(state.settings);
 		if (current !== undefined) {
 			keys.add(current);
+		}
+		// The multi-row views show session min/max/avg for every visible row,
+		// so their step list samples too (a sensor-scoped view has no rotation
+		// set; without this its non-selected rows would show live values under
+		// a MIN badge). prune() below bounds the total by relevance as always.
+		if (dialViewOf(state.settings) !== "single") {
+			for (const member of stepListOf(state.settings, current, rotationGroupsOf(state.settings.rotationGroups), snapshot)) {
+				keys.add(member.key);
+			}
 		}
 		for (const key of keys) {
 			const reading = snapshot.byKey.get(key);
@@ -543,6 +561,38 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		// each tick the moment a set outgrew it); strays from reselection are
 		// dropped oldest-first past the slack.
 		state.stats.prune(keys, 64);
+	}
+
+	/**
+	 * Keeps the poller series subscriptions matched to the two-row view's
+	 * visible rows (they feed the row sparklines). The poller's grace window
+	 * carries the rings across window moves and quick page flips, so a row
+	 * scrolling back within a minute keeps its history.
+	 */
+	private syncRowSeries(state: InstanceState, snapshot: SensorSnapshot): void {
+		const desired = new Set<string>();
+		if (dialViewOf(state.settings) === "tworow") {
+			const key = readingKeyOf(state.settings);
+			const reading = key === undefined ? undefined : snapshot.byKey.get(key);
+			if (reading !== undefined) {
+				const list = stepListOf(state.settings, key, rotationGroupsOf(state.settings.rotationGroups), snapshot);
+				for (const member of overviewWindow(list.length === 0 ? [reading] : list, key, 2).rows) {
+					desired.add(member.key);
+				}
+			}
+		}
+		for (const key of [...state.rowSeries]) {
+			if (!desired.has(key)) {
+				poller.unsubscribeSeries(key);
+				state.rowSeries.delete(key);
+			}
+		}
+		for (const key of desired) {
+			if (!state.rowSeries.has(key)) {
+				poller.subscribeSeries(key);
+				state.rowSeries.add(key);
+			}
+		}
 	}
 
 	/** Advances autocycling dials whose interval elapsed (timed by poll ticks). */
@@ -566,7 +616,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 					continue; // transient dropout: hold, retry next tick
 				}
 				const groups = rotationGroupsOf(state.settings.rotationGroups);
-				const list = this.stepList(state.settings, key, groups, status.snapshot);
+				const list = stepListOf(state.settings, key, groups, status.snapshot);
 				// While groups scope the step list, alerts are still hunted
 				// across every group. The scan list comes from the parsed
 				// groups (the authority), not the rotationKeys mirror, which
@@ -742,8 +792,6 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			case "resetStats":
 				this.resetStats(state, command.scope);
 				return;
-			default:
-				return;
 		}
 	}
 
@@ -791,15 +839,6 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		}
 	}
 
-	private pushPreview(status: PollerStatus): void {
-		const piAction = streamDeck.ui.action;
-		if (piAction === undefined || piAction.manifestId !== this.manifestId) {
-			return;
-		}
-		const state = this.instances.get(piAction.id);
-		void streamDeck.ui.sendToPropertyInspector(buildPreview(status, state?.settings.readingKey));
-	}
-
 	private traceLifecycle(event: string, context: string, deviceId: string): void {
 		const caps = deviceCapabilities.get(deviceId);
 		trace({ event, context, device: hashId(deviceId), deviceType: caps.type, grid: `${caps.columns}x${caps.rows}` });
@@ -829,10 +868,12 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			preset: resolveControls(state.settings).preset,
 			// Hashed like device ids: gadget keys and link IDs carry user text.
 			selection: readingKeyOf(state.settings) === undefined ? null : hashId(readingKeyOf(state.settings) ?? ""),
+			view: dialViewOf(state.settings),
 			statMode: state.statMode,
 			rotationSet: rotationKeysOf(state.settings)?.length ?? 0,
-			// Count only: group names carry user text, like reading keys.
+			// Counts only: group and reading names carry user text, like keys.
 			rotationGroups: rotationGroupsOf(state.settings.rotationGroups)?.length ?? 0,
+			rotationNames: Object.keys(rotationNamesOf(state.settings) ?? {}).length,
 			autoCycleMs: parseAutoCycleMs(state.settings.autoCycleMs),
 			cyclePaused: state.cyclePaused,
 			pinned: state.pinned,
@@ -851,6 +892,10 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 /** Commands that change the selection and therefore need a visible action. */
 const SELECTION_COMMANDS: ReadonlySet<string> = new Set(["next", "prev", "nextGroup", "prevGroup"]);
 
+/** The state-only gesture commands, mapped to their executeStateCommand ids
+ *  (the gestures toggle where the control action also has explicit on/off). */
+const GESTURE_STATE_COMMANDS: Record<Exclude<GestureCommandId, "none" | "step" | "stepGroup">, ControlCommandId> = { cycleStat: "cycleStat", backToCurrent: "backToCurrent", pauseResume: "toggleCycle", pin: "togglePin", resetStats: "resetStats" };
+
 function readingKeyOf(settings: DialSettings): string | undefined {
 	return typeof settings.readingKey === "string" && settings.readingKey !== "" ? settings.readingKey : undefined;
 }
@@ -867,6 +912,28 @@ function rotationKeysOf(settings: DialSettings): string[] | undefined {
 
 function matchesTarget(target: string, settings: DialSettings): boolean {
 	return target === "" || (typeof settings.linkId === "string" && settings.linkId.trim() === target);
+}
+
+/** Only the exact markers activate a multi-row view; anything else (absent,
+ *  junk, a newer version's future value after a rollback) stays single. */
+function dialViewOf(settings: DialSettings): "single" | "overview" | "tworow" {
+	return settings.dialView === "overview" ? "overview" : settings.dialView === "tworow" ? "tworow" : "single";
+}
+
+/**
+ * The list plain stepping and the auto cycle move through, and exactly what
+ * the overview lists. Groups scope it to the active group only while the
+ * scheme itself can jump groups (schemeCanSwitchGroups); otherwise the union
+ * mirrored in rotationKeys keeps the pre-groups behavior, so defined groups
+ * can never strand a dial inside one of them, and Legacy stays exact.
+ * Module-level so composeDialSvg renders the same list rotation steps
+ * through; the two can never disagree.
+ */
+function stepListOf(settings: DialSettings, key: string | undefined, groups: readonly RotationGroup[] | undefined, snapshot: SensorSnapshot): readonly Reading[] {
+	if (groups !== undefined && schemeCanSwitchGroups(resolveControls(settings))) {
+		return groupReadings(groups, key, snapshot);
+	}
+	return rotationReadings(rotationKeysOf(settings), key, snapshot);
 }
 
 /** The PI writes "off" or a millisecond count; anything else means off too. */
@@ -898,11 +965,19 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 		return renderDial({ title: "Sensor missing", valueText: "waiting", unitText: "", statsText: "reselect in settings", fraction: NaN, palette, barColor: palette.accent });
 	}
 
+	// Status, no-selection and missing faces above are shared with the single
+	// view on purpose: the multi-row views only change how live data is laid
+	// out.
+	const view = dialViewOf(settings);
+	if (view !== "single") {
+		return composeOverviewSvg(state, snapshot, reading, config, themeId, view === "tworow" ? 2 : 3);
+	}
+
 	const fahrenheit = settings.fahrenheit === true;
 	const decimals: DecimalsSetting = settings.decimals ?? "auto";
 	const stats = state.stats.get(settings.readingKey) ?? { min: reading.value, max: reading.value, sum: reading.value, count: 1 };
 
-	const nativeShown = state.statMode === "min" ? stats.min : state.statMode === "max" ? stats.max : state.statMode === "avg" ? stats.sum / stats.count : reading.value;
+	const nativeShown = rowStatValue(reading.value, stats, state.statMode);
 	const shown = convertUnit(nativeShown, reading.unit, fahrenheit);
 	const badge = STAT_BADGE[state.statMode];
 
@@ -924,7 +999,9 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 	const accent = typeAccentsEnabled() ? classifyTypeAccent(reading.type, reading.unit, reading.label) : null;
 	const palette = resolvePalette(config, themeId, accent, "normal");
 
-	const label = settings.label !== undefined && settings.label.trim() !== "" ? settings.label.trim() : reading.label;
+	// Title precedence: the per-dial label (transient or fixed), then the
+	// reading's own per-member name, then HWiNFO's label.
+	const label = customLabelOf(settings) ?? rotationNamesOf(settings)?.[reading.key] ?? reading.label;
 	// A transient hint owns the whole stats line for its moment (appending it
 	// to min/max would run past the 200 px canvas); persistent states replace
 	// only the trailing "session" tag. Belt and braces: the line is truncated
@@ -941,4 +1018,134 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 		palette,
 		barColor: level !== "normal" ? config.alerts[level].bg : palette.accent
 	});
+}
+
+function customLabelOf(settings: DialSettings): string | undefined {
+	return typeof settings.label === "string" && settings.label.trim() !== "" ? settings.label.trim() : undefined;
+}
+
+/** Settings are untyped JSON: keep non-empty string names under string keys
+ *  (the PI's chip rename writes them); anything else degrades to no names. */
+function rotationNamesOf(settings: DialSettings): Record<string, string> | undefined {
+	const raw: unknown = settings.rotationNames;
+	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+		return undefined;
+	}
+	let names: Record<string, string> | undefined;
+	for (const [key, value] of Object.entries(raw)) {
+		if (typeof value === "string" && value.trim() !== "") {
+			(names ??= {})[key] = value.trim();
+		}
+	}
+	return names;
+}
+
+/**
+ * The overview face: rows are the exact rotation step list, the three-row
+ * window follows the selection statelessly (see overviewWindow), and the
+ * footer carries the single view's stats-line mechanics unchanged: session
+ * min/max of the selected reading, transient overlays (group-jump names,
+ * "cycle paused", reset confirmations), pinned and paused tags, and the
+ * stat badge when a non-current stat is displayed. Row values honor the
+ * displayed stat from each member's own session, and warn/critical tint a
+ * row's value under the same alertUnit scoping as the single view's bar.
+ */
+function composeOverviewSvg(state: InstanceState, snapshot: SensorSnapshot, reading: Reading, config: ThemesConfig, themeId: string, rowCount: 2 | 3): string {
+	const settings = state.settings;
+	const fahrenheit = settings.fahrenheit === true;
+	const decimals: DecimalsSetting = settings.decimals ?? "auto";
+	const stepList = stepListOf(settings, reading.key, rotationGroupsOf(settings.rotationGroups), snapshot);
+	// A set whose members are all absent from the snapshot (sensor asleep)
+	// still has a live selection to show; never render an empty face.
+	const list = stepList.length === 0 ? [reading] : stepList;
+	const { rows, selectedIndex } = overviewWindow(list, reading.key, rowCount);
+
+	// Row names, resolved over the VISIBLE window: a user-typed name (the
+	// per-dial label on the selected row, or a per-reading rotationNames
+	// entry) wins verbatim and is never altered; among the rest, the leading
+	// words all rows share are dropped ("GPU Temperature / GPU Hot Spot"
+	// reads as "Temperature / Hot Spot") and come back once as the footer's
+	// context prefix, unless "Row labels" is set to full.
+	const names = rotationNamesOf(settings);
+	const customLabel = customLabelOf(settings);
+	const candidates = rows.map((member, index) => {
+		const override = index === selectedIndex && customLabel !== undefined ? customLabel : names?.[member.key];
+		return { text: override ?? member.label, locked: override !== undefined };
+	});
+	const shorten = settings.overviewLabels !== "full";
+	const deduped = shorten
+		? dedupeSharedLabelPrefix(
+				candidates.map((c) => c.text),
+				candidates.map((c) => c.locked)
+			)
+		: { labels: candidates.map((c) => c.text), prefix: "" };
+
+	// The accent (selection bar) follows the reading on the dial, exactly
+	// like the single view's accent follows it.
+	const accent = typeAccentsEnabled() ? classifyTypeAccent(reading.type, reading.unit, reading.label) : null;
+	const palette = resolvePalette(config, themeId, accent, "normal");
+	const warn = parseThreshold(settings.warnValue);
+	const crit = parseThreshold(settings.critValue);
+
+	const overviewRows: (OverviewRow & { history?: readonly number[] })[] = rows.map((member, index) => {
+		const selected = index === selectedIndex;
+		const shown = convertUnit(rowStatValue(member.value, state.stats.get(member.key), state.statMode), member.unit, fahrenheit);
+		const scoped = thresholdsApplyTo(settings.alertUnit, member.unit);
+		const live = convertUnit(member.value, member.unit, fahrenheit).value;
+		const level = scoped ? alertLevel(live, warn, crit, settings.alertBelow === true) : "normal";
+		return {
+			label: deduped.labels[index] ?? member.label,
+			valueText: formatValue(shown.value, decimals),
+			unitText: shown.unit,
+			selected,
+			valueColor: level !== "normal" ? config.alerts[level].bg : palette.value,
+			// The two-row view draws each visible reading's trend from the
+			// poller's series store, which syncRowSeries keeps subscribed.
+			...(rowCount === 2 ? { history: poller.getSeries(member.key) } : {})
+		};
+	});
+
+	const stats = state.stats.get(reading.key) ?? { min: reading.value, max: reading.value, sum: reading.value, count: 1 };
+	const min = convertUnit(stats.min, reading.unit, fahrenheit).value;
+	const max = convertUnit(stats.max, reading.unit, fahrenheit).value;
+	const badge = STAT_BADGE[state.statMode];
+	// One tag slot: pinned wins, then paused, then the stat badge; "session"
+	// fills the quiet default, but yields to the shared-prefix context.
+	const stateTag = state.pinned ? "pinned" : state.cyclePaused && parseAutoCycleMs(settings.autoCycleMs) !== null ? "cycle paused" : badge !== "" || deduped.prefix !== "" ? "" : "session";
+	const tags = [badge, stateTag].filter((part) => part !== "").join(" · ");
+	const overlay = state.overlay;
+	const overlayActive = overlay !== null && overlay.until > Date.now();
+	if (rowCount === 2) {
+		// The two-row face keeps the single footer line: the stripped shared
+		// prefix TRAILS it so the renderer's fitting may shorten the context
+		// ("· Virtual Mem…") but can never eat a number; the tight variant
+		// (markers hugging their numbers) usually saves the whole text first.
+		const context = deduped.prefix !== "" ? `· ${deduped.prefix}` : "";
+		const roomy = [`▼ ${formatValue(min, decimals)}`, `▲ ${formatValue(max, decimals)}`, tags, context].filter((part) => part !== "").join("  ");
+		const tight = [`▼${formatValue(min, decimals)}`, `▲${formatValue(max, decimals)}`, tags, context].filter((part) => part !== "").join(" ");
+		const footer = overlayActive ? overlay.text : estimateFooterWidth(roomy) <= FOOTER_PX ? roomy : tight;
+		return renderDialTwoRow({ rows: overviewRows, footerText: footer, palette });
+	}
+	// The three-row wide tile splits that line: the stats are their own
+	// right-anchored element the renderer never clips, and the left region
+	// carries the tags and shared name (or a transient overlay, which takes
+	// the whole line exactly as it took the whole footer).
+	const contextText = overlayActive ? overlay.text : [tags, deduped.prefix].filter((part) => part !== "").join(" · ");
+	const statsText = overlayActive ? "" : `▼${formatValue(min, decimals)} ▲${formatValue(max, decimals)}`;
+	return renderDialOverview({
+		rows: overviewRows,
+		contextText,
+		statsText,
+		header: settings.overviewHeader === "bottom" ? "bottom" : "top",
+		separators: settings.overviewSeparators !== "off",
+		palette
+	});
+}
+
+/** The session stat a row displays; the live value when no session yet. */
+function rowStatValue(live: number, stats: SessionStats | undefined, mode: StatMode): number {
+	if (stats === undefined || mode === "current") {
+		return live;
+	}
+	return mode === "min" ? stats.min : mode === "max" ? stats.max : stats.sum / stats.count;
 }

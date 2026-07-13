@@ -66,6 +66,42 @@ export function formatValue(value: number, decimals: DecimalsSetting): string {
 	return value.toFixed(2);
 }
 
+/**
+ * Formats a value for one 72 px quad-grid cell: at most 4 glyphs, ever. The
+ * shared decimals setting is the starting precision ("auto" starts from
+ * formatValue's magnitude rule); decimals drop first, then the magnitude
+ * compacts through k/M/G, so 48700 reads "49k" instead of overflowing the
+ * cell. The sign counts as a glyph.
+ */
+export function formatQuadValue(value: number, decimals: DecimalsSetting): string {
+	if (!Number.isFinite(value)) {
+		return "—";
+	}
+	const startPrecision = (abs: number): number => {
+		if (decimals !== "auto") {
+			return Number(decimals);
+		}
+		return abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+	};
+	const tiers = [
+		{ suffix: "", scale: 1 },
+		{ suffix: "k", scale: 1_000 },
+		{ suffix: "M", scale: 1_000_000 },
+		{ suffix: "G", scale: 1_000_000_000 }
+	];
+	for (const { suffix, scale } of tiers) {
+		const scaled = value / scale;
+		for (let d = startPrecision(Math.abs(scaled)); d >= 0; d--) {
+			const text = `${scaled.toFixed(d)}${suffix}`;
+			if (Array.from(text).length <= 4) {
+				return text;
+			}
+		}
+	}
+	// Past ±9999G, which no HWiNFO reading approaches: clamp, never overflow.
+	return `${Math.round(value / 1_000_000_000)}G`;
+}
+
 /** Parses a threshold field coming from the PI (string or number, may be empty). */
 export function parseThreshold(raw: unknown): number | undefined {
 	if (typeof raw === "number" && Number.isFinite(raw)) {
@@ -122,4 +158,133 @@ export function alertLevel(current: number, warn: number | undefined, crit: numb
 export function truncateLabel(label: string, max: number): string {
 	const chars = Array.from(label);
 	return chars.length <= max ? label : `${chars.slice(0, max - 1).join("")}…`;
+}
+
+/**
+ * Estimated pixel width of a string at the dial footer's 12 px/600, by
+ * glyph class (the Stream Deck engine cannot be asked to measure). Narrow
+ * lowercase, digits, caps, spaces and the footer's marker glyphs each carry
+ * their own budget, so a footer full of narrow letters fits more characters
+ * than one full of caps, instead of both being cut at a flat count.
+ */
+export function estimateFooterWidth(text: string): number {
+	let width = 0;
+	for (const ch of text) {
+		if (ch === "▼" || ch === "▲") {
+			width += 12;
+		} else if (ch === " ") {
+			width += 3.4;
+		} else if (ch === "·") {
+			width += 5;
+		} else if (ch === "…") {
+			width += 10;
+		} else if (ch === "i" || ch === "j" || ch === "l" || ch === "." || ch === ",") {
+			width += 3.2;
+		} else if (ch >= "0" && ch <= "9") {
+			width += 6.3;
+		} else if (ch >= "A" && ch <= "Z") {
+			width += 7.6;
+		} else if (ch >= "a" && ch <= "z") {
+			width += 6.1;
+		} else {
+			width += 7;
+		}
+	}
+	return width;
+}
+
+/**
+ * Fits text to a pixel budget at the footer's metrics: kept whole when the
+ * estimate fits, else trimmed from the end with an ellipsis at the widest
+ * fitting prefix. Estimation-based, so the budget should leave the caller's
+ * layout a few pixels of slack.
+ */
+export function fitFooter(text: string, maxPx: number): string {
+	if (estimateFooterWidth(text) <= maxPx) {
+		return text;
+	}
+	const chars = Array.from(text);
+	let width = 10; // the ellipsis
+	let kept = 0;
+	for (const ch of chars) {
+		const next = width + estimateFooterWidth(ch);
+		if (next > maxPx) {
+			break;
+		}
+		width = next;
+		kept++;
+	}
+	return `${chars.slice(0, kept).join("").trimEnd()}…`;
+}
+
+/**
+ * Greedy two-line word wrap for the dial's two-row view. Fills the first
+ * line with whole words up to `line1Max` code points, puts the rest on the
+ * second line (ellipsized past `line2Max`). A first word too long for line
+ * one is truncated there and nothing wraps (labels are names, not prose).
+ */
+export function wrapLabelTwoLines(label: string, line1Max: number, line2Max: number): string[] {
+	const text = label.trim();
+	if (Array.from(text).length <= line1Max) {
+		return [text];
+	}
+	const words = text.split(" ").filter((w) => w !== "");
+	let line1 = "";
+	let index = 0;
+	while (index < words.length) {
+		const candidate = line1 === "" ? (words[index] as string) : `${line1} ${words[index] as string}`;
+		if (Array.from(candidate).length > line1Max) {
+			break;
+		}
+		line1 = candidate;
+		index++;
+	}
+	if (line1 === "") {
+		// One unbreakable word: keep it to a single truncated line.
+		return [truncateLabel(text, line1Max)];
+	}
+	const rest = words.slice(index).join(" ");
+	return rest === "" ? [line1] : [line1, truncateLabel(rest, line2Max)];
+}
+
+/**
+ * Drops the leading whole words every unlocked label shares, so rows like
+ * "GPU Temperature / GPU Hot Spot / GPU Thermal Limit" read as
+ * "Temperature / Hot Spot / Thermal Limit" where truncation would otherwise
+ * eat exactly the distinguishing tail. The removed words come back as
+ * `prefix` so the face can keep the context in one place (the footer)
+ * instead of three. Locked labels (user-typed names) are neither considered
+ * nor changed. The prefix is whole space-separated words only and needs two
+ * or more unlocked labels to exist. A label the strip would empty (one that
+ * IS the shared prefix, or a set of identical labels) keeps its original
+ * text instead of disabling the strip for everyone; `prefix` is empty when
+ * no label actually changed.
+ */
+export function dedupeSharedLabelPrefix(labels: readonly string[], locked: readonly boolean[]): { labels: string[]; prefix: string } {
+	const open = labels.filter((_, i) => locked[i] !== true);
+	if (open.length < 2) {
+		return { labels: [...labels], prefix: "" };
+	}
+	const split = open.map((label) => label.split(" "));
+	const first = split[0] as string[];
+	let shared = 0;
+	while (shared < first.length && split.every((words) => words.length === shared || words[shared] === first[shared])) {
+		shared++;
+	}
+	if (shared === 0) {
+		return { labels: [...labels], prefix: "" };
+	}
+	let stripped = false;
+	const result = labels.map((label, i) => {
+		if (locked[i] === true) {
+			return label;
+		}
+		const rest = label.split(" ").slice(shared).join(" ");
+		if (rest === "") {
+			return label;
+		}
+		stripped = true;
+		return rest;
+	});
+	return { labels: result, prefix: stripped ? first.slice(0, shared).join(" ") : "" };
 }

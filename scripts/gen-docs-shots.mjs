@@ -12,9 +12,9 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 import { SharedMemoryProvider } from "../src/hwinfo/provider.ts";
-import { renderDial } from "../src/ui/dial-renderer.ts";
-import { formatValue } from "../src/ui/format.ts";
-import { renderStatusKey } from "../src/ui/key-renderer.ts";
+import { renderDial, renderDialOverview, renderDialTwoRow } from "../src/ui/dial-renderer.ts";
+import { dedupeSharedLabelPrefix, formatQuadValue, formatValue } from "../src/ui/format.ts";
+import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderStatusKey } from "../src/ui/key-renderer.ts";
 import { missingReadingScreen, noSelectionScreen, statusScreen } from "../src/ui/state-screens.ts";
 import { classifyTypeAccent, loadThemes, resolvePalette } from "../src/ui/themes.ts";
 
@@ -189,6 +189,108 @@ async function plusXlStrip() {
 	console.log(`wrote ${outFile} (${W}x${H})`);
 }
 
+/**
+ * The 1.2.0 multi-readout faces: two dual keys and two overview dial faces
+ * from live values, exactly as the actions compose them.
+ */
+async function multiReadouts() {
+	const dualKey = (top, bottom, accentOf, sharedStat) => {
+		const a = byKey(top.key);
+		const b = byKey(bottom.key);
+		const palette = resolvePalette(config, "void", classifyTypeAccent(accentOf.type, accentOf.unit, accentOf.label), "normal");
+		const statOf = (o) => sharedStat ?? o.stat;
+		const row = (r, o) => ({
+			label: o.label ?? r.label,
+			valueText: formatValue(statOf(o) === "max" ? r.valueMax : statOf(o) === "min" ? r.valueMin : r.value, "auto"),
+			unitText: r.unit,
+			// A stat shared by both rows badges once in the divider gap; only
+			// a pinned, differing row carries its own inline badge.
+			statBadge: sharedStat !== undefined ? "" : (o.stat ?? "").toUpperCase()
+		});
+		return renderDualKey({ top: row(a, top), bottom: row(b, bottom), sharedBadge: (sharedStat ?? "").toUpperCase(), palette });
+	};
+	const overviewFace = (keys, selectedKey, footerTag) => {
+		const readings = keys.map(byKey);
+		const selected = byKey(selectedKey);
+		const palette = resolvePalette(config, "void", classifyTypeAccent(selected.type, selected.unit, selected.label), "normal");
+		// Mirror the action's composition: shared label prefixes move into
+		// the context line, whose stats element never clips (V3 wide tile).
+		const deduped = dedupeSharedLabelPrefix(readings.map((r) => r.label), readings.map(() => false));
+		return renderDialOverview({
+			rows: readings.map((r, i) => ({ label: deduped.labels[i], valueText: formatValue(r.value, "auto"), unitText: r.unit, selected: r.key === selectedKey, valueColor: palette.value })),
+			contextText: deduped.prefix !== "" ? deduped.prefix : footerTag,
+			statsText: `▼${formatValue(selected.valueMin, "auto")} ▲${formatValue(selected.valueMax, "auto")}`,
+			palette
+		});
+	};
+
+	const KEY = 288;
+	const GAP = 20;
+	const LABEL = 30;
+	const keyMask = Buffer.from(`<svg width="${KEY}" height="${KEY}"><rect width="${KEY}" height="${KEY}" rx="26" ry="26" fill="#fff"/></svg>`);
+	const keyPng = async (svg) => sharp(Buffer.from(svg.replace(`width="144" height="144"`, `width="${KEY}" height="${KEY}"`))).png().composite([{ input: keyMask, blend: "dest-in" }]).png().toBuffer();
+
+	// The quad face exactly as composeQuad draws it: live values through the
+	// 4-glyph formatter, each cell in its default identity color.
+	const quadKey = () => {
+		const readings = [byKey(K.cpuTemp), byKey(K.gpuTemp), byKey(K.pump), byKey(K.cpuPower)];
+		const first = readings[0];
+		const palette = resolvePalette(config, "void", classifyTypeAccent(first.type, first.unit, first.label), "normal");
+		return renderQuadKey({
+			cells: readings.map((r, i) => ({ label: "", valueText: formatQuadValue(r.value, "auto"), unitText: r.unit, color: QUAD_DEFAULT_COLORS[i] })),
+			palette
+		});
+	};
+
+	const keys = [
+		["two sensors, one key", dualKey({ key: K.cpuTemp }, { key: K.gpuTemp }, byKey(K.cpuTemp))],
+		["same sensor, min and max", dualKey({ key: K.cpuTemp, label: "CPU low", stat: "min" }, { key: K.cpuTemp, label: "CPU high", stat: "max" }, byKey(K.cpuTemp))],
+		["press cycled both to MAX", dualKey({ key: K.cpuTemp }, { key: K.gpuTemp }, byKey(K.cpuTemp), "max")],
+		["four readings, quad grid", quadKey()]
+	];
+	// Two-row face with live values and a recent-history ring (the ring is a
+	// fixed capture so the board is reproducible; on hardware the poller
+	// feeds it live).
+	const trend = [52, 54, 53, 57, 60, 58, 62, 65, 63, 66, 70, 68, 71, 69, 72];
+	const twoRowFace = () => {
+		const a = byKey(K.cpuTemp);
+		const b = byKey(K.gpuTemp);
+		const palette = resolvePalette(config, "void", classifyTypeAccent(a.type, a.unit, a.label), "normal");
+		return renderDialTwoRow({
+			rows: [
+				{ label: a.label, valueText: formatValue(a.value, "auto"), unitText: a.unit, selected: true, valueColor: palette.value, history: trend },
+				{ label: b.label, valueText: formatValue(b.value, "auto"), unitText: b.unit, selected: false, valueColor: palette.value, history: trend.map((v) => 110 - v) }
+			],
+			footerText: `▼ ${formatValue(a.valueMin, "auto")}  ▲ ${formatValue(a.valueMax, "auto")}  session`,
+			palette
+		});
+	};
+
+	const dials = [
+		["overview: the marked row is on the dial", overviewFace([K.cpuTemp, K.gpuTemp, K.pump], K.cpuTemp, "session")],
+		["rotation moved two rows down", overviewFace([K.cpuTemp, K.gpuTemp, K.pump], K.pump, "session")],
+		["two rows: big values + trend", twoRowFace()]
+	];
+
+	const W = GAP + keys.length * (KEY + GAP) + dials.length * (DIAL_W + GAP);
+	const H = GAP + KEY + LABEL + GAP;
+	const layers = [];
+	let x = GAP;
+	for (const [name, svg] of keys) {
+		layers.push({ input: await keyPng(svg), left: x, top: GAP });
+		layers.push({ input: Buffer.from(`<svg width="${KEY}" height="${LABEL}"><text x="${KEY / 2}" y="20" text-anchor="middle" ${LABEL_STYLE}>${name}</text></svg>`), left: x, top: GAP + KEY + 4 });
+		x += KEY + GAP;
+	}
+	for (const [name, svg] of dials) {
+		layers.push({ input: await dialPng(svg), left: x, top: GAP + Math.round((KEY - DIAL_H) / 2) });
+		layers.push({ input: Buffer.from(`<svg width="${DIAL_W}" height="${LABEL}"><text x="${DIAL_W / 2}" y="20" text-anchor="middle" ${LABEL_STYLE}>${name}</text></svg>`), left: x, top: GAP + KEY + 4 });
+		x += DIAL_W + GAP;
+	}
+	const outFile = path.join(outDir, "multi-readouts.png");
+	writeFileSync(outFile, await sharp({ create: { width: W, height: H, channels: 3, background: BOARD_BG } }).composite(layers).png().toBuffer());
+	console.log(`wrote ${outFile} (${W}x${H})`);
+}
+
 // ---------- the HWiNFO Control key face (the shipped action image) ----------
 
 async function controlKey() {
@@ -208,6 +310,7 @@ try {
 	await statusBoard();
 	await dialStates();
 	await plusXlStrip();
+	await multiReadouts();
 	await controlKey();
 } finally {
 	provider.close();

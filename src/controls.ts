@@ -18,7 +18,7 @@
  */
 import type { TouchZoneMode } from "./gestures";
 
-export type ControlPreset = "legacy" | "elite" | "custom";
+type ControlPreset = "legacy" | "elite" | "custom";
 
 /** Commands a gesture can trigger. Persisted in settings as plain strings. */
 export type GestureCommandId =
@@ -56,7 +56,7 @@ export type ControlScheme = {
 };
 
 /** The settings fields the scheme is derived from (a subset of DialSettings). */
-export type ControlSettings = {
+type ControlSettings = {
 	controlPreset?: string;
 	touchZones?: string;
 	gestureRotate?: string;

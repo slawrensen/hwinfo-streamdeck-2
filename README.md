@@ -83,6 +83,7 @@ the current value.
 | **Label** | Custom key label; defaults to the sensor's (renamed) label. |
 | **Theme** | Preset gallery: this key only, or "Deck default" to follow the deck-wide theme. |
 | **Show** | Current value, or HWiNFO's min / max / average since it started. |
+| **Layout** | One reading (default), two stacked readings with their own labels and stats, or four in a 2x2 quad grid with per-cell colors or labels. |
 | **Decimals** | Auto (magnitude-based, compacts 48 700 → `48.7k`) or fixed 0–3. |
 | **Unit** | Show temperatures in °F instead of °C. |
 | **Sparkline** | Draws recent history along the bottom of the key. |
@@ -106,6 +107,9 @@ The touchscreen shows the label, live value, session ▼min/▲max and a range b
 - **Touch**: cycle current / session-min / session-max / session-avg
 - **Long touch**: back to the current value
 - **Bar range**: fixed min/max for the bar, or automatic from the session range
+- **View**: one reading, or an overview of the rotation list: three compact
+  rows, or two rows with big values and a trend sparkline each; rotation moves
+  the marked row and scrolls the window
 
 Dials use the same themes as keys and take the same **Warn / Critical at**
 thresholds: the range bar's fill flips to the alert color while the rest of the

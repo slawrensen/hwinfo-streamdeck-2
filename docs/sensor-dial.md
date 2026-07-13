@@ -3,7 +3,7 @@ title: Sensor Dial (Stream Deck +)
 nav_order: 5
 ---
 
-The **Sensor Dial** action puts one HWiNFO reading on a Stream Deck + or Stream Deck + XL encoder. The touchscreen shows a label, the live value with its unit, the session low/high, and a range bar; the dial and touch surface let you switch readings and stats without opening settings. On the Stream Deck + XL, each of the six encoders can hold its own Sensor Dial.
+The **Sensor Dial** action puts an HWiNFO reading on a Stream Deck + or Stream Deck + XL encoder. The touchscreen shows a label, the live value with its unit, the session low/high, and a range bar; the dial and touch surface let you switch readings and stats without opening settings. A second view, the [overview](#overview-view), lists up to three readings of your rotation set at once. On the Stream Deck + XL, each of the six encoders can hold its own Sensor Dial.
 
 It shares its data source, themes, thresholds, and formatting with [Sensor Reading](sensor-reading.md) keys; this page covers only what's specific to the dial. Windows only, HWiNFO required.
 
@@ -21,6 +21,41 @@ The slot draws four things, top to bottom:
 | **Range bar** | A fill showing where the **live** value sits between the bar's min and max. |
 
 The bar always tracks the live value, even while you're touching through MIN / MAX / AVG on the number above it.
+
+## Overview view
+
+**View** offers two multi-row layouts besides the single readout, both listing what rotation moves through:
+
+- **Overview (two rows, big values + trend)**: two tall rows, each with its label on its own line and a large value in the shared right-aligned column, the reading on the dial marked by a full-width highlight band and an accent bar. The space left of the value earns its keep: a long label word-wraps onto it, and a label that fits one line frees it for a **sparkline** of that reading's recent values (the same recent-history line the keys draw, fed live for the two visible rows). The bottom line keeps the single view's stats slot.
+- **Overview (three rows)**: the wide tile, one line per reading. The reading on the dial is a small accent **thumb riding the left rail**, which also shows where the three-row window sits in the full list. One **context line** carries the shared name and the session `▼ low ▲ high`: the numbers always render in full, right-anchored, and only the name shortens, so a long name can never eat a stat. The context line sits above the rows by default or below them (**Context line** setting), and thin separator lines between rows can be turned off (**Separators** setting). The `pinned` / `cycle paused` tags and the stat badge share the context line's name region; a transient hint (a group name on a jump, "cycle paused", a reset confirmation) briefly takes the whole line, then the name and numbers return.
+
+![The dial's View setting in the settings panel set to the three-row overview, with the Row labels, Context line and Separators selects it reveals below it.]({{ '/assets/img/pi-dial-overview.png' | relative_url }})
+
+Three things keep the short labels readable:
+
+- **Shared prefixes move to the context line.** When the visible rows' labels start with the same words ("GPU Temperature / GPU Hot Spot / GPU Thermal Limit"), the shared part is lifted out and shown once beside the stats: the rows read "Temperature / Hot Spot / Thermal Limit" with `GPU` in the context line (the two-row face keeps it in its bottom line). You keep the context without paying for it three times. Names you type yourself are never altered, and a reading whose whole label IS the shared word (a plain "GPU" row) keeps it. Prefer the untouched names? Set **Row labels** to "Always full labels".
+- **Values share one right-aligned column.** Every value's ones digit lands on the same column edge, with units in their own column beside it. The three-row face fixes the column and steps the value size down a ladder until the widest visible value fits, so numbers never move; the two-row face places its columns by the widest visible value, so a short value donates its slack to the labels.
+- **You can rename any reading.** Click a chip's name under **Rotation set** and type a new one (Enter or click away to save; clear it to go back to the HWiNFO name). The name shows on that row and as the dial's title whenever that reading is selected, in both views. Unticking a reading keeps its name for later.
+
+![Multi-readout key and dial faces rendered by the plugin, including the three-row overview with its rail thumb and context line shown before and after rotation moved the marked row.]({{ '/assets/img/multi-readouts.png' | relative_url }})
+
+The overview does not get its own list to manage. It shows exactly what rotation already steps through, in the same order:
+
+- your **rotation set**, if you built one (any size; the view shows a two- or three-row window of it),
+- the **active rotation group** when [groups](controls.md#rotation-groups) are in charge of plain rotate,
+- otherwise the **picked sensor's readings**.
+
+Rotating works exactly as in the single view: the selection steps through the full list (saved as always), the mark follows it, and the three-row window scrolls with the selection, clamped at the ends. Auto cycle, alert interrupts, pin, pause, group jumps, touch taps and the HWiNFO Control key all keep working unchanged; a touch tap through MIN / MAX / AVG switches every row to that session stat and notes it beside the stats (the context line on three rows, the bottom line on two).
+
+A few details specific to the view:
+
+- The range bar and the big value belong to the single view; the overview trades them for the extra rows. Bar min/max settings are simply not used while the overview is active.
+- **Warn / Critical** still apply (unit-scoped as always): a row whose reading trips a threshold shows its value in the alert color, and the alert-aware auto cycle can pull the selection (and so the window) to it.
+- A custom **Label** renames the marked row only (and clears on rotation unless Label mode is fixed); per-reading chip names persist per reading instead.
+- Values truncate at 12 characters and keep the shared **Decimals** setting; units truncate at 4 characters on the three-row face (its unit column is fixed) and 5 on the two-row face.
+- With fewer than three readings in reach, the overview lists what there is; the status faces (HWiNFO down, no selection, sensor missing) are the same as the single view's.
+
+Switching back to **One reading** restores the exact single-view face.
 
 ## Gestures
 
@@ -65,6 +100,10 @@ Open the dial's Property Inspector to configure it. Most fields mirror the key a
 | --- | --- |
 | **Sensor** | Searchable picker over every reading HWiNFO publishes, with a live value preview. Same picker as keys, plus a checkbox per row for the rotation set. |
 | **Rotation set** | The readings rotation is limited to, shown as removable chips. Empty means the picked sensor's readings. Can be split into named [rotation groups](controls.md#rotation-groups). |
+| **View** | **One reading** (default), or an [overview](#overview-view) of the rotation list: two rows with big values and trend sparklines, or three compact rows. |
+| **Row labels** | Overview only: shorten shared prefixes into the context line (default), or always show full labels. |
+| **Context line** | Three-row overview only: the shared name and session stats line sits above the rows (default) or below them. |
+| **Separators** | Three-row overview only: thin lines between rows (default), or none. |
 | **Rotation** | "Ignore turns" disables rotation for bump protection. |
 | **Auto cycle** | Timer that steps through the rotation set automatically. Off by default. |
 | **Label** | Custom label; blank falls back to the sensor's name. |
@@ -91,7 +130,7 @@ Dials take the same **Warn at** / **Critical at** thresholds as keys, compared a
 
 This is by design. The touchscreen slot is too small for the full field-flip that keys use (whole key to amber/red), so the bar carries the alert while the readout stays legible. The two alert colors are global and never tinted per theme, so they stay unmistakable. For the full alert model, see [Themes & alerts](themes.md).
 
-> **Note:** Dials have **no sparkline**. Recent-history graphs are a key-only feature; the dial's range bar is its at-a-glance trend indicator.
+> **Note:** The single view has no sparkline; its range bar is the at-a-glance indicator there. The two-row [overview](#overview-view) draws real sparklines for its visible readings.
 
 ## Status screens
 

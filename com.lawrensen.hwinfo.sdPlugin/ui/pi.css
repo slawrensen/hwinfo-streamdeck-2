@@ -75,6 +75,36 @@ details > summary:hover {
 	color: #d8d8d8;
 }
 
+/* Quad cell colors: the preset select plus four native color wells. */
+.hw-quad-colors {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.hw-quad-colors select {
+	flex: 1;
+	min-width: 0;
+	background: #3d3d3d;
+	border: none;
+	border-radius: 0;
+	color: #d8d8d8;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 9pt;
+	padding: 4px 2px;
+	outline: none;
+}
+
+.hw-quad-colors input[type="color"] {
+	flex: 0 0 26px;
+	width: 26px;
+	height: 22px;
+	padding: 0;
+	border: 1px solid #1f1f1f;
+	background: #3d3d3d;
+	cursor: pointer;
+}
+
 .hw-picker-list {
 	position: absolute;
 	top: 100%;
@@ -128,6 +158,8 @@ details > summary:hover {
 .hw-row .hw-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .hw-row .hw-val {
@@ -149,11 +181,6 @@ details > summary:hover {
 /* Rotation set (dial PI): membership ticks in the picker rows + removable
    chips under the picker. The label flexes so the tick/label/value row keeps
    the label left-aligned (harmless on the key PI's tick-less rows). */
-
-.hw-row .hw-label {
-	flex: 1 1 auto;
-	min-width: 0;
-}
 
 .hw-row .hw-tick {
 	/* Explicit box: the webview's native checkbox otherwise shrinks with the
@@ -211,7 +238,22 @@ details > summary:hover {
 	max-width: 170px;
 }
 
-.hw-set-remove {
+.hw-set-name {
+	cursor: text;
+}
+
+.hw-set-name:hover {
+	text-decoration: underline dotted;
+}
+
+/* Chip rename input: group-name look, chip-sized. */
+.hw-chip-rename {
+	flex: 0 1 auto;
+	width: 110px;
+}
+
+.hw-set-remove,
+.hw-group-remove {
 	background: none;
 	border: none;
 	color: #969696;
@@ -221,7 +263,8 @@ details > summary:hover {
 	padding: 0 4px;
 }
 
-.hw-set-remove:hover {
+.hw-set-remove:hover,
+.hw-group-remove:hover {
 	color: #ffffff;
 }
 
@@ -274,20 +317,6 @@ details > summary:hover {
 	color: #7f7f7f;
 }
 
-.hw-group-remove {
-	background: none;
-	border: none;
-	color: #969696;
-	cursor: pointer;
-	font-size: 10pt;
-	line-height: 1;
-	padding: 0 4px;
-}
-
-.hw-group-remove:hover {
-	color: #ffffff;
-}
-
 .hw-set-chips {
 	flex-basis: 100%;
 	display: flex;
@@ -303,22 +332,7 @@ details > summary:hover {
 	margin-top: 6px;
 }
 
-.hw-set-actions button {
-	background: #3d3d3d;
-	border: 1px solid #555555;
-	border-radius: 3px;
-	color: #d8d8d8;
-	cursor: pointer;
-	font-family: "Segoe UI", Arial, sans-serif;
-	font-size: 8pt;
-	padding: 2px 8px;
-}
-
-.hw-set-actions button:hover {
-	background: #4a4a4a;
-}
-
-/* "Copy support report" button (all PIs). */
+.hw-set-actions button,
 .hw-support {
 	background: #3d3d3d;
 	border: 1px solid #555555;
@@ -326,12 +340,22 @@ details > summary:hover {
 	color: #d8d8d8;
 	cursor: pointer;
 	font-family: "Segoe UI", Arial, sans-serif;
-	font-size: 8.5pt;
-	padding: 3px 10px;
 }
 
+.hw-set-actions button {
+	font-size: 8pt;
+	padding: 2px 8px;
+}
+
+.hw-set-actions button:hover,
 .hw-support:hover {
 	background: #4a4a4a;
+}
+
+/* "Copy support report" button (all PIs). */
+.hw-support {
+	font-size: 8.5pt;
+	padding: 3px 10px;
 }
 
 .hw-support:disabled {

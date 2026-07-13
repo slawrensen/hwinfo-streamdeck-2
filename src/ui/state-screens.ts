@@ -17,9 +17,7 @@ export function statusScreen(status: PollerStatus): StatusKeyOptions | null {
 	}
 	if (status.state === "stale") {
 		// Sub-line matches the source in use (like the dial text + PI hint).
-		return status.source === "gadget"
-			? { icon: "clock", accent: AMBER, lines: ["Not updating", "check Gadget"] }
-			: { icon: "clock", accent: AMBER, lines: ["Not updating", "check sharing"] };
+		return { icon: "clock", accent: AMBER, lines: ["Not updating", status.source === "gadget" ? "check Gadget" : "check sharing"] };
 	}
 	switch (status.reason) {
 		case "not-running":
@@ -54,7 +52,7 @@ export function statusDialText(status: PollerStatus): { title: string; value: st
 		// Match the recovery hint to the source in use, like statusScreen and
 		// statusSentence do; a gadget-source dial must not be told to check
 		// Shared Memory sharing that isn't even the source it's reading from.
-		return status.source === "gadget" ? { title: "HWiNFO stalled", value: "check Gadget" } : { title: "HWiNFO stalled", value: "check sharing" };
+		return { title: "HWiNFO stalled", value: status.source === "gadget" ? "check Gadget" : "check sharing" };
 	}
 	switch (status.reason) {
 		case "not-running":

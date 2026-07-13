@@ -3,11 +3,11 @@ title: Sensor Reading (keys)
 nav_order: 4
 ---
 
-The **Sensor Reading** action puts one live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional sparkline, and warn/critical coloring. Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
+The **Sensor Reading** action puts a live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional sparkline, and warn/critical coloring. A key can also [stack two readings](#layout-two-readings-on-one-key) as two compact rows, or show [four readings in a quad grid](#layout-four-readings-the-quad-grid). Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
 
 This page documents every setting in the key's settings panel. For the Stream Deck + dial, see [Sensor Dial](sensor-dial.md).
 
-![The full Sensor Reading settings panel in the Stream Deck property inspector: the sensor picker with a live value, the label field, the theme gallery, the stat, decimals, unit, sparkline and threshold controls, and the expanded Advanced section with the deck theme, type accents, data source, poll rate, and the Copy support report button.]({{ '/assets/img/settings-panel.png' | relative_url }})
+![The full Sensor Reading settings panel in the Stream Deck property inspector: the sensor picker with a live value, the label field, the theme gallery, the layout select, the stat, decimals, unit, sparkline and threshold controls, and the expanded Advanced section with the deck theme, type accents, data source, poll rate, and the Copy support report button.]({{ '/assets/img/settings-panel.png' | relative_url }})
 
 ## Settings
 
@@ -46,6 +46,59 @@ When a non-current mode is selected, a small **MIN / MAX / AVG** badge appears i
 
 > **Note:** Min / max / average come from HWiNFO's Shared Memory interface. On the Gadget-registry fallback these statistics aren't available, so all four modes show the current value. See [Data sources](data-sources.md).
 
+### Layout: two readings on one key
+
+**Layout → Two readings, stacked** splits the key into two rows, each with its own small label and a value with the unit inline, separated by a thin divider. Pick the second reading in the **Second sensor** picker that appears (same searchable picker as the first), and give it an optional **Second label**. While the layout is dual, the Sparkline row hides.
+
+**Second shows** decides the second row's stat:
+
+- **Follows the first reading** *(default)*: both rows show the same stat, and the key press cycles them together. When that stat isn't the current value, **one MIN / MAX / AVG badge sits centered in the divider gap**, the key's most visible spot.
+- **Always current / min / max / avg**: pins the second row to a fixed stat. A pinned row whose stat differs from the first row's shows its own small badge inline after its unit (the same idiom the dial uses), never in the key's corner, so row labels always keep their full width.
+
+![The key's settings panel with Layout set to Two readings, stacked: the Second sensor picker holding a GPU temperature, the Second label field and the Second shows select below it.]({{ '/assets/img/pi-key-dual.png' | relative_url }})
+
+![Multi-readout key and dial faces rendered by the plugin: CPU and GPU temperature stacked on one key, the same CPU sensor as a min and max pair, a press-cycled pair showing MAX, a quad grid key with four color-coded readings, and the dial overview and two-row views.]({{ '/assets/img/multi-readouts.png' | relative_url }})
+
+Two stacked rows are this layout's limit; for more, the [quad grid](#layout-four-readings-the-quad-grid) shows four readings per key, which is the ceiling (there is no three-value layout: a quad with three sensors picked leaves its fourth cell empty). Some useful pairs:
+
+- Two related sensors: CPU and GPU temperature, both RAM sticks, two drives.
+- The **same sensor twice** with a pinned second stat: current above a pinned maximum, or **Show = min** with **Second shows = Always maximum** for the min/max pair in the image above (framerate lows and highs work the same way).
+- A download/upload rate pair for one adapter.
+
+What carries over, and what stays with the first reading:
+
+- **Decimals** and **°F** apply to both rows.
+- **Warn at / Critical at** watch the **first** reading only, and an alert recolors the whole key exactly like the single layout. There are no per-row thresholds; put the reading you want alerts on first (or use two keys).
+- The sensor-type accent (badge color) follows the first reading.
+- The **sparkline is a single-layout feature**: the second row takes its space, so the Sparkline row hides while the layout is dual (the setting is kept for when you switch back).
+- Row labels truncate at **16 characters**; badges never cost label space.
+- If one row's sensor drops out of HWiNFO's output, that row shows an em-dash placeholder while the other keeps updating; if both drop out, the key shows the usual **Sensor missing** screen.
+
+Switching back to **One reading** restores the exact single-layout face; the second reading's settings are remembered.
+
+### Layout: four readings, the quad grid
+
+**Layout → Four readings, quad grid** splits the key into a 2x2 grid, one reading per cell, behind a hairline cross. The first sensor is the top left cell and the **Second sensor** the top right (the same fields the stacked layout uses, so switching between two and four readings keeps both sensors), with **Third sensor** and **Fourth sensor** pickers below. A quad needs the first sensor plus at least one more; unpicked cells stay empty, so a three-sensor quad is fine.
+
+Four values on a 72 px key leave no room for full labels, so the quad has two ways to keep the cells identifiable:
+
+- **Cell colors** *(default)*: each value is drawn in its cell's color. The preset select offers **Signal** (four distinct hues), **Pairs** (top row one hue, bottom row another, for two related pairs), and **Uniform** (accent blue everywhere); the four color wells beside it recolor any single cell, and the select reads *Custom* when the wells match no preset.
+- **Cell labels**: ticking **Show a small label in each cell** switches to a short uppercase label above each value; the label takes the cell color and the value the theme's text color. Labels come from the **Label** and **Second label** fields for the top cells and **Third label / Fourth label** for the bottom ones, defaulting to the sensor name's first word; the first 4 characters show.
+
+Values compact to at most **four characters** per cell: decimals drop first, then large numbers shorten (`48700` shows as `49k`), so a cell never overflows.
+
+![The key's settings panel with Layout set to Four readings, quad grid: the Third and Fourth sensor pickers holding a GPU clock and a pump speed, the Cell colors row with its preset select and four color wells, and the Cell labels toggle below them.]({{ '/assets/img/pi-key-quad.png' | relative_url }})
+
+What carries over from the other layouts, and what stays with the first sensor:
+
+- All cells show the **same stat**, and pressing the key cycles them together; a non-current stat shows one MIN / MAX / AVG badge centered on the cross. Per-cell stat pins are a dual-layout feature.
+- **Decimals** and **°F** apply to every cell.
+- **Warn at / Critical at** watch the **first** sensor only, and an alert recolors the whole key in the global alert palette, over the cell colors, exactly like the other layouts; no cell color can be mistaken for an alert.
+- The sensor-type accent (badge color) follows the first sensor, and the **sparkline stays a single-layout feature**.
+- A cell whose sensor drops out of HWiNFO's output shows an em-dash placeholder while the rest keep updating; if every picked sensor drops out, the key shows the usual **Sensor missing** screen.
+
+Switching back to **One reading** or **Two readings, stacked** restores that exact face; the extra sensors, labels and colors are remembered for the next switch to quad.
+
 ### Decimals
 
 Controls value precision:
@@ -66,7 +119,7 @@ Controls value precision:
 - It **survives a °C/°F toggle** unchanged (same data, just relabelled), and a frozen HWiNFO holds the line's last real shape instead of flattening it.
 - The sparkline self-scales to its own visible min/max, so the shape reflects recent variation, not absolute magnitude.
 
-> **Note:** Changing the poll interval (*Advanced → Poll every*) resets sparkline history, because the ring is spaced by sample index and can't honestly span a cadence change.
+> **Note:** Changing the poll interval (*Advanced → Poll every*) resets sparkline history, because the ring is spaced by sample index and can't honestly span a cadence change. The sparkline is also a single-layout feature: it does not draw on a [dual](#layout-two-readings-on-one-key) or [quad](#layout-four-readings-the-quad-grid) key.
 
 ### Warn at / Critical at
 
@@ -83,6 +136,10 @@ See [Thresholds & alerts](thresholds-alerts.md) for the full behavior.
 ## Pressing the key
 
 Pressing the key cycles the displayed stat: **current → MIN → MAX → AVG → current**. The corner badge updates to match, and the choice is saved back to the key's settings (so it's the same as changing **Show** in the panel). Warn/critical coloring keeps tracking the live value throughout.
+
+On a dual key with **Second shows** at its default (follows the first reading), the press cycles **both rows together**, one shared badge centered on the divider. A second row pinned to a fixed stat stays put while the first row cycles, so a configured pair (say a pinned maximum under a live value) survives any press.
+
+On a quad key every cell shows the same stat, so the press cycles **all four together**, with the one badge at the cross center updating.
 
 ## Status screens
 

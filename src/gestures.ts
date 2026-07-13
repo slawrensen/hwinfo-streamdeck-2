@@ -33,7 +33,7 @@ export type GestureState = {
 export const IDLE_GESTURE: GestureState = { downAt: null, rotatedWhileDown: false };
 
 export type TouchZoneMode = "off" | "two" | "three";
-export type TapZone = "left" | "center" | "right";
+type TapZone = "left" | "center" | "right";
 
 export type GestureInput =
 	| { readonly kind: "dialDown"; readonly at: number }
@@ -43,7 +43,7 @@ export type GestureInput =
 	/** willDisappear / device gone: drop any half-tracked press. */
 	| { readonly kind: "detach" };
 
-export type Gesture =
+type Gesture =
 	| { readonly kind: "rotate"; readonly ticks: number }
 	| { readonly kind: "pressedRotate"; readonly ticks: number }
 	| { readonly kind: "shortPress" }

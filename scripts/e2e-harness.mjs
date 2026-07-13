@@ -227,6 +227,140 @@ async function scenario(send) {
 			send({ event: "willDisappear", action: "com.lawrensen.hwinfo.dial", context: `ctx-dial-${c}`, device: "devxl", payload: { settings: {}, coordinates: { column: c, row: 0 }, controller: "Encoder", isInMultiAction: false } });
 		}
 
+		// Overview view: the strip lists three rotation-set rows at once, the
+		// marked row follows rotation, and a junk dialView falls back to the
+		// single face (rollback safety).
+		const k3 = (treeMsg?.groups ?? []).flatMap((g) => g.readings.map((r) => r.key))[2];
+		const dialSvgLatest = () => results.feedbacks.filter((f) => f.context === "ctx-dial").map((f) => decodeSvg(f.payload?.canvas)).filter((s) => s !== null).at(-1);
+		if (typeof k3 === "string") {
+			dialSet({ readingKey: k1, rotationKeys: [k1, k2, k3], dialView: "overview" });
+			await sleep(600);
+			results.overviewFirst = dialSvgLatest();
+			dialRotate();
+			await sleep(500);
+			results.overviewAfterRotate = dialSvgLatest();
+			results.overviewRotatedTo = dialWrites().at(-1)?.payload?.readingKey;
+			// Per-reading names show on the rows (and junk name entries are
+			// ignored rather than breaking the face).
+			dialSet({ readingKey: k1, rotationKeys: [k1, k2, k3], dialView: "overview", rotationNames: { [k2]: "Renamed Row", [k3]: 42, junk: null } });
+			await sleep(500);
+			results.overviewRenamed = dialSvgLatest();
+			dialSet({ readingKey: k1, rotationKeys: [k1, k2, k3], dialView: "definitely-bogus" });
+			await sleep(500);
+			results.overviewDegraded = dialSvgLatest();
+			// The V3 knobs through REAL settings: bottom context line plus
+			// separators off, then junk values salvaging to the top default.
+			dialSet({ readingKey: k1, rotationKeys: [k1, k2, k3], dialView: "overview", overviewHeader: "bottom", overviewSeparators: "off" });
+			await sleep(500);
+			results.overviewBottomFrame = dialSvgLatest();
+			dialSet({ readingKey: k1, rotationKeys: [k1, k2, k3], dialView: "overview", overviewHeader: 42, overviewSeparators: null });
+			await sleep(500);
+			results.overviewJunkKnobsFrame = dialSvgLatest();
+			// Overlay on the overview face: a pressed group jump must take the
+			// whole context line (group name shown, stats suppressed).
+			dialSet({
+				readingKey: k1,
+				controlPreset: "elite",
+				dialView: "overview",
+				rotationGroups: [
+					{ name: "Group A", keys: [k1] },
+					{ name: "Group B", keys: [k2] }
+				],
+				rotationKeys: [k1, k2]
+			});
+			await sleep(300);
+			dialEvent("dialDown", {});
+			dialEvent("dialRotate", { ticks: 1, pressed: true });
+			dialEvent("dialUp", {});
+			await sleep(400);
+			results.overviewOverlayFrame = dialSvgLatest();
+			dialSet({ readingKey: k1, controlPreset: "" });
+			await sleep(200);
+			// Two-row view: big values, and the dial's own series subscriptions
+			// feed a live sparkline once two fresh HWiNFO snapshots arrive
+			// (HWiNFO's own cadence, ~2 s each).
+			dialSet({ readingKey: k1, rotationKeys: [k1, k2], dialView: "tworow" });
+			await sleep(6500);
+			results.twoRowFrame = dialSvgLatest();
+			dialSet({ readingKey: k1 });
+			await sleep(200);
+		}
+
+		// Dual-readout key: two live readings stacked, the second row keeping
+		// its configured MAX badge; junk layout settings degrade to the
+		// unchanged single face.
+		send({
+			event: "willAppear",
+			action: "com.lawrensen.hwinfo.reading",
+			context: "ctx-key2",
+			device: "dev1",
+			payload: { settings: { readingKey: k1, keyLayout: "dual", secondaryReadingKey: k2, secondaryStatMode: "max" }, coordinates: { column: 2, row: 0 }, controller: "Keypad", isInMultiAction: false }
+		});
+		await sleep(700);
+		results.dualFrames = results.images.filter((i) => i.context === "ctx-key2").map((i) => decodeSvg(i.image)).filter((s) => s !== null);
+		// Follow mode (no pinned second stat): one shared badge centered in
+		// the divider gap, nothing end-anchored into the key's corner.
+		send({
+			event: "didReceiveSettings",
+			action: "com.lawrensen.hwinfo.reading",
+			context: "ctx-key2",
+			device: "dev1",
+			payload: { settings: { readingKey: k1, keyLayout: "dual", secondaryReadingKey: k2, statMode: "max" }, coordinates: { column: 2, row: 0 }, isInMultiAction: false }
+		});
+		await sleep(500);
+		results.dualSharedFrame = results.images.filter((i) => i.context === "ctx-key2").map((i) => decodeSvg(i.image)).filter((s) => s !== null).at(-1);
+		send({
+			event: "didReceiveSettings",
+			action: "com.lawrensen.hwinfo.reading",
+			context: "ctx-key2",
+			device: "dev1",
+			payload: { settings: { readingKey: k1, keyLayout: { junk: true }, secondaryReadingKey: 42 }, coordinates: { column: 2, row: 0 }, isInMultiAction: false }
+		});
+		await sleep(500);
+		results.dualDegradedFrame = results.images.filter((i) => i.context === "ctx-key2").map((i) => decodeSvg(i.image)).filter((s) => s !== null).at(-1);
+		send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key2", device: "dev1", payload: { settings: {}, coordinates: { column: 2, row: 0 }, controller: "Keypad", isInMultiAction: false } });
+
+		// Quad-grid key: four live readings behind the hairline cross, the
+		// shared stat badge centered at the cross, per-entry color salvage,
+		// junk slots dropping only their own cell, whole-key warn recolor,
+		// and fewer than two resolvable slots degrading to the single face.
+		const flatKeys = (treeMsg?.groups ?? []).flatMap((g) => g.readings.map((r) => r.key));
+		const q3 = flatKeys[2];
+		const q4 = flatKeys[3];
+		if (typeof q3 === "string" && typeof q4 === "string") {
+			const quadSet = (settings) =>
+				send({ event: "didReceiveSettings", action: "com.lawrensen.hwinfo.reading", context: "ctx-key4", device: "dev1", payload: { settings, coordinates: { column: 3, row: 0 }, isInMultiAction: false } });
+			const quadLatest = () => results.images.filter((i) => i.context === "ctx-key4").map((i) => decodeSvg(i.image)).filter((s) => s !== null).at(-1);
+			send({
+				event: "willAppear",
+				action: "com.lawrensen.hwinfo.reading",
+				context: "ctx-key4",
+				device: "dev1",
+				payload: { settings: { readingKey: k1, keyLayout: "quad", secondaryReadingKey: k2, quadReadingKey3: q3, quadReadingKey4: q4 }, coordinates: { column: 3, row: 0 }, controller: "Keypad", isInMultiAction: false }
+			});
+			await sleep(700);
+			results.quadFrame = quadLatest();
+			quadSet({ readingKey: k1, keyLayout: "quad", secondaryReadingKey: k2, quadReadingKey3: q3, quadReadingKey4: q4, statMode: "max" });
+			await sleep(500);
+			results.quadBadgeFrame = quadLatest();
+			// Junk slots 3/4 and a junk color entry: slots drop, colors salvage
+			// per entry, the grid itself stays.
+			quadSet({ readingKey: k1, keyLayout: "quad", secondaryReadingKey: k2, quadReadingKey3: { junk: true }, quadReadingKey4: "", quadColors: ["#123456", 42, "nope", null] });
+			await sleep(500);
+			results.quadJunkSlotFrame = quadLatest();
+			// Warn recolor from the primary thresholds: the whole key takes the
+			// alert palette and the slot identity colors disappear.
+			quadSet({ readingKey: k1, keyLayout: "quad", secondaryReadingKey: k2, quadReadingKey3: q3, quadReadingKey4: q4, warnValue: "0" });
+			await sleep(500);
+			results.quadWarnFrame = quadLatest();
+			// Only the primary resolves: quad degrades along dual rules onto
+			// the unchanged single face.
+			quadSet({ readingKey: k1, keyLayout: "quad", secondaryReadingKey: 42, quadReadingKey3: false });
+			await sleep(500);
+			results.quadDegradedFrame = quadLatest();
+			send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key4", device: "dev1", payload: { settings: {}, coordinates: { column: 3, row: 0 }, controller: "Keypad", isInMultiAction: false } });
+		}
+
 		// Malformed / old settings must neither crash the plugin nor corrupt
 		// the deck: the context still renders AND rotation still works (the
 		// invalid readingKey counts as no selection, so a turn adopts one).
@@ -463,6 +597,109 @@ async function finish() {
 	const liveDial = dialSvgs.find((s) => /[▼▲]/.test(s) && s.includes('y="84"'));
 	check("dial shows live value + session stats + bar", liveDial !== undefined, (liveDial ?? "").slice(0, 140));
 
+	// Overview view: three rows, the marked row follows rotation, junk falls back.
+	check(
+		"overview (V3): rail groove + thumb on row one, context line with full stats, no bar",
+		typeof results.overviewFirst === "string" &&
+			results.overviewFirst.includes('<rect x="0" y="16" width="4" height="84"') &&
+			results.overviewFirst.includes('<rect x="0" y="17" width="4" height="26" rx="2"') &&
+			results.overviewFirst.includes('x="196" y="11" text-anchor="end"') &&
+			results.overviewFirst.includes("▼") &&
+			!results.overviewFirst.includes('y="84"'),
+		(results.overviewFirst ?? "no frame").slice(0, 160)
+	);
+	check(
+		"overview rotation adopts the next set member and moves the rail thumb",
+		results.overviewRotatedTo === results.rotationKeys?.[1] && typeof results.overviewAfterRotate === "string" && results.overviewAfterRotate.includes('<rect x="0" y="45" width="4" height="26" rx="2"'),
+		`rotated to ${results.overviewRotatedTo}`
+	);
+	check(
+		// The full text can pixel-fit to the live values' column ("RENAMED…"),
+		// so the check pins the uppercase rename prefix, not the whole string.
+		"overview rows take per-reading names (drawn UPPERCASE); junk name entries are ignored",
+		typeof results.overviewRenamed === "string" && results.overviewRenamed.includes(">RENAMED"),
+		(results.overviewRenamed ?? "no frame").slice(0, 120)
+	);
+	check(
+		"junk dialView degrades to the single face (bar back at y=84)",
+		typeof results.overviewDegraded === "string" && results.overviewDegraded.includes('y="84"'),
+		(results.overviewDegraded ?? "no frame").slice(0, 100)
+	);
+	check(
+		"overviewHeader/overviewSeparators drive the face through real settings",
+		typeof results.overviewBottomFrame === "string" &&
+			results.overviewBottomFrame.includes('<rect x="0" y="2" width="4" height="78"') &&
+			results.overviewBottomFrame.includes('y="95"') &&
+			!results.overviewBottomFrame.includes('height="1"'),
+		(results.overviewBottomFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"junk overview knobs salvage to the top default face with separators",
+		typeof results.overviewJunkKnobsFrame === "string" &&
+			results.overviewJunkKnobsFrame.includes('<rect x="0" y="16" width="4" height="84"') &&
+			results.overviewJunkKnobsFrame.includes('y="11"') &&
+			results.overviewJunkKnobsFrame.includes('height="1"'),
+		(results.overviewJunkKnobsFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"an overlay takes the whole overview context line (group name, stats suppressed)",
+		typeof results.overviewOverlayFrame === "string" && results.overviewOverlayFrame.includes(">Group B<") && !results.overviewOverlayFrame.includes("▼"),
+		(results.overviewOverlayFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"two-row view: 40px selected band, 26px values, live sparkline",
+		typeof results.twoRowFrame === "string" && results.twoRowFrame.includes('height="40"') && results.twoRowFrame.includes('font-size="26"') && results.twoRowFrame.includes("<polyline"),
+		(results.twoRowFrame ?? "no frame").slice(0, 140)
+	);
+
+	// Dual-readout key: both rows live behind the divider; junk degrades single.
+	const dualFrame = (results.dualFrames ?? []).find((s) => s.includes('y="71"'));
+	check(
+		"dual key renders two stacked readouts behind the divider",
+		dualFrame !== undefined && (dualFrame.match(/font-weight="700"/g) ?? []).length >= 3 && dualFrame.includes('y="56"') && dualFrame.includes('y="128"'),
+		`${results.dualFrames?.length ?? 0} frames`
+	);
+	check("dual key pinned second row carries its MAX badge inline", dualFrame !== undefined && dualFrame.includes(">MAX<") && !dualFrame.includes('x="132"'));
+	check(
+		"follow mode centers one shared badge in the divider gap",
+		typeof results.dualSharedFrame === "string" && results.dualSharedFrame.includes('<text x="72" y="76"') && results.dualSharedFrame.includes(">MAX<") && !results.dualSharedFrame.includes('x="132"'),
+		(results.dualSharedFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"junk keyLayout degrades to the unchanged single face",
+		typeof results.dualDegradedFrame === "string" && !results.dualDegradedFrame.includes('y="71"') && results.dualDegradedFrame.includes('x="72" y="32"'),
+		(results.dualDegradedFrame ?? "no frame").slice(0, 100)
+	);
+
+	// Quad key: four cells behind the cross, badge at the cross, per-entry
+	// color salvage, whole-key warn recolor, degrade to the single face.
+	const hasCross = (s) => typeof s === "string" && s.includes('<rect x="12" y="71" width="120" height="2"') && s.includes('<rect x="71" y="12" width="2" height="120"');
+	check(
+		"quad key renders four cells behind the hairline cross",
+		hasCross(results.quadFrame) && ['x="36" y="40"', 'x="108" y="40"', 'x="36" y="112"', 'x="108" y="112"'].every((m) => results.quadFrame.includes(m)),
+		(results.quadFrame ?? "no frame").slice(0, 160)
+	);
+	check(
+		"quad shared badge centers at the cross intersection",
+		typeof results.quadBadgeFrame === "string" && results.quadBadgeFrame.includes('<rect x="47" y="63" width="50" height="14"') && results.quadBadgeFrame.includes('<text x="72" y="76"') && results.quadBadgeFrame.includes(">MAX<"),
+		(results.quadBadgeFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"quad junk slots drop only their cells; colors salvage per entry",
+		hasCross(results.quadJunkSlotFrame) && results.quadJunkSlotFrame.includes("#123456") && results.quadJunkSlotFrame.includes("#FF7E8E") && !results.quadJunkSlotFrame.includes('y="112"'),
+		(results.quadJunkSlotFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"quad warn recolors the whole key and drops the slot colors",
+		typeof results.quadWarnFrame === "string" && results.quadWarnFrame.includes('<rect width="144" height="144" fill="#E8940D"/>') && !results.quadWarnFrame.includes("#4CC2FF") && !results.quadWarnFrame.includes("#FF7E8E"),
+		(results.quadWarnFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"quad with one resolvable slot degrades to the unchanged single face",
+		typeof results.quadDegradedFrame === "string" && !hasCross(results.quadDegradedFrame) && results.quadDegradedFrame.includes('<text x="72" y="32"'),
+		(results.quadDegradedFrame ?? "no frame").slice(0, 100)
+	);
+
 	// Elite preset: pressed rotation is a sensor jump, not a reading step.
 	check("elite pressed rotation switches sensor sources", results.pressedRotateCrossed === true, `landed on ${results.pressedRotateKey}`);
 
@@ -594,4 +831,4 @@ setTimeout(() => {
 		plugin.kill();
 		process.exit(1);
 	}
-}, 45000);
+}, 60000);

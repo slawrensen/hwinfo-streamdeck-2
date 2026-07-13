@@ -6,12 +6,12 @@ import streamDeck from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 
 import { buildSupportReport } from "./diagnostics";
-import type { PollerStatus } from "./poller";
+import { poller, type PollerStatus } from "./poller";
 import { statusSentence } from "./ui/state-screens";
 import { getDeckTheme } from "./ui/theme-store";
 import { loadThemes } from "./ui/themes";
 
-export type TreeReading = {
+type TreeReading = {
 	key: string;
 	label: string;
 	unit: string;
@@ -19,12 +19,12 @@ export type TreeReading = {
 	type: number;
 };
 
-export type TreeGroup = {
+type TreeGroup = {
 	name: string;
 	readings: TreeReading[];
 };
 
-export type SensorTreePayload = {
+type SensorTreePayload = {
 	event: "sensorTree";
 	groups: TreeGroup[];
 	/** Poller state at fetch time — lets the PI refetch after HWiNFO comes up. */
@@ -35,7 +35,7 @@ export type SensorTreePayload = {
 	hint: string;
 };
 
-export type PreviewPayload = {
+type PreviewPayload = {
 	event: "preview";
 	state: PollerStatus["state"];
 	/** Active data source ("shared-memory" | "gadget"); absent when unavailable. */
@@ -141,4 +141,32 @@ export function buildPreview(status: PollerStatus, readingKey: string | undefine
 		valueAvg: reading.valueAvg
 	};
 	return payload;
+}
+
+/**
+ * Answers a PI request message; both sensor actions delegate their
+ * onSendToPlugin here (the PIs share pi-common.js and speak one protocol).
+ */
+export function handlePiRequest(payload: JsonValue): void {
+	if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+		return;
+	}
+	if (payload.event === "getSensorTree") {
+		void streamDeck.ui.sendToPropertyInspector(buildSensorTree(poller.getStatus()));
+	} else if (payload.event === "getThemes") {
+		void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
+	} else if (payload.event === "getSupportReport") {
+		void streamDeck.ui.sendToPropertyInspector(buildSupportReportPayload());
+	}
+}
+
+/** Live numbers for the PI while it is open on one of the caller's instances
+ *  (the manifestId check keeps each action class feeding only its own PI). */
+export function pushPreviewToPi(status: PollerStatus, manifestId: string | undefined, instances: { get(id: string): { settings: { readingKey?: string } } | undefined }): void {
+	const piAction = streamDeck.ui.action;
+	if (piAction === undefined || piAction.manifestId !== manifestId) {
+		return;
+	}
+	const state = instances.get(piAction.id);
+	void streamDeck.ui.sendToPropertyInspector(buildPreview(status, state?.settings.readingKey));
 }
