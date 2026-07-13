@@ -14,7 +14,7 @@ hand.
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
-## 1.2.0.0 - 2026-07-12
+## 1.2.0.0 - 2026-07-13
 
 - Two readings on one key. A new Layout setting on the Sensor Reading
   action stacks a second readout under the first: two rows, each with
@@ -75,8 +75,9 @@ Elgato Marketplace listing is a separate track.
   eat a stat. Values share one right-anchored column at a fixed
   edge, sized by a ladder so the widest visible value fits, with units
   in a fixed column beside it; row labels draw as small uppercase text
-  and thin separator lines between rows can be turned off with the new
-  Separators setting. The pinned and cycle-paused tags and the stat
+  that fills the room up to its own row's value and shortens only when
+  a name truly runs out of space, and thin separator lines between rows
+  can be turned off with the new Separators setting. The pinned and cycle-paused tags and the stat
   badge share the context line's name region; a transient hint (a
   group-jump name, a reset confirmation) briefly takes the whole line,
   then the name and numbers return. Alerts recolor a row's value text
