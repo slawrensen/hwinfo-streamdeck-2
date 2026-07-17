@@ -100,6 +100,7 @@
 			<sdpi-select setting="keyLayout" default="single">
 				<option value="single">One reading (default)</option>
 				<option value="dual">Two readings, stacked</option>
+				<option value="triple">Three readings, rows</option>
 				<option value="quad">Four readings, quad grid</option>
 			</sdpi-select>
 		</sdpi-item>
@@ -127,7 +128,7 @@
 			</sdpi-item>
 			<div class="hw-help">Two rows on one key: the sensor above on top, this one below. By default both rows show the same stat and the key press cycles them together, with one badge centered on the divider. Pin this row to a fixed stat for pairs like minimum and maximum; when the stats differ, each non-current row badges inline after its unit. Thresholds and the theme accent follow the first reading; the sparkline is a single-layout feature.</div>
 		</div>
-		<div id="quad-rows" class="hw-cond" hidden>
+		<div id="third-slot" class="hw-cond" hidden>
 			<sdpi-item label="Third sensor">
 				<div class="hw-picker">
 					<input id="picker3-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
@@ -136,8 +137,11 @@
 				</div>
 			</sdpi-item>
 			<sdpi-item label="Third label">
-				<sdpi-textfield setting="quadLabel3" placeholder="Short name; 4 characters show"></sdpi-textfield>
+				<sdpi-textfield id="third-label" setting="quadLabel3" placeholder="Short name; 4 characters show"></sdpi-textfield>
 			</sdpi-item>
+			<div id="triple-help" class="hw-help hw-cond" hidden>Three compact rows: labels left, values right, and a long name shortens so its number stays whole (a short custom label keeps it readable). Every row shows the same stat (the press cycles all three together), and thresholds follow the first sensor, recoloring the whole key on alert.</div>
+		</div>
+		<div id="quad-rows" class="hw-cond" hidden>
 			<sdpi-item label="Fourth sensor">
 				<div class="hw-picker">
 					<input id="picker4-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />

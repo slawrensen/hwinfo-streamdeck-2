@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
 
 import type { SensorSnapshot } from "../src/hwinfo/types";
 import type { PollerStatus } from "../src/poller";
-import { statusDialText, statusScreen, statusSentence } from "../src/ui/state-screens";
+import { keyLabel, statusDialText, statusScreen, statusSentence } from "../src/ui/state-screens";
 
 const EMPTY_SNAPSHOT: SensorSnapshot = {
 	pollTime: 1,
@@ -44,5 +44,18 @@ describe("state-screens: stale recovery hint follows the source", () => {
 	it("PI sentence already branches on source", () => {
 		assert.match(statusSentence(stale("gadget")), /Gadget/);
 		assert.match(statusSentence(stale("shared-memory")), /Shared Memory/);
+	});
+});
+
+describe("keyLabel salvage", () => {
+	it("uses a trimmed custom label, falls back on blank or non-string junk", () => {
+		assert.equal(keyLabel(" CCD1 ", "fallback"), "CCD1");
+		assert.equal(keyLabel("", "fallback"), "fallback");
+		assert.equal(keyLabel("   ", "fallback"), "fallback");
+		assert.equal(keyLabel(undefined, "fallback"), "fallback");
+		// Settings are untyped JSON at runtime: junk shapes degrade, never throw.
+		assert.equal(keyLabel(42, "fallback"), "fallback");
+		assert.equal(keyLabel({ junk: true }, "fallback"), "fallback");
+		assert.equal(keyLabel(null, "fallback"), "fallback");
 	});
 });

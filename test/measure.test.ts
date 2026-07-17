@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatQuadValue, formatValue } from "../src/ui/format";
+import { estimateKeyTextWidth, fitTextLadder, formatQuadValue, formatValue } from "../src/ui/format";
 import { formatMeasurement, formatQuadMeasurement, formatStat, isDataUnit, parseDataUnit, parseDataUnitsPref, type MeasureOptions } from "../src/ui/measure";
 
 const DEC: MeasureOptions = { decimals: "auto", fahrenheit: false, dataUnits: "decimal" };
@@ -287,5 +287,101 @@ describe("formatStat and isDataUnit", () => {
 		assert.equal(isDataUnit("B/s"), true);
 		assert.equal(isDataUnit("°C"), false);
 		assert.equal(isDataUnit("RPM"), false);
+	});
+});
+
+describe("estimateKeyTextWidth (the key faces' glyph-class estimator)", () => {
+	it("scales linearly from the 12px calibration", () => {
+		const at12 = estimateKeyTextWidth("CCD1", 12);
+		assert.ok(Math.abs(at12 - 29.1) < 1e-9, `CCD1 at 12px: ${at12}`);
+		assert.ok(Math.abs(estimateKeyTextWidth("CCD1", 24) - at12 * 2) < 1e-9, "24px is exactly double 12px");
+	});
+
+	it("classes narrow glyphs, digits, caps, wide caps, lowercase and spaces apart", () => {
+		assert.ok(estimateKeyTextWidth("iiii", 12) < estimateKeyTextWidth("1111", 12), "narrow < digits");
+		assert.ok(estimateKeyTextWidth("aaaa", 12) < estimateKeyTextWidth("AAAA", 12), "lowercase < caps");
+		assert.ok(estimateKeyTextWidth("AAAA", 12) < estimateKeyTextWidth("WWWW", 12), "caps < wide caps");
+		assert.ok(estimateKeyTextWidth("nnnn", 12) < estimateKeyTextWidth("mmmm", 12), "regular < wide lowercase");
+		assert.ok(estimateKeyTextWidth("a a", 12) < estimateKeyTextWidth("aaa", 12), "space < glyph");
+		assert.ok(estimateKeyTextWidth("...", 12) < estimateKeyTextWidth("…", 12) * 2, "punctuation narrow, ellipsis wide");
+	});
+
+	it("unknown glyphs take the widest common budget (overestimate keeps text inside)", () => {
+		assert.equal(estimateKeyTextWidth("°", 12), 7);
+	});
+
+	it("East Asian wide glyphs cost a full em: never less than the font size", () => {
+		// A 7px default here undercounts fullwidth glyphs by ~40% and lets a
+		// CJK sensor name overflow the face at the ladder's top size.
+		for (const glyph of ["水", "電", "テ", "한", "！", "😀"]) {
+			assert.equal(estimateKeyTextWidth(glyph, 12), 12, glyph);
+			assert.ok(estimateKeyTextWidth(glyph, 16) >= 16, glyph);
+		}
+		// An 8-glyph CJK label estimates at least 8 em: the single ladder must
+		// land at 14, not its 20px top.
+		assert.ok(estimateKeyTextWidth("電力消費量テスト", 12) >= 96);
+	});
+
+	it("weight 700 runs a flat few percent wider; letter-spacing adds per gap", () => {
+		const base = estimateKeyTextWidth("MAX", 12);
+		assert.ok(estimateKeyTextWidth("MAX", 12, { fontWeight: 700 }) > base);
+		assert.equal(estimateKeyTextWidth("MAX", 12, { letterSpacing: 0.5 }), base + 1);
+		assert.equal(estimateKeyTextWidth("M", 12, { letterSpacing: 0.5 }), 10.4);
+	});
+});
+
+describe("fitTextLadder (largest safe size, ellipsis only at the floor)", () => {
+	const SIZES = [20, 18, 16, 14] as const;
+
+	it("keeps a short string whole at the top of the ladder", () => {
+		assert.deepEqual(fitTextLadder("CCD1", 120, SIZES), { text: "CCD1", fontSize: 20, estimatedWidth: estimateKeyTextWidth("CCD1", 20) });
+	});
+
+	it("steps down to the first size that fits, keeping the whole string", () => {
+		const fit = fitTextLadder("Total CPU Usage", 116, SIZES);
+		assert.equal(fit.text, "Total CPU Usage");
+		assert.equal(fit.fontSize, 14);
+	});
+
+	it("at the floor, ellipsizes at the widest fitting prefix and trims trailing spaces", () => {
+		const fit = fitTextLadder("Virtual Memory Committed", 116, SIZES);
+		assert.equal(fit.text, "Virtual Memory…");
+		assert.equal(fit.fontSize, 14);
+		assert.ok(fit.estimatedWidth <= 116);
+	});
+
+	it("operates on code points: never splits a surrogate pair", () => {
+		const fit = fitTextLadder("😀😀😀😀😀😀😀😀😀😀😀😀", 60, SIZES);
+		assert.ok(fit.text.endsWith("…"));
+		assert.doesNotThrow(() => encodeURIComponent(fit.text));
+	});
+
+	it("empty text stays empty at the ladder top, never a bare ellipsis", () => {
+		assert.deepEqual(fitTextLadder("", 120, SIZES), { text: "", fontSize: 20, estimatedWidth: 0 });
+	});
+
+	it("an impossibly small budget still returns a deterministic ellipsis", () => {
+		const fit = fitTextLadder("CPU", 4, SIZES);
+		assert.equal(fit.text, "…");
+		assert.equal(fit.fontSize, 14);
+	});
+
+	it("minimumSlack tightens the budget; uppercase transforms before measuring", () => {
+		const loose = fitTextLadder("Core Max", 70, SIZES);
+		const tight = fitTextLadder("Core Max", 70, SIZES, { minimumSlack: 20 });
+		assert.ok(tight.fontSize < loose.fontSize);
+		assert.equal(fitTextLadder("pack", 120, SIZES, { uppercase: true }).text, "PACK");
+	});
+
+	it("is deterministic: identical inputs produce identical fits", () => {
+		for (const label of ["CCD1", "GPU Hot Spot", "Virtual Memory Committed", "電力"]) {
+			assert.deepEqual(fitTextLadder(label, 96, SIZES), fitTextLadder(label, 96, SIZES));
+		}
+	});
+
+	it("the ellipsis is budgeted at its real label advance, not the footer's", () => {
+		// Overpricing "…" retreats the floor fit one character too far and
+		// leaves dead space beside the cut ("SoC Po…" where "SoC Pow…" fits).
+		assert.equal(estimateKeyTextWidth("…", 12), 7);
 	});
 });

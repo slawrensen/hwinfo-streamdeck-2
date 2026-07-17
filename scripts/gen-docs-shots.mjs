@@ -16,7 +16,7 @@ import { renderDial, renderDialOverview, renderDialTwoRow } from "../src/ui/dial
 import { dedupeSharedLabelPrefix, formatQuadValue, formatValue } from "../src/ui/format.ts";
 import { computeGauge, drawnZones } from "../src/ui/gauge.ts";
 import { formatMeasurement } from "../src/ui/measure.ts";
-import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey } from "../src/ui/key-renderer.ts";
+import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, renderTripleKey } from "../src/ui/key-renderer.ts";
 import { missingReadingScreen, noSelectionScreen, statusScreen } from "../src/ui/state-screens.ts";
 import { resolveTextColors } from "../src/ui/text-colors.ts";
 import { classifyTypeAccent, loadThemes, resolvePalette } from "../src/ui/themes.ts";
@@ -245,10 +245,26 @@ async function multiReadouts() {
 		});
 	};
 
+	// The triple face exactly as composeTriple draws it: three compact rows
+	// over the first, second and third slots, full measurement formatting.
+	const tripleKey = () => {
+		const readings = [byKey(K.cpuTemp), byKey(K.gpuTemp), byKey(K.pump)];
+		const first = readings[0];
+		const palette = resolvePalette(config, "void", classifyTypeAccent(first.type, first.unit, first.label), "normal");
+		return renderTripleKey({
+			rows: readings.map((r) => {
+				const m = formatMeasurement(r.value, r.unit, { decimals: "auto", fahrenheit: false, dataUnits: "decimal" });
+				return { label: r.label, valueText: m.valueText, unitText: m.unitText };
+			}),
+			palette
+		});
+	};
+
 	const keys = [
 		["two sensors, one key", dualKey({ key: K.cpuTemp }, { key: K.gpuTemp }, byKey(K.cpuTemp))],
 		["same sensor, min and max", dualKey({ key: K.cpuTemp, label: "CPU low", stat: "min" }, { key: K.cpuTemp, label: "CPU high", stat: "max" }, byKey(K.cpuTemp))],
 		["press cycled both to MAX", dualKey({ key: K.cpuTemp }, { key: K.gpuTemp }, byKey(K.cpuTemp), "max")],
+		["three readings, rows", tripleKey()],
 		["four readings, quad grid", quadKey()]
 	];
 	// Two-row face with live values and a recent-history ring (the ring is a

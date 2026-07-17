@@ -6,7 +6,7 @@
  * Geometry is locked by the display spec: anchors never move; only the value
  * glyph size flexes with character count.
  */
-import { truncateLabel } from "./format";
+import { estimateKeyTextWidth, fitTextLadder, truncateLabel, type FittedText } from "./format";
 import { themeTextColors, type TextColors } from "./text-colors";
 import type { Palette } from "./themes";
 
@@ -71,9 +71,19 @@ export function ringValueFontSize(text: string): number {
 	return count >= 9 ? 16 : (RING_VALUE_SIZES[count] as number);
 }
 
-/** Label lengths: 16 chars centred, 9 when a stat badge shares the row. */
-const LABEL_MAX = 16;
-const LABEL_MAX_WITH_BADGE = 9;
+/** Label fitting: a size ladder against the pixel budget the label band
+ * actually owns, so a short label ("CCD1") renders large and a long one
+ * ("Virtual Memory Committed") steps down before ellipsizing at the floor.
+ * Centered labels own x=12..132 (the lens-safe span both dual rows and the
+ * badge mask already respect); a badge-sharing label owns x=12 to the badge
+ * mask at x=92. Both ladders floor at 14, above the 12 px legibility floor. */
+const LABEL_BUDGET = 120;
+const LABEL_SIZES = [20, 18, 16, 14] as const;
+const LABEL_BUDGET_WITH_BADGE = 80;
+const LABEL_SIZES_WITH_BADGE = [18, 16, 14] as const;
+/** Estimation slack for every label fit: the estimator cannot ask the engine
+ * for real glyph metrics, so a few px stay unspent on purpose. */
+const LABEL_FIT_SLACK = 4;
 
 export function escapeXml(text: string): string {
 	return text.replace(/[<>&'"]/g, (c) => {
@@ -243,7 +253,9 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 	const text = opts.text ?? themeTextColors(palette);
 	const ring = gauge?.kind === "ring";
 	const hasBadge = statBadge !== "";
-	const label = truncateLabel(opts.label, hasBadge ? LABEL_MAX_WITH_BADGE : LABEL_MAX);
+	const label = hasBadge
+		? fitTextLadder(opts.label, LABEL_BUDGET_WITH_BADGE, LABEL_SIZES_WITH_BADGE, { minimumSlack: LABEL_FIT_SLACK })
+		: fitTextLadder(opts.label, LABEL_BUDGET, LABEL_SIZES, { minimumSlack: LABEL_FIT_SLACK });
 	const parts: string[] = svgOpen(144, 144, palette.bg);
 	if (ring && gauge !== undefined) {
 		// The ring draws first so the value and unit paint over its field.
@@ -256,12 +268,12 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 		// SVG feature the Stream Deck engine isn't proven to honor; a solid
 		// fill is renderer-proof by construction.
 		parts.push(
-			`<text x="12" y="32" text-anchor="start" font-family="${FONT}" font-size="16" font-weight="600" fill="${text.label}">${escapeXml(label)}</text>`,
+			`<text x="12" y="32" text-anchor="start" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`,
 			`<rect x="92" y="14" width="52" height="24" fill="${palette.bg}"/>`,
 			`<text x="132" y="32" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${text.badge}">${escapeXml(statBadge.toUpperCase())}</text>`
 		);
 	} else {
-		parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${text.label}">${escapeXml(label)}</text>`);
+		parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`);
 	}
 	parts.push(`<text x="72" y="94" text-anchor="middle" font-family="${FONT}" font-size="${ring ? ringValueFontSize(valueText) : valueFontSize(valueText)}" font-weight="700" fill="${text.value}">${escapeXml(valueText)}</text>`);
 	if (unitText !== "") {
@@ -290,17 +302,25 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
  * idiom, so a row label always keeps its full 16 characters and nothing
  * crowds the key's corners. */
 const DUAL = { labelY: 22, valueY: 56, rowPitch: 72, dividerY: 71 } as const;
-const DUAL_LABEL_MAX = 16;
+/** Dual labels fit the same 120 px band as the single layout, one step
+ * smaller: a short row label gains a size, a long one keeps today's 14.
+ * The TOP row caps at 15: from its y=22 baseline, 16 px cap tops reach
+ * y≈10.8, grazing the ~10 px top lens crop, and accented caps would lose
+ * their marks outright. The bottom row (baseline y=94) has no such edge. */
+const DUAL_LABEL_SIZES_TOP = [15, 14] as const;
+const DUAL_LABEL_SIZES = [16, 15, 14] as const;
 const DUAL_VALUE_MAX = 14;
 /** The divider gap that hosts the shared badge: centered on x=72. */
 const DUAL_BADGE_GAP = { x: 47, y: 63, w: 50, h: 14 } as const;
 
 /** Gap first (opaque bg over the divider or cross arms), then the badge into
- * it: solid fills, the only clipping primitive proven on this engine. */
-function sharedBadgeSvg(badge: string, palette: Palette, badgeColor: string): [string, string] {
+ * it: solid fills, the only clipping primitive proven on this engine. The
+ * default gap/text rows are the dual divider's; the triple layout passes its
+ * own separator's rows and everything else stays identical. */
+function sharedBadgeSvg(badge: string, palette: Palette, badgeColor: string, gapY: number = DUAL_BADGE_GAP.y, textY = 76): [string, string] {
 	return [
-		`<rect x="${DUAL_BADGE_GAP.x}" y="${DUAL_BADGE_GAP.y}" width="${DUAL_BADGE_GAP.w}" height="${DUAL_BADGE_GAP.h}" fill="${palette.bg}"/>`,
-		`<text x="72" y="76" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${badgeColor}">${escapeXml(badge.toUpperCase())}</text>`
+		`<rect x="${DUAL_BADGE_GAP.x}" y="${gapY}" width="${DUAL_BADGE_GAP.w}" height="${DUAL_BADGE_GAP.h}" fill="${palette.bg}"/>`,
+		`<text x="72" y="${textY}" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${badgeColor}">${escapeXml(badge.toUpperCase())}</text>`
 	];
 }
 
@@ -354,7 +374,8 @@ export function renderDualKey(opts: DualKeyOptions): string {
 	[opts.top, opts.bottom].forEach((row, i) => {
 		const labelY = DUAL.labelY + i * DUAL.rowPitch;
 		const valueY = DUAL.valueY + i * DUAL.rowPitch;
-		parts.push(`<text x="72" y="${labelY}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${text.label}">${escapeXml(truncateLabel(row.label, DUAL_LABEL_MAX))}</text>`);
+		const label = fitTextLadder(row.label, LABEL_BUDGET, i === 0 ? DUAL_LABEL_SIZES_TOP : DUAL_LABEL_SIZES, { minimumSlack: LABEL_FIT_SLACK });
+		parts.push(`<text x="72" y="${labelY}" text-anchor="middle" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`);
 		const valueText = truncateLabel(row.valueText, DUAL_VALUE_MAX);
 		const badged = row.statBadge !== "";
 		const unit = row.unitText !== "" ? `<tspan dx="6" font-size="14" font-weight="600" fill="${text.unit}">${escapeXml(row.unitText)}</tspan>` : "";
@@ -366,6 +387,175 @@ export function renderDualKey(opts: DualKeyOptions): string {
 	parts.push(`<rect x="12" y="${DUAL.dividerY}" width="120" height="2" fill="${palette.track}"/>`);
 	if (sharedBadge !== "") {
 		parts.push(...sharedBadgeSvg(sharedBadge, palette, text.badge));
+	}
+	parts.push("</svg>");
+	return parts.join("");
+}
+
+/** Triple rows: three 48 px horizontal bands, each one compact readout with
+ * the label start-anchored at x=12 (the badge layout's hardware-proven left
+ * anchor) and the value+unit chunk end-anchored at x=132 (the badge's proven
+ * right anchor), separated by the dual divider's 2 px track-color rule.
+ * Baselines sit at each band's optical center; the bottom row's descenders
+ * stay above the ~y=134 physical lens crop. */
+const TRIPLE = { labelX: 12, valueRight: 132, baselines: [30, 78, 126], separatorYs: [47, 95], rowWidth: 120 } as const;
+/** Band interiors (between the face edges and the separators), used by the
+ * chunk's solid under-mask so it never repaints a separator. */
+const TRIPLE_BANDS = [
+	{ top: 0, height: 47 },
+	{ top: 49, height: 46 },
+	{ top: 97, height: 47 }
+] as const;
+/** Value ladder: 18 px reads clearly at the physical half scale; the floor
+ * shares the dual layout's 14 px (above the 12 px legibility floor). One
+ * size serves all rows so the values read as one column. */
+const TRIPLE_VALUE_SIZES = [18, 16, 14] as const;
+/** Labels yield before values: the dual ladder extended to the 12 px
+ * legibility floor (the quad micro-labels' and dial overview's size), so a
+ * medium label like "Core Max" renders whole beside its value instead of
+ * ellipsizing two sizes up. */
+const TRIPLE_LABEL_SIZES = [16, 15, 14, 13, 12] as const;
+/** Inline unit, the multi-readout family's 14 px step (dual and quad). */
+const TRIPLE_UNIT_SIZE = 14;
+/** The dual chunks' inline tspan gap. */
+const TRIPLE_UNIT_DX = 6;
+/** Defensive value cut (the formatter compacts long before this). 11 keeps
+ * even an all-digit value plus the widest data unit inside the canvas when
+ * the chunk grows leftward from its end anchor. */
+const TRIPLE_VALUE_MAX = 11;
+/** Defensive unit cut: 5 covers every re-tiered unit ("MiB/s") and HWiNFO's
+ * common native ones; an arbitrary custom-sensor unit ("requests/sec")
+ * would otherwise push the value's most significant digits off the canvas,
+ * a silently wrong number. */
+const TRIPLE_UNIT_MAX = 5;
+/** Labels on one face stay within one visible step of the smallest fitted
+ * peer (values already share one size): 16 px beside 12 px reads as an
+ * accidental hierarchy between rows that are semantic equals. */
+const TRIPLE_LABEL_SPREAD = 2;
+/** A value chunk may claim at most this much of the 120 px row, so every
+ * fitted label keeps a readable minimum before it ellipsizes. */
+const TRIPLE_CHUNK_MAX = 84;
+/** Optical gap between a fitted label and its row's value chunk. */
+const TRIPLE_LABEL_GAP = 8;
+/** No label renders below this budget: a lone ellipsis is noise, and the
+ * band reads cleaner as value-only. */
+const TRIPLE_LABEL_MIN_BUDGET = 16;
+/** The shared badge's gap and text rows, the dual idiom re-centered on the
+ * first separator (y=48): under the primary row, whose stat the badge names. */
+const TRIPLE_BADGE_GAP_Y = 39;
+const TRIPLE_BADGE_TEXT_Y = 52;
+
+export interface TripleKeyRow {
+	label: string;
+	valueText: string;
+	unitText: string;
+}
+
+export interface TripleKeyOptions {
+	/** Up to three rows top to bottom. A null slot draws an empty band. */
+	rows: readonly (TripleKeyRow | null)[];
+	/** Stat every row displays (the key press cycles all rows together);
+	 * one badge in a gap on the first separator. Empty for the live value. */
+	sharedBadge?: string;
+	/** Fully resolved tokens (alert override and type accent already applied;
+	 * alerts come from the primary reading's thresholds only). */
+	palette: Palette;
+	/** Resolved textual fills; defaults to the palette's own text tokens. */
+	text?: TextColors;
+}
+
+/** Estimated width of one row's end-anchored value+unit chunk at the given
+ * value size (the unit keeps its fixed step, like the dual chunks). */
+function tripleChunkWidth(row: TripleKeyRow, valueSize: number): number {
+	let width = estimateKeyTextWidth(row.valueText, valueSize, { fontWeight: 700 });
+	if (row.unitText !== "") {
+		width += TRIPLE_UNIT_DX + estimateKeyTextWidth(row.unitText, TRIPLE_UNIT_SIZE);
+	}
+	return width;
+}
+
+/**
+ * One value size for the whole face: the largest ladder step where every
+ * configured row's chunk stays inside the chunk budget, so the values keep
+ * a stable right-aligned column instead of three sizes stacked. Callers
+ * pass rows whose valueText is already cut to the defensive maximum.
+ */
+export function tripleValueFontSize(rows: readonly (TripleKeyRow | null)[]): number {
+	for (const size of TRIPLE_VALUE_SIZES) {
+		if (rows.every((row) => row === null || tripleChunkWidth(row, size) <= TRIPLE_CHUNK_MAX)) {
+			return size;
+		}
+	}
+	return TRIPLE_VALUE_SIZES[TRIPLE_VALUE_SIZES.length - 1] as number;
+}
+
+/**
+ * The triple layout: three compact horizontal readouts, label left and
+ * value+unit right on a shared baseline per band, thin track-color
+ * separators between bands. No sparkline, gauge or per-row controls — three
+ * rows use the whole face and stay calm. Each row's label budget derives
+ * from its own chunk's estimated width; a bg-colored mask under the chunk
+ * (paint order, the engine's one proven clipping primitive) guarantees an
+ * estimation miss can never strike through the numbers.
+ */
+export function renderTripleKey(opts: TripleKeyOptions): string {
+	const { palette } = opts;
+	const text = opts.text ?? themeTextColors(palette);
+	const sharedBadge = opts.sharedBadge ?? "";
+	const rows = [0, 1, 2].map((i) => {
+		const row = opts.rows[i] ?? null;
+		return row === null ? null : { ...row, valueText: truncateLabel(row.valueText, TRIPLE_VALUE_MAX), unitText: truncateLabel(row.unitText, TRIPLE_UNIT_MAX) };
+	});
+	const valueSize = tripleValueFontSize(rows);
+	// Fit every label first: the face-wide spread cap needs the smallest
+	// fitted peer before anything draws. A row whose chunk leaves no
+	// readable budget, or whose fit degenerates to a lone ellipsis, draws
+	// value-only (and doesn't drag the cap down).
+	const fitted = rows.map((row) => {
+		if (row === null) {
+			return null;
+		}
+		const chunkWidth = tripleChunkWidth(row, valueSize);
+		const labelBudget = TRIPLE.rowWidth - chunkWidth - TRIPLE_LABEL_GAP;
+		if (labelBudget < TRIPLE_LABEL_MIN_BUDGET) {
+			return { chunkWidth, label: null };
+		}
+		const label = fitTextLadder(row.label, labelBudget, TRIPLE_LABEL_SIZES, { minimumSlack: 2 });
+		return { chunkWidth, label: label.text === "" || label.text === "…" ? null : label };
+	});
+	const minLabelSize = Math.min(...fitted.map((f) => (f?.label !== null && f !== null ? f.label.fontSize : Number.POSITIVE_INFINITY)));
+	const parts: string[] = svgOpen(144, 144, palette.bg);
+	rows.forEach((row, i) => {
+		if (row === null) {
+			return;
+		}
+		const baseline = TRIPLE.baselines[i] as number;
+		const band = TRIPLE_BANDS[i] as (typeof TRIPLE_BANDS)[number];
+		const fit = fitted[i] as { chunkWidth: number; label: FittedText | null };
+		if (fit.label !== null) {
+			// A size already fitted only shrinks under the cap, never grows,
+			// so the fitted text stays valid at the capped size.
+			const size = Math.min(fit.label.fontSize, minLabelSize + TRIPLE_LABEL_SPREAD);
+			parts.push(
+				`<text x="${TRIPLE.labelX}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="${size}" font-weight="600" fill="${text.label}">${escapeXml(fit.label.text)}</text>`,
+				`<rect x="${(TRIPLE.valueRight - fit.chunkWidth - 4).toFixed(1)}" y="${band.top}" width="${(fit.chunkWidth + 12).toFixed(1)}" height="${band.height}" fill="${palette.bg}"/>`
+			);
+		}
+		const unit = row.unitText !== "" ? `<tspan dx="${TRIPLE_UNIT_DX}" font-size="${TRIPLE_UNIT_SIZE}" font-weight="600" fill="${text.unit}">${escapeXml(row.unitText)}</tspan>` : "";
+		parts.push(`<text x="${TRIPLE.valueRight}" y="${baseline}" text-anchor="end" font-family="${FONT}" font-size="${valueSize}" font-weight="700" fill="${text.value}">${escapeXml(row.valueText)}${unit}</text>`);
+	});
+	// A separator draws only between configured rows: a trailing rule over
+	// an unpicked band would read as a row that failed to load. The empty
+	// band an unpicked slot leaves behind stays plain whitespace.
+	TRIPLE.separatorYs.forEach((y, k) => {
+		const above = rows.slice(0, k + 1).some((r) => r !== null);
+		const below = rows.slice(k + 1).some((r) => r !== null);
+		if (above && below) {
+			parts.push(`<rect x="12" y="${y}" width="120" height="2" fill="${palette.track}"/>`);
+		}
+	});
+	if (sharedBadge !== "") {
+		parts.push(...sharedBadgeSvg(sharedBadge, palette, text.badge, TRIPLE_BADGE_GAP_Y, TRIPLE_BADGE_TEXT_Y));
 	}
 	parts.push("</svg>");
 	return parts.join("");
@@ -383,6 +573,11 @@ const QUAD_CROSS_V = { x: 71, y: 12, w: 2, h: 120 } as const;
 /** Micro-label budget: 4 code points, hard cut (an ellipsis would eat a
  * third of a 12 px identifier). */
 const QUAD_LABEL_MAX = 4;
+/** Micro-label size ladder: 14 when the four glyphs fit the cell's safe
+ * width, 12 (the old fixed size) when they run wide — four W-class caps at
+ * 14 px would graze the lens crop on the outer cells. */
+const QUAD_LABEL_SIZES = [14, 12] as const;
+const QUAD_LABEL_BUDGET = 50;
 /** Values ellipsize here; the quad formatter caps at 4 glyphs, so any longer
  * text is a defensive path, and 7 glyphs at the ramp's 14 px still fit the
  * 72 px cell. */
@@ -464,7 +659,10 @@ export function renderQuadKey(opts: QuadKeyOptions): string {
 			// push a micro-label past its 4-glyph budget.
 			const micro = Array.from(cell.label.trim().toUpperCase()).slice(0, QUAD_LABEL_MAX).join("").trimEnd();
 			if (micro !== "") {
-				parts.push(`<text x="${cx}" y="${top + 20}" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${cell.color}">${escapeXml(micro)}</text>`);
+				// The 4-code-point cut above keeps the identity budget; the fit
+				// only picks the size (4 glyphs never ellipsize inside 50 px).
+				const fit = fitTextLadder(micro, QUAD_LABEL_BUDGET, QUAD_LABEL_SIZES, { fontWeight: 700, letterSpacing: 0.5, minimumSlack: 2 });
+				parts.push(`<text x="${cx}" y="${top + 20}" text-anchor="middle" font-family="${FONT}" font-size="${fit.fontSize}" font-weight="700" letter-spacing="0.5" fill="${cell.color}">${escapeXml(fit.text)}</text>`);
 			}
 		}
 		parts.push(`<text x="${cx}" y="${top + (labeled ? 45 : 40)}" text-anchor="middle" font-family="${FONT}" font-size="${quadValueFontSize(valueText, labeled)}" font-weight="700" fill="${labeled ? text.value : cell.color}">${escapeXml(valueText)}</text>`);
@@ -485,6 +683,19 @@ export function renderQuadKey(opts: QuadKeyOptions): string {
 	parts.push("</svg>");
 	return parts.join("");
 }
+
+/** Every adaptive text ladder on the key faces, exported so the policy
+ * (largest-first order, 12 px floor) is testable against the REAL arrays
+ * instead of copies that drift. */
+export const KEY_TEXT_LADDERS = {
+	singleLabel: LABEL_SIZES,
+	singleLabelWithBadge: LABEL_SIZES_WITH_BADGE,
+	dualLabelTop: DUAL_LABEL_SIZES_TOP,
+	dualLabel: DUAL_LABEL_SIZES,
+	tripleValue: TRIPLE_VALUE_SIZES,
+	tripleLabel: TRIPLE_LABEL_SIZES,
+	quadMicroLabel: QUAD_LABEL_SIZES
+} as const;
 
 type StatusIcon = "power" | "warning" | "clock" | "lock" | "target" | "question";
 

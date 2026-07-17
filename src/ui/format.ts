@@ -227,6 +227,152 @@ export function estimateFooterWidth(text: string): number {
 }
 
 /**
+ * East Asian wide and fullwidth code points advance a full em (Segoe UI
+ * falls back to the system CJK fonts): CJK ideographs (base and extensions),
+ * kana, hangul, CJK punctuation/compatibility, fullwidth forms, and the
+ * supplementary ideographic planes. Estimating them at the 7 px default
+ * would undercount by ~40% and overflow the face.
+ */
+function isWideGlyph(code: number): boolean {
+	return (
+		(code >= 0x1100 && code <= 0x115f) ||
+		(code >= 0x2e80 && code <= 0x303e) ||
+		(code >= 0x3041 && code <= 0x33ff) ||
+		(code >= 0x3400 && code <= 0x4dbf) ||
+		(code >= 0x4e00 && code <= 0x9fff) ||
+		(code >= 0xa000 && code <= 0xa4cf) ||
+		(code >= 0xac00 && code <= 0xd7a3) ||
+		(code >= 0xf900 && code <= 0xfaff) ||
+		(code >= 0xfe30 && code <= 0xfe4f) ||
+		(code >= 0xff00 && code <= 0xff60) ||
+		(code >= 0xffe0 && code <= 0xffe6) ||
+		// Emoji and symbol planes plus the supplementary ideographs: all
+		// full-width-or-wider in every fallback font.
+		code >= 0x1f000
+	);
+}
+
+/**
+ * Estimated pixel width of one glyph at 12 px, by class. The key layouts'
+ * generalization of the footer table above: same calibration and classes,
+ * plus a wide class for M/W (and their lowercase) and a full-em class for
+ * East Asian wide glyphs, so a four-cap quad micro-label, an all-caps key
+ * label or a CJK sensor name can't slip past its budget on the
+ * average-width assumption. The footer keeps its own table untouched — dial
+ * fitting is locked output and must not shift under a key-side refinement.
+ * Unknown glyphs take the widest common budget: overestimating keeps text
+ * inside the face, underestimating overflows it.
+ */
+function keyGlyphWidth12(ch: string): number {
+	if (ch === " ") {
+		return 3.4;
+	}
+	if (ch === "…") {
+		// The label ellipsis' real advance (the footer budgets its own 10):
+		// overpricing the ellipsis retreats fits one character too far.
+		return 7;
+	}
+	if (isWideGlyph(ch.codePointAt(0) as number)) {
+		return 12;
+	}
+	if (ch === "i" || ch === "j" || ch === "l" || ch === "." || ch === "," || ch === "'" || ch === ":" || ch === ";" || ch === "!" || ch === "|") {
+		return 3.2;
+	}
+	if (ch >= "0" && ch <= "9") {
+		return 6.3;
+	}
+	if (ch === "M" || ch === "W" || ch === "%") {
+		return 10.4;
+	}
+	if (ch === "m" || ch === "w") {
+		return 9.6;
+	}
+	if (ch >= "A" && ch <= "Z") {
+		return 7.6;
+	}
+	if (ch >= "a" && ch <= "z") {
+		return 6.1;
+	}
+	return 7;
+}
+
+/** Bold strokes (weight 700) run a touch wider than the 600 the table is
+ * calibrated for; a flat few percent keeps the estimate on the safe side. */
+const BOLD_WIDTH_FACTOR = 1.04;
+
+export type TextFitOptions = {
+	/** Glyph weight the caller will render; the table assumes 600. */
+	fontWeight?: 600 | 700;
+	/** SVG letter-spacing in px, applied per inter-glyph gap at every size. */
+	letterSpacing?: number;
+	/** Estimate (and return) the uppercased text, for micro-label callers. */
+	uppercase?: boolean;
+	/** Extra px the fit must leave unused, on top of the caller's budget. */
+	minimumSlack?: number;
+};
+
+/**
+ * Estimated pixel width of a string as a key face renders it: the glyph-class
+ * table above scaled linearly from its 12 px calibration, a flat widening for
+ * weight 700, and the caller's letter-spacing per gap. Estimation only (the
+ * Stream Deck engine cannot be asked to measure), so callers budget slack.
+ */
+export function estimateKeyTextWidth(text: string, fontSize: number, options?: TextFitOptions): number {
+	let width = 0;
+	let count = 0;
+	for (const ch of text) {
+		width += keyGlyphWidth12(ch);
+		count++;
+	}
+	width = (width * fontSize) / 12;
+	if (options?.fontWeight === 700) {
+		width *= BOLD_WIDTH_FACTOR;
+	}
+	return width + Math.max(0, count - 1) * (options?.letterSpacing ?? 0);
+}
+
+/** One fitted string: what to draw, at what size, and the width the fit
+ * budgeted for it (so callers can lay out neighbors deterministically). */
+export type FittedText = {
+	text: string;
+	fontSize: number;
+	estimatedWidth: number;
+};
+
+/**
+ * Fits text into a pixel budget down a font-size ladder: the largest size
+ * whose whole-string estimate fits wins; when even the smallest size cannot
+ * hold the whole string, the widest fitting prefix plus an ellipsis renders
+ * at that floor size. Code-point based (never splits a surrogate pair) and
+ * deterministic: same text, budget and ladder always fit identically.
+ */
+export function fitTextLadder(text: string, maxWidth: number, sizes: readonly number[], options?: TextFitOptions): FittedText {
+	const display = options?.uppercase === true ? text.toUpperCase() : text;
+	if (display === "") {
+		return { text: "", fontSize: sizes[0] as number, estimatedWidth: 0 };
+	}
+	const budget = maxWidth - (options?.minimumSlack ?? 0);
+	const floor = sizes[sizes.length - 1] as number;
+	for (const size of sizes) {
+		const width = estimateKeyTextWidth(display, size, options);
+		if (width <= budget) {
+			return { text: display, fontSize: size, estimatedWidth: width };
+		}
+	}
+	const chars = Array.from(display);
+	let kept = 0;
+	for (let i = chars.length - 1; i > 0; i--) {
+		const candidate = `${chars.slice(0, i).join("").trimEnd()}…`;
+		if (estimateKeyTextWidth(candidate, floor, options) <= budget) {
+			kept = i;
+			break;
+		}
+	}
+	const fitted = kept === 0 ? "…" : `${chars.slice(0, kept).join("").trimEnd()}…`;
+	return { text: fitted, fontSize: floor, estimatedWidth: estimateKeyTextWidth(fitted, floor, options) };
+}
+
+/**
  * Fits text to a pixel budget at the footer's metrics: kept whole when the
  * estimate fits, else trimmed from the end with an ellipsis at the widest
  * fitting prefix. Estimation-based, so the budget should leave the caller's

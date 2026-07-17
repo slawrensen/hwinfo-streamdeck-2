@@ -96,7 +96,10 @@ export function statusSentence(status: PollerStatus): string {
 	}
 }
 
-/** Effective key label; spec truncation happens inside the renderer. */
-export function keyLabel(custom: string | undefined, fallback: string): string {
-	return custom !== undefined && custom.trim() !== "" ? custom.trim() : fallback;
+/** Effective key label; spec truncation happens inside the renderer.
+ * Settings are untyped JSON at runtime: a non-string custom label (a
+ * hand-edited profile, a future version's shape) degrades to the fallback
+ * instead of throwing mid-tick. */
+export function keyLabel(custom: unknown, fallback: string): string {
+	return typeof custom === "string" && custom.trim() !== "" ? custom.trim() : fallback;
 }

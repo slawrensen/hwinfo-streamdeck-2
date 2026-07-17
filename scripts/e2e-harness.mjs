@@ -359,6 +359,48 @@ async function scenario(send) {
 			await sleep(500);
 			results.quadDegradedFrame = quadLatest();
 			send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key4", device: "dev1", payload: { settings: {}, coordinates: { column: 3, row: 0 }, controller: "Keypad", isInMultiAction: false } });
+
+			// Triple-row key: three compact rows over the same slots the dual
+			// and quad layouts read (slot 3 IS quadReadingKey3), the shared
+			// stat badge on the first separator, a junk third slot leaving an
+			// empty band, whole-key warn recolor, and fewer than two
+			// resolvable slots degrading to the single face.
+			const tripleSet = (settings) =>
+				send({ event: "didReceiveSettings", action: "com.lawrensen.hwinfo.reading", context: "ctx-key3t", device: "dev1", payload: { settings, coordinates: { column: 4, row: 0 }, isInMultiAction: false } });
+			const tripleLatest = () => results.images.filter((i) => i.context === "ctx-key3t").map((i) => decodeSvg(i.image)).filter((s) => s !== null).at(-1);
+			send({
+				event: "willAppear",
+				action: "com.lawrensen.hwinfo.reading",
+				context: "ctx-key3t",
+				device: "dev1",
+				payload: { settings: { readingKey: k1, keyLayout: "triple", secondaryReadingKey: k2, quadReadingKey3: q3 }, coordinates: { column: 4, row: 0 }, controller: "Keypad", isInMultiAction: false }
+			});
+			await sleep(700);
+			results.tripleFrame = tripleLatest();
+			tripleSet({ readingKey: k1, keyLayout: "triple", secondaryReadingKey: k2, quadReadingKey3: q3, statMode: "max" });
+			await sleep(500);
+			results.tripleBadgeFrame = tripleLatest();
+			tripleSet({ readingKey: k1, keyLayout: "triple", secondaryReadingKey: k2, quadReadingKey3: { junk: true } });
+			await sleep(500);
+			results.tripleJunkSlotFrame = tripleLatest();
+			// Custom labels pin the slot-to-row mapping: label/secondaryLabel/
+			// quadLabel3 land on rows 1/2/3 (quadLabel3 doubles as the triple's
+			// full-length third-row label).
+			tripleSet({ readingKey: k1, keyLayout: "triple", secondaryReadingKey: k2, quadReadingKey3: q3, label: "R1", secondaryLabel: "R2", quadLabel3: "R3" });
+			await sleep(500);
+			results.tripleLabeledFrame = tripleLatest();
+			// Primary + slot 3 alone is two resolvable slots: triple renders
+			// with an empty middle band instead of degrading to single.
+			tripleSet({ readingKey: k1, keyLayout: "triple", quadReadingKey3: q3 });
+			await sleep(500);
+			results.tripleGapFrame = tripleLatest();
+			tripleSet({ readingKey: k1, keyLayout: "triple", secondaryReadingKey: k2, quadReadingKey3: q3, warnValue: "0" });
+			await sleep(500);
+			results.tripleWarnFrame = tripleLatest();
+			tripleSet({ readingKey: k1, keyLayout: "triple", secondaryReadingKey: 42, quadReadingKey3: "" });
+			await sleep(500);
+			results.tripleDegradedFrame = tripleLatest();
+			send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key3t", device: "dev1", payload: { settings: {}, coordinates: { column: 4, row: 0 }, controller: "Keypad", isInMultiAction: false } });
 		}
 
 		// Display modes, Text setting and Data units through REAL settings and
@@ -784,6 +826,52 @@ async function finish() {
 		"quad with one resolvable slot degrades to the unchanged single face",
 		typeof results.quadDegradedFrame === "string" && !hasCross(results.quadDegradedFrame) && results.quadDegradedFrame.includes('<text x="72" y="32"'),
 		(results.quadDegradedFrame ?? "no frame").slice(0, 100)
+	);
+
+	// Triple key: three bands behind two separators, badge on the first
+	// separator, junk third slot leaves an empty band, whole-key warn
+	// recolor, degrade to the single face.
+	const hasSeparators = (s) => typeof s === "string" && s.includes('<rect x="12" y="47" width="120" height="2"') && s.includes('<rect x="12" y="95" width="120" height="2"');
+	check(
+		"triple key renders three end-anchored rows behind two separators",
+		hasSeparators(results.tripleFrame) && ['y="30" text-anchor="end"', 'y="78" text-anchor="end"', 'y="126" text-anchor="end"'].every((m) => results.tripleFrame.includes(m)) && results.tripleFrame.includes('x="12" y="30" text-anchor="start"'),
+		(results.tripleFrame ?? "no frame").slice(0, 160)
+	);
+	check(
+		"triple shared badge sits in a gap on the first separator",
+		typeof results.tripleBadgeFrame === "string" && results.tripleBadgeFrame.includes('<rect x="47" y="39" width="50" height="14"') && results.tripleBadgeFrame.includes('<text x="72" y="52"') && results.tripleBadgeFrame.includes(">MAX<"),
+		(results.tripleBadgeFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"triple junk third slot leaves an empty band with no trailing separator",
+		typeof results.tripleJunkSlotFrame === "string" &&
+			results.tripleJunkSlotFrame.includes('<rect x="12" y="47" width="120" height="2"') &&
+			!results.tripleJunkSlotFrame.includes('<rect x="12" y="95"') &&
+			!results.tripleJunkSlotFrame.includes('y="126"'),
+		(results.tripleJunkSlotFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"triple custom labels land on their own rows (quadLabel3 is row 3)",
+		typeof results.tripleLabeledFrame === "string" &&
+			/x="12" y="30" [^>]*>R1</.test(results.tripleLabeledFrame) &&
+			/x="12" y="78" [^>]*>R2</.test(results.tripleLabeledFrame) &&
+			/x="12" y="126" [^>]*>R3</.test(results.tripleLabeledFrame),
+		(results.tripleLabeledFrame ?? "no frame").slice(0, 160)
+	);
+	check(
+		"triple with primary + third slot renders an empty middle band, not the single face",
+		hasSeparators(results.tripleGapFrame) && !results.tripleGapFrame.includes('y="78"') && results.tripleGapFrame.includes('y="126"'),
+		(results.tripleGapFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"triple warn recolors the whole key from the primary thresholds",
+		typeof results.tripleWarnFrame === "string" && results.tripleWarnFrame.includes('<rect width="144" height="144" fill="#E8940D"/>') && hasSeparators(results.tripleWarnFrame),
+		(results.tripleWarnFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"triple with one resolvable slot degrades to the unchanged single face",
+		typeof results.tripleDegradedFrame === "string" && !hasSeparators(results.tripleDegradedFrame) && results.tripleDegradedFrame.includes('<text x="72" y="32"'),
+		(results.tripleDegradedFrame ?? "no frame").slice(0, 100)
 	);
 
 	// Display modes on the single key: bar, ring, legacy sparkline salvage.

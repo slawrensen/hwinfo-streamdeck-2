@@ -690,23 +690,49 @@
 		followSetting("controlPreset", applyPreset);
 	}
 
-	// Key layout (reading PI only): the second-slot rows serve "dual" and
-	// "quad" (the quad's slots 1 and 2 ARE the single/dual fields, so
-	// switching layouts keeps both sensors), the "Second shows" pin is
-	// dual-only, the quad rows (slots 3/4, cell colors, micro-labels) are
-	// quad-only, and the Display row hides on both multi layouts (their
-	// faces have no sparkline/bar/ring strip).
+	// Key layout (reading PI only): the second-slot rows serve every multi
+	// layout (slots 1 and 2 ARE the single/dual fields, so switching layouts
+	// keeps both sensors), the "Second shows" pin is dual-only, the third
+	// slot serves "triple" and "quad" (the triple's third row IS quad slot
+	// 3), the quad rows (slot 4, cell colors, micro-labels) are quad-only,
+	// and the Display row hides on every multi layout (their faces have no
+	// sparkline/bar/ring strip). All of this is visibility only: no setting
+	// is ever written by a layout change.
 	if (dualRowsEl !== null) {
 		const secondSlotEl = document.getElementById("second-slot");
+		const thirdSlotEl = document.getElementById("third-slot");
+		const tripleHelpEl = document.getElementById("triple-help");
+		const thirdLabelEl = document.getElementById("third-label");
 		const quadRowsEl = document.getElementById("quad-rows");
 		const displayItemEl = document.getElementById("display-item");
+		// quadLabel3 doubles as the triple's third-row label: full length
+		// there, first 4 characters in the quad grid. Swap the placeholder
+		// with the mode (display only, never a settings write). The sdpi
+		// textfield can't be driven through its own placeholder property
+		// (it wants a localized-message object; a plain string throws inside
+		// its update cycle and wedges the whole panel) and its attribute
+		// observer never repaints a changed value, so write the rendered
+		// input directly; the 400 ms layout poll re-asserts it if the
+		// component re-renders over it. The host attribute is kept in sync
+		// so the markup stays truthful.
+		const thirdLabelHint = (quad) => {
+			if (thirdLabelEl === null) return;
+			const hint = quad ? "Short name; 4 characters show" : "Custom label (default: sensor name)";
+			if (thirdLabelEl.getAttribute("placeholder") !== hint) thirdLabelEl.setAttribute("placeholder", hint);
+			const input = (thirdLabelEl.shadowRoot ?? thirdLabelEl).querySelector("input");
+			if (input !== null && input.placeholder !== hint) input.placeholder = hint;
+		};
 		const applyLayout = (value) => {
 			const dual = value === "dual";
+			const triple = value === "triple";
 			const quad = value === "quad";
-			if (secondSlotEl !== null) secondSlotEl.hidden = !dual && !quad;
+			if (secondSlotEl !== null) secondSlotEl.hidden = !dual && !triple && !quad;
 			dualRowsEl.hidden = !dual;
+			if (thirdSlotEl !== null) thirdSlotEl.hidden = !triple && !quad;
+			if (tripleHelpEl !== null) tripleHelpEl.hidden = !triple;
 			if (quadRowsEl !== null) quadRowsEl.hidden = !quad;
-			if (displayItemEl !== null) displayItemEl.hidden = dual || quad;
+			if (displayItemEl !== null) displayItemEl.hidden = dual || triple || quad;
+			thirdLabelHint(quad);
 		};
 		followSetting("keyLayout", applyLayout);
 	}

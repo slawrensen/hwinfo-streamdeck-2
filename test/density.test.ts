@@ -10,7 +10,7 @@ import { describe, it } from "node:test";
 
 import { renderDial, renderDialOverview, renderDialTwoRow } from "../src/ui/dial-renderer";
 import { formatQuadValue, formatValue, type AlertLevel } from "../src/ui/format";
-import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey } from "../src/ui/key-renderer";
+import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, renderTripleKey } from "../src/ui/key-renderer";
 import { loadThemes, resolvePalette } from "../src/ui/themes";
 
 const config = loadThemes();
@@ -110,6 +110,26 @@ describe("key faces at every density target", () => {
 						palette
 					});
 					assertRenderable(svg, 144, 144, `dual key ${themeId}/${level}/${extreme.label}`);
+				}
+			}
+		}
+	});
+
+	it("triple layout: every theme x alert level x content extreme renders in-bounds", () => {
+		for (const themeId of THEME_IDS) {
+			for (const level of LEVELS) {
+				for (const extreme of EXTREMES) {
+					const palette = resolvePalette(config, themeId, null, level);
+					// warn exercises a two-row face (an unconfigured third slot
+					// is a supported shape), crit the shared badge on the first
+					// separator, normal the badge-free three rows.
+					const row = { label: extreme.label, valueText: extreme.value, unitText: extreme.unit };
+					const svg = renderTripleKey({
+						rows: [row, row, level === "warn" ? null : row],
+						sharedBadge: level === "crit" ? "AVG" : "",
+						palette
+					});
+					assertRenderable(svg, 144, 144, `triple key ${themeId}/${level}/${extreme.label}`);
 				}
 			}
 		}

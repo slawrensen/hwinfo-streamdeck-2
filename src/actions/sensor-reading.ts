@@ -12,7 +12,7 @@ import type { Reading, SensorSnapshot } from "../hwinfo/types";
 import { alertLevel, convertUnit, isStatMode, parseThreshold, STAT_BADGE, STAT_MODES, statValue, type AlertLevel, type DecimalsSetting, type StatMode } from "../ui/format";
 import { computeGauge, drawnZones } from "../ui/gauge";
 import { formatMeasurement, formatQuadMeasurement, type MeasureOptions } from "../ui/measure";
-import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, type DrawnZone, type DualKeyRow, type QuadKeyCell } from "../ui/key-renderer";
+import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, renderTripleKey, type DrawnZone, type DualKeyRow, type QuadKeyCell, type TripleKeyRow } from "../ui/key-renderer";
 import { keyLabel, missingReadingScreen, noSelectionScreen, statusScreen } from "../ui/state-screens";
 import { appliedTextMode, DIM_SECONDARY_BLEND, DIM_VALUE_BLEND, mixToward, resolveTextColors, type TextColors, type TextSettings } from "../ui/text-colors";
 import { decideLegacyDefault, effectiveTextFor, getDeckTheme, measureOptionsFrom, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
@@ -48,24 +48,28 @@ export type ReadingSettings = {
 	/** Custom mode: labels, units and stats at lower intensity. */
 	textDimSecondary?: boolean;
 	/**
-	 * "dual" stacks a second readout under the first; "quad" splits the key
-	 * into a 2x2 grid of up to four readouts; anything else (or too few
-	 * usable readings for the marker) renders the unchanged single layout,
-	 * so settings written by a newer version degrade safely after a rollback
-	 * and old profiles are never migrated or rewritten.
+	 * "dual" stacks a second readout under the first; "triple" shows three
+	 * compact horizontal rows; "quad" splits the key into a 2x2 grid of up
+	 * to four readouts; anything else (or too few usable readings for the
+	 * marker) renders the unchanged single layout, so settings written by a
+	 * newer version degrade safely after a rollback and old profiles are
+	 * never migrated or rewritten.
 	 */
 	keyLayout?: string;
 	/** The second row's reading; same stable identity as readingKey. */
 	secondaryReadingKey?: string;
 	secondaryLabel?: string;
-	/** Fixed stat for the second row; the key press cycles only the first. */
+	/** Fixed stat for the second row; the key press cycles only the first.
+	 * Dual-only: the triple and quad layouts cycle every row together. */
 	secondaryStatMode?: StatMode;
 	/** Quad slots 3 and 4 (slots 1 and 2 reuse readingKey and
-	 * secondaryReadingKey, so switching from dual keeps both sensors). */
+	 * secondaryReadingKey, so switching from dual keeps both sensors). The
+	 * triple layout reuses slot 3 as its third row for the same reason. */
 	quadReadingKey3?: string;
 	quadReadingKey4?: string;
 	/** Micro-labels for quad slots 3 and 4; label and secondaryLabel cover
-	 * slots 1 and 2. Drawn only in the micro-label variant. */
+	 * slots 1 and 2. Drawn only in the micro-label variant. quadLabel3 also
+	 * serves as the triple layout's third-row label (full length there). */
 	quadLabel3?: string;
 	quadLabel4?: string;
 	/** Quad variant: true draws micro-labels above plain values; the default
@@ -273,6 +277,16 @@ function compose(state: InstanceState, status: PollerStatus): string {
 			return composeQuad(settings, snapshot, slotKeys);
 		}
 	}
+	// The triple rows follow the quad's gate: the exact "triple" marker plus
+	// at least two resolvable slots (an unconfigured slot renders an empty
+	// band). With only the primary left, the marker degrades onto the
+	// unchanged single path, exactly like dual and quad.
+	if (settings.keyLayout === "triple") {
+		const slotKeys = [primaryKey, secondaryKey, nonEmptyStringOf(settings.quadReadingKey3)];
+		if (slotKeys.filter((k) => k !== undefined).length >= 2) {
+			return composeTriple(settings, snapshot, slotKeys);
+		}
+	}
 	if (settings.keyLayout === "dual" && secondaryKey !== undefined) {
 		return composeDual(settings, snapshot, primaryKey, secondaryKey);
 	}
@@ -396,6 +410,47 @@ function composeDual(settings: ReadingSettings, snapshot: SensorSnapshot, primar
 		palette,
 		text: resolveTextColors(palette, effectiveTextFor(settings), level)
 	});
+}
+
+/**
+ * The triple face: three compact horizontal rows over the first, second and
+ * third sensor slots (the same slots the dual and quad layouts read, so
+ * switching layouts keeps every selection). Alerts and the type accent come
+ * from the FIRST reading only and the whole key recolors on alert, exactly
+ * like the other multi-reading layouts. A configured row the snapshot does
+ * not publish renders the placeholder glyph; an unconfigured slot renders an
+ * empty band; every configured row missing is the same "Sensor missing"
+ * screen. Every row shows the same stat (statMode; the key press cycles all
+ * rows together), badged once on the first separator. Values format through
+ * the normal measurement path — the rows have room for full values, so the
+ * quad's 4-glyph compaction would only cost precision.
+ */
+function composeTriple(settings: ReadingSettings, snapshot: SensorSnapshot, slotKeys: ReadonlyArray<string | undefined>): string {
+	const readings = slotKeys.map((key) => (key === undefined ? undefined : snapshot.byKey.get(key)));
+	if (readings.every((r) => r === undefined)) {
+		return renderStatusKey(missingReadingScreen());
+	}
+	const fahrenheit = settings.fahrenheit === true;
+	const measureOpts = measureOptionsFrom(settings);
+	const { level, themeId, accent } = primaryContext(settings, readings[0], fahrenheit);
+	const mode = isStatMode(settings.statMode) ? settings.statMode : "current";
+	const palette = resolvePalette(loadThemes(), themeId, accent, level);
+	const customLabels = [settings.label, settings.secondaryLabel, settings.quadLabel3];
+	return renderTripleKey({
+		rows: slotKeys.map((key, i) => (key === undefined ? null : tripleRow(readings[i], customLabels[i], mode, measureOpts))),
+		sharedBadge: STAT_BADGE[mode],
+		palette,
+		text: resolveTextColors(palette, effectiveTextFor(settings), level)
+	});
+}
+
+function tripleRow(reading: Reading | undefined, customLabel: string | undefined, mode: StatMode, measureOpts: MeasureOptions): TripleKeyRow {
+	if (reading === undefined) {
+		// The one permitted em dash: the key face's "no value" placeholder.
+		return { label: keyLabel(customLabel, "Sensor missing"), valueText: "—", unitText: "" };
+	}
+	const measured = formatMeasurement(statValue(reading, mode), reading.unit, measureOpts);
+	return { label: keyLabel(customLabel, reading.label), valueText: measured.valueText, unitText: measured.unitText };
 }
 
 /**
