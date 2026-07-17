@@ -25,6 +25,17 @@ com.lawrensen.hwinfo.sdPlugin/logs/
 /docs/release/
 /.private/
 
+# Maker Console brand assets: not plugin content; originals ride the private
+# mirror (.private/backup.ps1).
+/assets/brand/
+
+# capture-pi.mjs intermediates: regenerated every release, consumed only by
+# scripts/marketplace-shots.mjs; the doc-referenced copies are settings-panel.png
+# and sensor-picker.png.
+/docs/assets/img/pi-settings.png
+/docs/assets/img/pi-picker.png
+/docs/assets/img/pi-dial-text.png
+
 # Misc
 *.log
 .DS_Store
