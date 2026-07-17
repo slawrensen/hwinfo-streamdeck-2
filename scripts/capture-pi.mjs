@@ -1,12 +1,15 @@
 // Captures the property inspectors (served by scripts/pi-harness.mjs) in
 // headless Chrome over CDP with real-time waits, so live WebSocket data and
-// the theme gallery are present. Eleven states: the key PI's settings view,
-// open picker (marketplace shot 3), dual layout, and quad layout with the
-// cell-colors row; the dial PI's rotation-set picker with ticked rows and
-// chips, the rotation-group editor (two named groups with the collector
-// radio), the Elite preset view, the Custom gesture rows with touch zones,
-// and the overview view's Context line + Separators controls; and the
-// HWiNFO Control PI with a Link ID target.
+// the theme gallery are present. Fourteen states: the key PI's settings view,
+// open picker (marketplace shot 3), Display selector on Bar, Text set to
+// Custom with the color well and dim checkbox, dual layout, and quad layout
+// with the cell-colors row; the dial PI's rotation-set picker with ticked
+// rows and chips, the rotation-group editor (two named groups with the
+// collector radio), the Elite preset view, the Custom gesture rows with
+// touch zones, the overview view's Context line + Separators controls, and
+// the dial's own Text Custom rows; and the HWiNFO Control PI with a Link ID
+// target. The deck-wide Text and Data units selects show in the key PI's
+// Advanced section of pi-settings.png.
 // Usage: node scripts/capture-pi.mjs <outDir>
 import { spawn, spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -109,6 +112,21 @@ try {
 		writeFileSync(path.join(outDir, name), Buffer.from(shot.data, "base64"));
 		log(`${name} captured`);
 	};
+	/** Clip-capture one region at the panel's full 400 px width. rectRes must
+	 * resolve {y, h}; a renamed-away element fails loudly unless a fallback
+	 * clip is given. */
+	const captureClipped = async (name, rectRes, fallback) => {
+		let clip = rectRes.result?.value;
+		if (clip === "missing" || clip === undefined) {
+			if (fallback === undefined) {
+				throw new Error(`${name} clip rect did not resolve`);
+			}
+			clip = fallback;
+		}
+		const shot = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: clip.y, width: 400, height: clip.h, scale: 1 } });
+		writeFileSync(path.join(outDir, name), Buffer.from(shot.data, "base64"));
+		log(`${name} captured`);
+	};
 	/** Fail loudly when a driven element has been renamed away: a silent miss
 	 * would capture the wrong state and ship it. */
 	const expectOk = (what, res) => {
@@ -143,7 +161,7 @@ try {
 	// Advanced open (deck theme, accents, source, poll rate, support report)
 	// and the viewport fitted, so the capture shows the whole panel.
 	expectOk("Advanced details", await evaluate(`(() => {
-		const adv = [...document.querySelectorAll("details")].find((d) => (d.querySelector("summary")?.textContent ?? "").trim() === "Advanced");
+		const adv = document.querySelector('details[data-fold="advanced"]');
 		if (!adv) return "missing";
 		adv.open = true;
 		return "ok";
@@ -160,7 +178,50 @@ try {
 	await sleep(1500);
 	await capture("pi-picker.png");
 
-	// ---- key PI: dual layout (second picker + label + stat, sparkline row hidden) ----
+	// ---- key PI: Display selector on Bar (the select + its help line) ----
+	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
+	expectOk("display-mode select", await evaluate(`(() => {
+		const el = document.getElementById("display-mode");
+		if (!el) return "missing";
+		el.value = "bar";
+		el.dispatchEvent(new Event("change", { bubbles: true }));
+		return "ok";
+	})()`));
+	await sleep(600);
+	await captureClipped("pi-key-display.png", await evaluate(`(() => {
+		const item = document.getElementById("display-item");
+		if (!item) return "missing";
+		const r = item.getBoundingClientRect();
+		return { y: Math.max(0, Math.floor(r.top + window.scrollY - 10)), h: Math.ceil(r.height + 20) };
+	})()`));
+
+	// ---- key PI: Text set to Custom (color well + secondary dim checkbox) ----
+	await setSelect("textMode", "custom");
+	await sleep(900); // the text poll reveals #text-custom within 400 ms
+	expectOk("text custom rows revealed", await evaluate(`document.getElementById("text-custom").hidden === false ? "ok" : "hidden"`));
+	expectOk("text color well", await evaluate(`(() => {
+		const el = document.getElementById("text-color");
+		if (!el) return "missing";
+		el.value = "#660000";
+		el.dispatchEvent(new Event("change", { bubbles: true }));
+		return "ok";
+	})()`));
+	await sleep(900); // preview push carries the custom color back
+	await captureClipped("pi-key-text.png", await evaluate(`(() => {
+		const sel = document.querySelector('sdpi-select[setting="textMode"]');
+		const block = document.getElementById("text-custom");
+		if (!sel || !block) return "missing";
+		const items = [sel.closest("sdpi-item") ?? sel, block];
+		const top = Math.min(...items.map((el) => el.getBoundingClientRect().top)) + window.scrollY;
+		const bottom = Math.max(...items.map((el) => el.getBoundingClientRect().bottom)) + window.scrollY;
+		// Tight top: -10 shears the tail of the theme help line above the row.
+		return { y: Math.max(0, Math.floor(top - 2)), h: Math.ceil(bottom - top + 12) };
+	})()`));
+	// Back to the deck default so the later shots show the plain panel.
+	await setSelect("textMode", "");
+	await sleep(600);
+
+	// ---- key PI: dual layout (second picker + label + stat, Display row hidden) ----
 	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
 	await setSelect("keyLayout", "dual");
 	await sleep(900); // the layout poll reveals #dual-rows within 400 ms
@@ -271,7 +332,7 @@ try {
 	await evaluate(`(() => { const el = document.getElementById("picker-search"); el.value = ""; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
 	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
 	await sleep(600);
-	const groupsRect = await evaluate(`(() => {
+	await captureClipped("pi-dial-groups.png", await evaluate(`(() => {
 		const item = document.getElementById("rotation-set").closest("sdpi-item");
 		const help = document.getElementById("rotation-help");
 		if (!item || !help) return "missing";
@@ -280,20 +341,12 @@ try {
 		const top = Math.min(a.top, b.top) + window.scrollY;
 		const bottom = Math.max(a.bottom, b.bottom) + window.scrollY;
 		return { y: Math.max(0, Math.floor(top - 10)), h: Math.ceil(bottom - top + 20) };
-	})()`);
-	if (groupsRect.result?.value === "missing" || groupsRect.result?.value === undefined) {
-		throw new Error("rotation-set clip rect did not resolve");
-	}
-	const groupsClip = groupsRect.result.value;
-	const shotGroups = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: groupsClip.y, width: 400, height: groupsClip.h, scale: 1 } });
-	writeFileSync(path.join(outDir, "pi-dial-groups.png"), Buffer.from(shotGroups.data, "base64"));
-	log("pi-dial-groups.png captured");
+	})()`));
 
 	// ---- dial PI: Elite preset under "Dial gestures & advanced" ----
 	const openGestures = `(() => {
-		const all = [...document.querySelectorAll("details")];
-		for (const d of all) d.open = false;
-		const g = all.find((d) => (d.querySelector("summary")?.textContent ?? "").includes("Dial gestures"));
+		for (const d of document.querySelectorAll("details")) d.open = false;
+		const g = document.querySelector('details[data-fold="advanced"]');
 		if (!g) return "missing";
 		g.open = true;
 		g.scrollIntoView({ block: "start" });
@@ -313,15 +366,11 @@ try {
 	await evaluate(openGestures);
 	await sleep(300);
 	// The page cannot always scroll the section to the top, so clip to it.
-	const rect = await evaluate(`(() => {
-		const g = [...document.querySelectorAll("details")].find((d) => (d.querySelector("summary")?.textContent ?? "").includes("Dial gestures"));
+	await captureClipped("pi-dial-custom.png", await evaluate(`(() => {
+		const g = document.querySelector('details[data-fold="advanced"]');
 		const r = g.getBoundingClientRect();
 		return { y: Math.max(0, Math.floor(r.top + window.scrollY - 10)), h: Math.ceil(r.height + 20) };
-	})()`);
-	const clip = rect.result?.value ?? { y: 0, h: 1500 };
-	const shotCustom = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: clip.y, width: 400, height: clip.h, scale: 1 } });
-	writeFileSync(path.join(outDir, "pi-dial-custom.png"), Buffer.from(shotCustom.data, "base64"));
-	log("pi-dial-custom.png captured");
+	})()`), { y: 0, h: 1500 });
 
 	// ---- dial PI: overview view (Context line + Separators selects) ----
 	await viewport(880);
@@ -333,7 +382,7 @@ try {
 	));
 	// Clip to the View select plus the controls it revealed: row labels,
 	// context line and separators, with the help line under them.
-	const overviewRect = await evaluate(`(() => {
+	await captureClipped("pi-dial-overview.png", await evaluate(`(() => {
 		const sel = document.querySelector('sdpi-select[setting="dialView"]');
 		const block = document.getElementById("overview-rows");
 		if (!sel || !block) return "missing";
@@ -343,14 +392,26 @@ try {
 		const top = Math.min(a.top, b.top) + window.scrollY;
 		const bottom = Math.max(a.bottom, b.bottom) + window.scrollY;
 		return { y: Math.max(0, Math.floor(top - 10)), h: Math.ceil(bottom - top + 20) };
-	})()`);
-	if (overviewRect.result?.value === "missing" || overviewRect.result?.value === undefined) {
-		throw new Error("overview clip rect did not resolve");
-	}
-	const overviewClip = overviewRect.result.value;
-	const shotOverview = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: overviewClip.y, width: 400, height: overviewClip.h, scale: 1 } });
-	writeFileSync(path.join(outDir, "pi-dial-overview.png"), Buffer.from(shotOverview.data, "base64"));
-	log("pi-dial-overview.png captured");
+	})()`));
+
+	// ---- dial PI: Text set to Custom (same rows as the key PI) ----
+	await setSelect("dialView", "single");
+	await sleep(600);
+	await setSelect("textMode", "custom");
+	await sleep(900);
+	expectOk("dial text custom rows revealed", await evaluate(`document.getElementById("text-custom").hidden === false ? "ok" : "hidden"`));
+	await captureClipped("pi-dial-text.png", await evaluate(`(() => {
+		const sel = document.querySelector('sdpi-select[setting="textMode"]');
+		const block = document.getElementById("text-custom");
+		if (!sel || !block) return "missing";
+		const items = [sel.closest("sdpi-item") ?? sel, block];
+		const top = Math.min(...items.map((el) => el.getBoundingClientRect().top)) + window.scrollY;
+		const bottom = Math.max(...items.map((el) => el.getBoundingClientRect().bottom)) + window.scrollY;
+		// Tight top: -10 shears the tail of the theme help line above the row.
+		return { y: Math.max(0, Math.floor(top - 2)), h: Math.ceil(bottom - top + 12) };
+	})()`));
+	await setSelect("textMode", "");
+	await sleep(400);
 
 	// ---- HWiNFO Control PI: command + Link ID target ----
 	log("navigating: control");
@@ -368,7 +429,7 @@ try {
 	await sleep(300);
 	await capture("pi-control.png");
 
-	console.log(`captured 11 PI states to ${outDir}`);
+	console.log(`captured 14 PI states to ${outDir}`);
 } finally {
 	// The open CDP socket would otherwise hold the event loop until the
 	// watchdog fires — close it, then take the browser tree down.

@@ -10,7 +10,8 @@
  */
 import { HISTORY_LENGTH } from "../series";
 import { estimateFooterWidth, fitFooter, truncateLabel, wrapLabelTwoLines } from "./format";
-import { escapeXml, FONT, sparklinePoints, sparklineSvg, svgOpen } from "./key-renderer";
+import { barSegment, escapeXml, FONT, sparklinePoints, sparklineSvg, svgOpen, type DrawnZone } from "./key-renderer";
+import { themeTextColors, type TextColors } from "./text-colors";
 import type { Palette } from "./themes";
 
 const BAR = { x: 12, y: 84, w: 176, h: 6, r: 3 } as const;
@@ -123,6 +124,9 @@ export interface DialOverviewOptions {
 	 * default on. */
 	separators?: boolean;
 	palette: Palette;
+	/** Resolved textual fills; defaults to the palette's own text tokens.
+	 * Row value colors arrive per row, already resolved by the caller. */
+	text?: TextColors;
 }
 
 /** The context line: the name yields into the remainder at 13 px, dropping
@@ -132,7 +136,7 @@ export interface DialOverviewOptions {
  * paint past the left edge, exactly like the single view's stats cap. The
  * stats draw LAST so a hot name estimate paints under the numbers, and the
  * name budget keeps 2 px of slack against them. */
-function wideContextLine(baseline: number, contextText: string, statsText: string, palette: Palette): string {
+function wideContextLine(baseline: number, contextText: string, statsText: string, colors: TextColors): string {
 	const stats = statsText === "" ? "" : fitFooter(statsText, WIDE.lineRight - WIDE.lineLeft);
 	const rightX = stats === "" ? WIDE.lineRight : WIDE.lineRight - estimateFooterWidth(stats) - WIDE.lineGap;
 	let out = "";
@@ -142,11 +146,11 @@ function wideContextLine(baseline: number, contextText: string, statsText: strin
 			// estimateFooterWidth is 12/600-calibrated; scale for the 13 px try.
 			const size = estimateFooterWidth(contextText) * (13 / 12) <= maxW ? 13 : 12;
 			const text = size === 13 ? contextText : fitFooter(contextText, maxW);
-			out += `<text x="${WIDE.lineLeft}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="${size}" font-weight="600" fill="${palette.label}">${escapeXml(text)}</text>`;
+			out += `<text x="${WIDE.lineLeft}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="${size}" font-weight="600" fill="${colors.label}">${escapeXml(text)}</text>`;
 		}
 	}
 	if (stats !== "") {
-		out += `<text x="${WIDE.lineRight}" y="${baseline}" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="600" fill="${palette.unit}">${escapeXml(stats)}</text>`;
+		out += `<text x="${WIDE.lineRight}" y="${baseline}" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="600" fill="${colors.unit}">${escapeXml(stats)}</text>`;
 	}
 	return out;
 }
@@ -160,6 +164,7 @@ function wideContextLine(baseline: number, contextText: string, statsText: strin
  */
 export function renderDialOverview(opts: DialOverviewOptions): string {
 	const { palette } = opts;
+	const text = opts.text ?? themeTextColors(palette);
 	const g = WIDE_GEO[opts.header === "bottom" ? "bottom" : "top"];
 	const separators = opts.separators !== false;
 	const rows = opts.rows.slice(0, 3).map((row) => {
@@ -197,7 +202,7 @@ export function renderDialOverview(opts: DialOverviewOptions): string {
 		const labelRight = WIDE.valueRight - wideValueWidth(row.valueText, fit.size) - WIDE_LABEL_GAP;
 		const label = fitFooter(row.label.toUpperCase(), Math.max(0, (labelRight - WIDE.labelX) * 0.94));
 		parts.push(
-			`<text x="${WIDE.labelX}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" letter-spacing="0.4" fill="${row.selected ? palette.label : palette.unit}">${escapeXml(label)}</text>`,
+			`<text x="${WIDE.labelX}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" letter-spacing="0.4" fill="${row.selected ? text.label : text.unit}">${escapeXml(label)}</text>`,
 			// Bg-colored insurance between the label run and this row's value:
 			// invisible (rows sit on plain bg), and renderer-proof where the
 			// label estimate ran hot (clipPath is unproven on this engine).
@@ -205,10 +210,10 @@ export function renderDialOverview(opts: DialOverviewOptions): string {
 			`<text x="${WIDE.valueRight}" y="${baseline}" text-anchor="end" font-family="${FONT}" font-size="${fit.size}" font-weight="700" fill="${row.valueColor}">${escapeXml(row.valueText)}</text>`
 		);
 		if (row.unitText !== "") {
-			parts.push(`<text x="${WIDE.unitLeft}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${palette.unit}">${escapeXml(row.unitText)}</text>`);
+			parts.push(`<text x="${WIDE.unitLeft}" y="${baseline}" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${text.unit}">${escapeXml(row.unitText)}</text>`);
 		}
 	});
-	parts.push(wideContextLine(g.lineBaseline, opts.contextText, opts.statsText, palette));
+	parts.push(wideContextLine(g.lineBaseline, opts.contextText, opts.statsText, text));
 	parts.push("</svg>");
 	return parts.join("");
 }
@@ -260,6 +265,9 @@ export interface DialTwoRowOptions {
 	/** Stats/overlay/state line under the rows; empty to omit. */
 	footerText: string;
 	palette: Palette;
+	/** Resolved textual fills; defaults to the palette's own text tokens.
+	 * Row value colors arrive per row, already resolved by the caller. */
+	text?: TextColors;
 }
 
 /**
@@ -272,6 +280,7 @@ export interface DialTwoRowOptions {
  */
 export function renderDialTwoRow(opts: DialTwoRowOptions): string {
 	const { palette } = opts;
+	const text = opts.text ?? themeTextColors(palette);
 	const rows = opts.rows.slice(0, 2).map((row) => {
 		const valueText = truncateLabel(row.valueText, ROW_VALUE_MAX);
 		return {
@@ -301,11 +310,11 @@ export function renderDialTwoRow(opts: DialTwoRowOptions): string {
 		}
 		const lines = wrapLabelTwoLines(row.label, TWO_ROW_LINE1_MAX, line2Max);
 		parts.push(
-			`<text x="12" y="${top + TWO_ROW.labelBaseline}" text-anchor="start" font-family="${FONT}" font-size="13" font-weight="600" fill="${row.selected ? palette.label : palette.unit}">${escapeXml(lines[0] as string)}</text>`
+			`<text x="12" y="${top + TWO_ROW.labelBaseline}" text-anchor="start" font-family="${FONT}" font-size="13" font-weight="600" fill="${row.selected ? text.label : text.unit}">${escapeXml(lines[0] as string)}</text>`
 		);
 		if (lines.length > 1) {
 			parts.push(
-				`<text x="12" y="${top + TWO_ROW.valueBaseline}" text-anchor="start" font-family="${FONT}" font-size="13" font-weight="600" fill="${row.selected ? palette.label : palette.unit}">${escapeXml(lines[1] as string)}</text>`
+				`<text x="12" y="${top + TWO_ROW.valueBaseline}" text-anchor="start" font-family="${FONT}" font-size="13" font-weight="600" fill="${row.selected ? text.label : text.unit}">${escapeXml(lines[1] as string)}</text>`
 			);
 		} else if (row.history !== undefined) {
 			// The freed line hosts the trend: self-normalized over its own
@@ -325,11 +334,11 @@ export function renderDialTwoRow(opts: DialTwoRowOptions): string {
 			`<text x="${valueEndX.toFixed(1)}" y="${top + TWO_ROW.valueBaseline}" text-anchor="end" font-family="${FONT}" font-size="${row.size}" font-weight="700" fill="${row.valueColor}">${escapeXml(row.valueText)}</text>`
 		);
 		if (row.unitText !== "") {
-			parts.push(`<text x="${unitX.toFixed(1)}" y="${top + TWO_ROW.valueBaseline}" text-anchor="start" font-family="${FONT}" font-size="13" font-weight="600" fill="${palette.unit}">${escapeXml(row.unitText)}</text>`);
+			parts.push(`<text x="${unitX.toFixed(1)}" y="${top + TWO_ROW.valueBaseline}" text-anchor="start" font-family="${FONT}" font-size="13" font-weight="600" fill="${text.unit}">${escapeXml(row.unitText)}</text>`);
 		}
 	});
 	if (opts.footerText !== "") {
-		parts.push(`<text x="6" y="96" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${palette.unit}">${escapeXml(fitFooter(opts.footerText, FOOTER_PX))}</text>`);
+		parts.push(`<text x="6" y="96" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${text.unit}">${escapeXml(fitFooter(opts.footerText, FOOTER_PX))}</text>`);
 	}
 	parts.push("</svg>");
 	return parts.join("");
@@ -348,21 +357,41 @@ export interface DialRenderOptions {
 	palette: Palette;
 	/** Bar fill: accent (or type accent) normally, the alert bg when alerting. */
 	barColor: string;
+	/** Threshold zones on the bar track, colors resolved by the caller;
+	 * absent or empty keeps the established track+fill bar untouched. */
+	zones?: readonly DrawnZone[];
+	/** Resolved textual fills; defaults to the palette's own text tokens. */
+	text?: TextColors;
+}
+
+/** One zone segment on the dial bar: squared mid-track, pill-rounded where
+ * it reaches an end of the track (the key bar's shared segment idiom). */
+function dialZoneSvg(zone: DrawnZone): string {
+	const x = BAR.x + zone.from * BAR.w;
+	const w = (zone.to - zone.from) * BAR.w;
+	if (w <= 0) {
+		return "";
+	}
+	return barSegment(x, w, BAR.y, BAR.h, BAR.r, zone.color, zone.from <= 0, zone.to >= 1);
 }
 
 export function renderDial(opts: DialRenderOptions): string {
 	const { palette, barColor } = opts;
+	const text = opts.text ?? themeTextColors(palette);
 	const parts: string[] = [
 		...svgOpen(200, 100, palette.bg),
-		`<text x="12" y="24" text-anchor="start" font-family="${FONT}" font-size="18" font-weight="600" fill="${palette.label}">${escapeXml(truncateLabel(opts.title, TITLE_MAX))}</text>`
+		`<text x="12" y="24" text-anchor="start" font-family="${FONT}" font-size="18" font-weight="600" fill="${text.label}">${escapeXml(truncateLabel(opts.title, TITLE_MAX))}</text>`
 	];
-	const unit = opts.unitText !== "" ? `<tspan dx="6" font-size="17" font-weight="600" fill="${palette.unit}">${escapeXml(opts.unitText)}</tspan>` : "";
+	const unit = opts.unitText !== "" ? `<tspan dx="6" font-size="17" font-weight="600" fill="${text.unit}">${escapeXml(opts.unitText)}</tspan>` : "";
 	const valueText = truncateLabel(opts.valueText, VALUE_MAX);
-	parts.push(`<text x="12" y="58" text-anchor="start" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="${palette.value}">${escapeXml(valueText)}${unit}</text>`);
+	parts.push(`<text x="12" y="58" text-anchor="start" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="${text.value}">${escapeXml(valueText)}${unit}</text>`);
 	if (opts.statsText !== "") {
-		parts.push(`<text x="12" y="78" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${palette.unit}">${escapeXml(opts.statsText)}</text>`);
+		parts.push(`<text x="12" y="78" text-anchor="start" font-family="${FONT}" font-size="12" font-weight="600" fill="${text.unit}">${escapeXml(opts.statsText)}</text>`);
 	}
 	parts.push(`<rect x="${BAR.x}" y="${BAR.y}" width="${BAR.w}" height="${BAR.h}" rx="${BAR.r}" fill="${palette.track}"/>`);
+	for (const zone of opts.zones ?? []) {
+		parts.push(dialZoneSvg(zone));
+	}
 	if (Number.isFinite(opts.fraction) && opts.fraction > 0) {
 		const w = Math.max(BAR.h, Math.min(1, opts.fraction) * BAR.w);
 		parts.push(`<rect x="${BAR.x}" y="${BAR.y}" width="${w.toFixed(1)}" height="${BAR.h}" rx="${BAR.r}" fill="${barColor}"/>`);

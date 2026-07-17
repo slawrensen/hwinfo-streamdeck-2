@@ -7,7 +7,7 @@ The **Sensor Dial** action puts an HWiNFO reading on a Stream Deck + or Stream D
 
 It shares its data source, themes, thresholds, and formatting with [Sensor Reading](sensor-reading.md) keys; this page covers only what's specific to the dial. Windows only, HWiNFO required.
 
-![Two Stream Deck + dials: CPU temperature with a range bar and session min/max, and GPU Hot Spot at its session maximum with the bar fill in red.]({{ '/assets/img/dials.png' | relative_url }})
+![A Stream Deck + dial face: CPU temperature with its live value, session min/max, and a range bar whose track marks the warn and critical zones in amber and red.]({{ '/assets/img/dials.png' | relative_url }})
 
 ## The touchscreen readout
 
@@ -104,14 +104,15 @@ Open the dial's Property Inspector to configure it. Most fields mirror the key a
 | **Row labels** | Overview only: shorten shared prefixes into the context line (default), or always show full labels. |
 | **Context line** | Three-row overview only: the shared name and session stats line sits above the rows (default) or below them. |
 | **Separators** | Three-row overview only: thin lines between rows (default), or none. |
-| **Rotation** | "Ignore turns" disables rotation for bump protection. |
+| **Bump guard** | "Ignore turns" disables rotation for bump protection. |
 | **Auto cycle** | Timer that steps through the rotation set automatically. Off by default. |
 | **Label** | Custom label; blank falls back to the sensor's name. |
 | **Theme** | Preset gallery for this dial, or **Deck default** to follow the deck-wide theme. See [Themes](themes.md). |
-| **Decimals** | Auto (magnitude-based; compacts large values, e.g. `48.7k`) or a fixed 0–3. |
+| **Text** | Text intensity for this dial: **Deck default**, **Theme**, **Dim**, or **Custom** with an exact color. See [Themes](themes.md#text-theme-dim-or-custom). |
+| **Decimals** | Auto (magnitude-based; compacts large values through k/M/G/T, e.g. `48.7M`) or a fixed 0–3. Byte and rate units re-tier under the deck-wide **Data units** preference instead. |
 | **Unit** | Show temperatures in °F instead of °C. |
-| **Bar min** | Fixed low end of the range bar. Leave blank to auto-track the session low. |
-| **Bar max** | Fixed high end of the range bar. Leave blank to auto-track the session high. |
+| **Bar min** | Fixed low end of the range bar on the single view. Leave blank to auto-track the session low. |
+| **Bar max** | Fixed high end of the range bar on the single view. Leave blank to auto-track the session high. |
 | **On alert** | Makes the auto cycle alert-aware: it jumps to a critical member of the rotation set instead of waiting its turn, and holds there while the reading stays critical. Off by default. |
 | **Label mode** | Whether a custom label clears when rotation moves to another reading (default), or stays as a fixed title. |
 | **Warn at** | Value at which the bar fill turns amber (in the displayed unit). |
@@ -123,6 +124,8 @@ Thresholds and the manual bar range are **unit-scoped**: they only apply to read
 ### Bar range: fixed vs. session
 
 By default (both fields blank) the bar spans the **session low → high**, so the fill grows as new extremes appear and always uses the full width of the range you've actually seen. Set **Bar min** / **Bar max** to pin the bar to a fixed scale instead (e.g. `0` and `100` for a usage percentage, or `30` and `90` for a CPU temperature) so the fill position means the same thing every time you glance at it. You can set just one end; the other stays automatic.
+
+With **Warn at** or **Critical at** set, the bar's track also marks the threshold zones in muted amber and red, escalating toward the alarmed end (the low side when *Direction* alerts below), the same zones a key's [Bar or Ring display](sensor-reading.md#display-sparkline-bar-ring) draws, and an automatic range widens just enough to keep them visible. A manual Bar min/max is never widened; zones outside it are simply clipped. The zones are fixed landmarks; the **fill** is the live value, at full strength (accent normally, amber/red while alerting) so it always reads over them.
 
 ## Alerts on a dial
 
@@ -149,4 +152,6 @@ Before you've picked a sensor, the dial shows **HWiNFO** / **rotate to pick** wi
 
 ## Advanced (deck-wide)
 
-The dial's Property Inspector also exposes the same global settings as keys, under **Dial gestures & advanced**: **Deck theme**, **Type accents**, **Data source**, and **Poll every**. These apply to the whole plugin rather than to this dial alone; they're documented in [Data sources](data-sources.md) and [Themes](themes.md).
+The dial's Property Inspector also exposes the same global settings as keys, under **Dial gestures & advanced**: **Deck theme**, **Deck text**, **Type accents**, **Data units**, **Data source**, and **Poll every**. These apply to the whole plugin rather than to this dial alone; they're documented in [Data sources](data-sources.md), [Themes](themes.md), and the key page's [Data units section](sensor-reading.md#advanced-deck-wide).
+
+![The dial's expanded Dial gestures & advanced fold in the Stream Deck app: the Remote control header with the Link ID field, then Deck defaults (every key and dial) with Deck theme, Deck text, Type accents and Data units, Connection with Data source and Poll every, and Support.]({{ '/assets/img/pi-live-dial-advanced.png' | relative_url }})

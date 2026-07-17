@@ -20,10 +20,11 @@
 
 Live [HWiNFO](https://www.hwinfo.com) sensor readings on your Elgato Stream Deck:
 temperatures, clocks, fan speeds, usage, power and more. Keys show a value with
-optional warn/critical coloring and a sparkline; on the Stream Deck + and
-Stream Deck + XL the dials get a touchscreen readout with rotate-to-switch and
-session min/max. Seven display themes (per key or deck-wide) keep the whole
-wall reading as one instrument.
+optional warn/critical coloring and a sparkline, bar, or ring display; on the
+Stream Deck + and Stream Deck + XL the dials get a touchscreen readout with
+rotate-to-switch and session min/max. Seven display themes (per key or
+deck-wide) with adjustable text intensity keep the whole wall reading as one
+instrument.
 
 > **Windows only.** HWiNFO is a Windows application; this plugin reads its
 > shared-memory or Gadget-registry interface locally. No ads, no telemetry,
@@ -82,11 +83,12 @@ the current value.
 | **Sensor** | Searchable picker over every reading HWiNFO publishes, with a live preview. |
 | **Label** | Custom key label; defaults to the sensor's (renamed) label. |
 | **Theme** | Preset gallery: this key only, or "Deck default" to follow the deck-wide theme. |
+| **Text** | Text intensity: deck default, theme, dim, or an exact custom color. |
 | **Show** | Current value, or HWiNFO's min / max / average since it started. |
 | **Layout** | One reading (default), two stacked readings with their own labels and stats, or four in a 2x2 quad grid with per-cell colors or labels. |
-| **Decimals** | Auto (magnitude-based, compacts 48 700 → `48.7k`) or fixed 0–3. |
+| **Decimals** | Auto (magnitude-based, compacts through k/M/G/T: 48 700 → `48.7k`) or fixed 0–3. Bytes and rates re-tier by the deck-wide **Data units** (decimal KB/MB/GB with Mbps rates, or binary KiB/MiB/GiB with MiB/s). |
 | **Unit** | Show temperatures in °F instead of °C. |
-| **Sparkline** | Draws recent history along the bottom of the key. |
+| **Display** | Recent history as a sparkline, or the value in its range as a bar or ring, with amber/red threshold zones. |
 | **Warn / Critical at** | Key turns amber / red at these values (in the displayed unit). |
 | **Direction** | "Alert when below" flips the comparison, for fan RPM, free space, etc. |
 
@@ -99,14 +101,15 @@ The touchscreen shows the label, live value, session ▼min/▲max and a range b
 
 <p align="center">
   <img src="docs/assets/img/dials.png" width="440"
-       alt="Two Stream Deck + dials: CPU temperature with a range bar and session min/max, and GPU Hot Spot pinned at its session maximum in red">
+       alt="A Stream Deck + dial face: CPU temperature with its live value, session min/max, and a range bar whose track marks the warn and critical zones in amber and red">
 </p>
 
 - **Rotate**: step through the readings of the same sensor source
 - **Push**: reset the session min/max/avg
 - **Touch**: cycle current / session-min / session-max / session-avg
 - **Long touch**: back to the current value
-- **Bar range**: fixed min/max for the bar, or automatic from the session range
+- **Bar range**: fixed min/max for the bar, or automatic from the session
+  range; warn/critical thresholds mark amber and red zones on the track
 - **View**: one reading, or an overview of the rotation list: three compact
   rows, or two rows with big values and a trend sparkline each; rotation moves
   the marked row and scrolls the window

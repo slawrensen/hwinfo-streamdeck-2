@@ -5,10 +5,10 @@
 		<title>Sensor Reading settings</title>
 		<script src="sdpi-components.js"></script>
 		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
-		<link rel="stylesheet" href="pi.css?v=1.2.0.0-5" />
+		<link rel="stylesheet" href="pi.css?v=1.3.0.0" />
 	</head>
 	<body>
-		<details class="hw-setup">
+		<details class="hw-setup" data-fold="setup">
 			<summary>First time? HWiNFO setup</summary>
 			<p>
 				1. Install and start <b>HWiNFO</b> (hwinfo.com) in Sensors-only mode.<br />
@@ -18,6 +18,8 @@
 				3. Pick a sensor below. That's it.
 			</p>
 		</details>
+
+		<div class="hw-section">Sensor</div>
 
 		<sdpi-item label="Sensor">
 			<div class="hw-picker">
@@ -40,10 +42,7 @@
 			<sdpi-textfield setting="label" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
 		</sdpi-item>
 
-		<sdpi-item label="Theme">
-			<div class="hw-themes" id="theme-gallery"></div>
-		</sdpi-item>
-		<div class="hw-help" id="theme-help">Pick a preset for this key only, or “Deck default” to follow the deck-wide theme (set under Advanced).</div>
+		<div class="hw-section">Format</div>
 
 		<sdpi-item label="Show">
 			<sdpi-select setting="statMode" default="current">
@@ -53,6 +52,49 @@
 				<option value="avg">Average (since HWiNFO start)</option>
 			</sdpi-select>
 		</sdpi-item>
+		<div class="hw-help">Pressing the key cycles current → min → max → avg.</div>
+
+		<sdpi-item label="Decimals">
+			<sdpi-select setting="decimals" default="auto">
+				<option value="auto">Auto</option>
+				<option value="0">0</option>
+				<option value="1">1</option>
+				<option value="2">2</option>
+				<option value="3">3</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Unit">
+			<sdpi-checkbox setting="fahrenheit" label="Show temperatures in °F"></sdpi-checkbox>
+		</sdpi-item>
+
+		<div class="hw-section">Appearance</div>
+
+		<sdpi-item label="Theme">
+			<div class="hw-themes" id="theme-gallery"></div>
+		</sdpi-item>
+		<div class="hw-help" id="theme-help">Pick a preset for this key only, or “Deck default” to follow the deck-wide theme (set under Advanced).</div>
+
+		<sdpi-item label="Text">
+			<sdpi-select setting="textMode" default="">
+				<option value="">Deck default</option>
+				<option value="theme">Theme</option>
+				<option value="dim">Dim</option>
+				<option value="custom">Custom</option>
+			</sdpi-select>
+		</sdpi-item>
+		<div id="text-custom" class="hw-cond" hidden>
+			<sdpi-item label="Text color">
+				<div class="hw-quad-colors">
+					<input type="color" id="text-color" title="Main value color; exact as picked" />
+				</div>
+			</sdpi-item>
+			<sdpi-item label="Other text">
+				<sdpi-checkbox setting="textDimSecondary" label="Dim labels, units and stats"></sdpi-checkbox>
+			</sdpi-item>
+		</div>
+
+		<div class="hw-section">Layout</div>
 
 		<sdpi-item label="Layout">
 			<sdpi-select setting="keyLayout" default="single">
@@ -61,7 +103,7 @@
 				<option value="quad">Four readings, quad grid</option>
 			</sdpi-select>
 		</sdpi-item>
-		<div id="second-slot" hidden>
+		<div id="second-slot" class="hw-cond" hidden>
 			<sdpi-item label="Second sensor">
 				<div class="hw-picker">
 					<input id="picker2-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
@@ -73,7 +115,7 @@
 				<sdpi-textfield setting="secondaryLabel" placeholder="Custom label (default: sensor name)"></sdpi-textfield>
 			</sdpi-item>
 		</div>
-		<div id="dual-rows" hidden>
+		<div id="dual-rows" class="hw-cond" hidden>
 			<sdpi-item label="Second shows">
 				<sdpi-select setting="secondaryStatMode" default="follow">
 					<option value="follow">Follows the first reading (default)</option>
@@ -85,7 +127,7 @@
 			</sdpi-item>
 			<div class="hw-help">Two rows on one key: the sensor above on top, this one below. By default both rows show the same stat and the key press cycles them together, with one badge centered on the divider. Pin this row to a fixed stat for pairs like minimum and maximum; when the stats differ, each non-current row badges inline after its unit. Thresholds and the theme accent follow the first reading; the sparkline is a single-layout feature.</div>
 		</div>
-		<div id="quad-rows" hidden>
+		<div id="quad-rows" class="hw-cond" hidden>
 			<sdpi-item label="Third sensor">
 				<div class="hw-picker">
 					<input id="picker3-search" type="text" placeholder="Search sensors…" autocomplete="off" spellcheck="false" />
@@ -126,25 +168,19 @@
 			<div class="hw-help">Cells fill in reading order: the sensor above top left, then second, third and fourth. Every cell shows the same stat (the press cycles all four together), and thresholds follow the first sensor, recoloring the whole key on alert.</div>
 		</div>
 
-		<sdpi-item label="Decimals">
-			<sdpi-select setting="decimals" default="auto">
-				<option value="auto">Auto</option>
-				<option value="0">0</option>
-				<option value="1">1</option>
-				<option value="2">2</option>
-				<option value="3">3</option>
-			</sdpi-select>
-		</sdpi-item>
-
-		<sdpi-item label="Unit">
-			<sdpi-checkbox setting="fahrenheit" label="Show temperatures in °F"></sdpi-checkbox>
-		</sdpi-item>
-
-		<div id="sparkline-item">
-			<sdpi-item label="Sparkline">
-				<sdpi-checkbox setting="sparkline" label="Show recent history"></sdpi-checkbox>
+		<div id="display-item">
+			<sdpi-item label="Display">
+				<select id="display-mode" class="hw-select" title="Extra display under the value">
+					<option value="none">None (value only)</option>
+					<option value="sparkline">Sparkline (recent history)</option>
+					<option value="bar">Bar (value in its range)</option>
+					<option value="ring">Ring (value in its range)</option>
+				</select>
 			</sdpi-item>
+			<div class="hw-help">Bar and Ring show where the value sits in its range: 0 to 100 for percentages, otherwise the values seen this session. Warn and critical thresholds mark amber and red zones toward the alarmed end: the high side normally, the low side when Direction alerts below.</div>
 		</div>
+
+		<div class="hw-section">Alerts</div>
 
 		<sdpi-item label="Warn at">
 			<sdpi-textfield setting="warnValue" pattern="^-?\d*([.,]\d+)?$" placeholder="key turns amber (display units)"></sdpi-textfield>
@@ -157,9 +193,11 @@
 		<sdpi-item label="Direction">
 			<sdpi-checkbox setting="alertBelow" label="Alert when value drops below thresholds"></sdpi-checkbox>
 		</sdpi-item>
+		<div class="hw-help">Warn at and Critical at use display units, the same numbers the key shows, °F included when Unit is on.</div>
 
-		<details>
+		<details data-fold="advanced">
 			<summary>Advanced</summary>
+			<div class="hw-section">Deck defaults (every key and dial)</div>
 			<sdpi-item label="Deck theme">
 				<sdpi-select setting="theme" global default="void">
 					<option value="void">Void</option>
@@ -172,12 +210,37 @@
 				</sdpi-select>
 			</sdpi-item>
 			<div class="hw-help">Fallback for keys set to “Deck default”. Keys with their own theme keep it.</div>
+			<sdpi-item label="Deck text">
+				<sdpi-select setting="textMode" global default="theme">
+					<option value="theme">Theme</option>
+					<option value="dim">Dim</option>
+					<option value="custom">Custom</option>
+				</sdpi-select>
+			</sdpi-item>
+			<div id="deck-text-custom" class="hw-cond" hidden>
+				<sdpi-item label="Text color">
+					<div class="hw-quad-colors">
+						<input type="color" id="deck-text-color" title="Deck-wide main value color; exact as picked" />
+					</div>
+				</sdpi-item>
+				<sdpi-item label="Other text">
+					<sdpi-checkbox setting="textDimSecondary" global label="Dim labels, units and stats"></sdpi-checkbox>
+				</sdpi-item>
+			</div>
+			<div class="hw-help">Deck-wide text intensity: Dim lowers the theme text, Custom uses your color. Keys and dials with their own Text setting keep it. Warn and critical colors always win.</div>
 			<sdpi-item label="Type accents">
 				<sdpi-select setting="typeAccents" global default="on">
 					<option value="on">On (accent color by sensor type)</option>
 					<option value="off">Off (theme accent everywhere)</option>
 				</sdpi-select>
 			</sdpi-item>
+			<sdpi-item label="Data units">
+				<sdpi-select setting="dataUnits" global default="decimal">
+					<option value="decimal">Decimal (KB, MB, GB · rates in Mbps)</option>
+					<option value="binary">Binary (KiB, MiB, GiB · rates in MiB/s)</option>
+				</sdpi-select>
+			</sdpi-item>
+			<div class="hw-section">Connection</div>
 			<sdpi-item label="Data source">
 				<sdpi-select setting="source" global default="auto">
 					<option value="auto">Auto (Shared Memory, else Gadget)</option>
@@ -194,16 +257,14 @@
 					<option value="5000">5 seconds</option>
 				</sdpi-select>
 			</sdpi-item>
-			<sdpi-item label="Tip">
-				<div class="hw-preview" style="font-size: 8.5pt; color: #969696">Pressing the key cycles current → min → max → avg.</div>
-			</sdpi-item>
+			<div class="hw-section">Support</div>
 			<sdpi-item label="Support">
 				<button class="hw-support" id="support-report" type="button">Copy support report</button>
 			</sdpi-item>
 			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-common.js?v=1.2.0.0-5"></script>
-		<script src="pi-control.js?v=1.2.0.0-5"></script>
+		<script src="pi-common.js?v=1.3.0.0"></script>
+		<script src="pi-control.js?v=1.3.0.0"></script>
 	</body>
 </html>

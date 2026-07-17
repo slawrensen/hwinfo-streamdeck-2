@@ -18,6 +18,14 @@ type GlobalSettings = {
 	theme?: string;
 	/** "on" (default) | "off" — color accents by sensor type. */
 	typeAccents?: string;
+	/** Deck-wide Text setting: "theme" (default) | "dim" | "custom". */
+	textMode?: string;
+	/** Deck-wide custom text color (#RRGGBB). */
+	textColor?: string;
+	/** Deck-wide custom mode: dim labels, units and stats. */
+	textDimSecondary?: boolean;
+	/** Data-unit preference: "decimal" (default) | "binary". */
+	dataUnits?: string;
 };
 
 // Diagnostic knob for support and hardware bring-up; defaults stay quiet.

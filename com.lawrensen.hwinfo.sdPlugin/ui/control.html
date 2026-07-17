@@ -5,7 +5,7 @@
 		<title>HWiNFO Control settings</title>
 		<script src="sdpi-components.js"></script>
 		<!-- ?v= busts the webview cache; bump it with the plugin version. -->
-		<link rel="stylesheet" href="pi.css?v=1.2.0.0-5" />
+		<link rel="stylesheet" href="pi.css?v=1.3.0.0" />
 	</head>
 	<body>
 		<details class="hw-setup">
@@ -42,7 +42,7 @@
 		<sdpi-item label="Target">
 			<sdpi-textfield setting="target" placeholder="Link ID (empty: every dial)"></sdpi-textfield>
 		</sdpi-item>
-		<div class="hw-help">Give a dial a Link ID in its settings (under "Dial gestures &amp; advanced") and put the same name here to steer just that dial or group of dials. The dial can be on a different Stream Deck than this key.</div>
+		<div class="hw-help">Give a dial a Link ID in its settings (under "Dial gestures &amp; advanced", Remote control) and put the same name here to steer just that dial or group of dials. The dial can be on a different Stream Deck than this key.</div>
 
 		<sdpi-item label="Reset reach">
 			<sdpi-select setting="resetScope" default="current">
@@ -61,6 +61,6 @@
 			<div class="hw-help">Copies a redacted diagnostics report (devices, data source, action states; no sensor values, no names) to the clipboard for a bug report. Nothing is uploaded.</div>
 		</details>
 
-		<script src="pi-control.js?v=1.2.0.0-5"></script>
+		<script src="pi-control.js?v=1.3.0.0"></script>
 	</body>
 </html>

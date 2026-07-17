@@ -39,6 +39,12 @@ const store = {
 /** The page served most recently — the PI that registers next belongs to it. */
 let current = PAGES["sensor-reading.html"];
 
+/** Last rendered face per context (decoded SVG), served at /face/<context>.svg
+ * so a browser session can SEE what the plugin actually drew for the settings
+ * it just changed through the real PI. */
+const faces = new Map();
+const decodeSvg = (image) => (typeof image === "string" && image.startsWith("data:image/svg+xml,") ? decodeURIComponent(image.slice("data:image/svg+xml,".length)) : null);
+
 let pluginWs = null;
 let piWs = null;
 const toPlugin = (obj) => pluginWs?.send(JSON.stringify(obj));
@@ -97,8 +103,20 @@ wss.on("connection", (ws) => {
 			case "sendToPropertyInspector":
 				toPi({ event: "sendToPropertyInspector", action: current.action, context: current.context, payload: msg.payload });
 				break;
-			case "setImage":
-			case "setFeedback":
+			case "setImage": {
+				const svg = decodeSvg(msg.payload?.image);
+				if (svg !== null) {
+					faces.set(msg.context, svg);
+				}
+				break;
+			}
+			case "setFeedback": {
+				const svg = decodeSvg(msg.payload?.canvas);
+				if (svg !== null) {
+					faces.set(msg.context, svg);
+				}
+				break;
+			}
 			case "logMessage":
 				break;
 			default:
@@ -135,6 +153,17 @@ createServer((req, res) => {
 		return;
 	}
 	const url = (req.url ?? "/").split("?")[0];
+	// The live face of one context, for visual verification in a browser.
+	const faceMatch = url.match(/^\/face\/([\w-]+)\.svg$/);
+	if (faceMatch !== null) {
+		const svg = faces.get(faceMatch[1]);
+		if (svg === undefined) {
+			res.writeHead(404).end("no face rendered yet");
+		} else {
+			res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "no-store" }).end(svg);
+		}
+		return;
+	}
 	const file = path.join(pluginDir, path.normalize(url).replace(/^([\\/.])+/, ""));
 	if (!file.startsWith(pluginDir)) {
 		res.writeHead(403).end();

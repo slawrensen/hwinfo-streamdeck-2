@@ -9,11 +9,14 @@ import type { JsonValue } from "@elgato/utils";
 import { buildThemesPayload, handlePiRequest, pushPreviewToPi } from "../pi-protocol";
 import { poller, type PollerStatus } from "../poller";
 import type { Reading, SensorSnapshot } from "../hwinfo/types";
-import { alertLevel, convertUnit, formatQuadValue, formatValue, isStatMode, parseThreshold, STAT_BADGE, STAT_MODES, statValue, type AlertLevel, type DecimalsSetting, type StatMode } from "../ui/format";
-import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, type DualKeyRow, type QuadKeyCell } from "../ui/key-renderer";
+import { alertLevel, convertUnit, isStatMode, parseThreshold, STAT_BADGE, STAT_MODES, statValue, type AlertLevel, type DecimalsSetting, type StatMode } from "../ui/format";
+import { computeGauge, drawnZones } from "../ui/gauge";
+import { formatMeasurement, formatQuadMeasurement, type MeasureOptions } from "../ui/measure";
+import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, type DrawnZone, type DualKeyRow, type QuadKeyCell } from "../ui/key-renderer";
 import { keyLabel, missingReadingScreen, noSelectionScreen, statusScreen } from "../ui/state-screens";
-import { decideLegacyDefault, getDeckTheme, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
-import { classifyTypeAccent, loadThemes, resolvePalette, type TypeAccentKey } from "../ui/themes";
+import { appliedTextMode, DIM_SECONDARY_BLEND, DIM_VALUE_BLEND, mixToward, resolveTextColors, type TextColors, type TextSettings } from "../ui/text-colors";
+import { decideLegacyDefault, effectiveTextFor, getDeckTheme, measureOptionsFrom, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
+import { classifyTypeAccent, loadThemes, resolvePalette, type ThemesConfig, type TypeAccentKey } from "../ui/themes";
 
 /** Persisted per-key settings (written by the PI; all optional). */
 export type ReadingSettings = {
@@ -23,11 +26,27 @@ export type ReadingSettings = {
 	fahrenheit?: boolean;
 	statMode?: StatMode;
 	sparkline?: boolean;
+	/**
+	 * Single-layout display strip: "sparkline", "bar", "ring" or "none". A
+	 * valid value wins; anything else (absent, junk, a newer version's
+	 * future value) falls back to the legacy `sparkline` field, which is
+	 * never rewritten, so pre-Display profiles keep their exact face.
+	 */
+	displayMode?: string;
 	warnValue?: string;
 	critValue?: string;
 	alertBelow?: boolean;
 	/** Per-key theme override; empty/absent follows the deck default. */
 	theme?: string;
+	/**
+	 * Per-key Text setting (issue #2): "theme", "dim" or "custom"; anything
+	 * else (absent, "", junk) follows the deck-wide Text default.
+	 */
+	textMode?: string;
+	/** Custom text color (#RRGGBB); invalid values degrade to theme text. */
+	textColor?: string;
+	/** Custom mode: labels, units and stats at lower intensity. */
+	textDimSecondary?: boolean;
 	/**
 	 * "dual" stacks a second readout under the first; "quad" splits the key
 	 * into a 2x2 grid of up to four readouts; anything else (or too few
@@ -104,9 +123,11 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		});
 		onThemeChange(() => {
 			this.renderAll(poller.getStatus());
-			// Keep the open PI's "Deck default" chip truthful in real time.
+			// Keep the open PI's "Deck default" chip and live preview truthful
+			// in real time (theme, Text and Data units are all deck-wide).
 			if (streamDeck.ui.action?.manifestId === this.manifestId) {
 				void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
+				pushPreviewToPi(poller.getStatus(), this.manifestId, this.instances, true);
 			}
 		});
 	}
@@ -205,7 +226,7 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		// snapshot, keyed by reading) so it survives this action's appear churn —
 		// here we only render and feed the open PI's live preview.
 		this.renderAll(status);
-		pushPreviewToPi(status, this.manifestId, this.instances);
+		pushPreviewToPi(status, this.manifestId, this.instances, true);
 	}
 
 	private renderAll(status: PollerStatus): void {
@@ -262,23 +283,68 @@ function compose(state: InstanceState, status: PollerStatus): string {
 
 	const fahrenheit = settings.fahrenheit === true;
 	const mode = isStatMode(settings.statMode) ? settings.statMode : "current";
-	const displayed = convertUnit(statValue(reading, mode), reading.unit, fahrenheit);
-	const decimals: DecimalsSetting = settings.decimals ?? "auto";
+	const measureOpts = measureOptionsFrom(settings);
+	const measured = formatMeasurement(statValue(reading, mode), reading.unit, measureOpts);
 
+	const config = loadThemes();
 	const { level, themeId, accent } = primaryContext(settings, reading, fahrenheit);
+	const palette = resolvePalette(config, themeId, accent, level);
+	const text = resolveTextColors(palette, effectiveTextFor(settings), level);
+	const display = displayModeOf(settings);
 	const badge = STAT_BADGE[mode];
 	return renderReadingKey({
 		label: keyLabel(settings.label, reading.label),
-		valueText: formatValue(displayed.value, decimals),
-		unitText: displayed.unit,
+		valueText: measured.valueText,
+		unitText: measured.unitText,
 		statBadge: badge,
 		// Poller-owned NATIVE ring: the renderer self-normalizes over the
 		// samples' own min/max and °C→°F is a positive affine map, so native
 		// values draw a pixel-identical sparkline to converted ones (and the
 		// shape survives a unit toggle unchanged).
-		history: settings.sparkline === true ? poller.getSeries(primaryKey) : undefined,
-		palette: resolvePalette(loadThemes(), themeId, accent, level)
+		history: display === "sparkline" ? poller.getSeries(primaryKey) : undefined,
+		gauge: display === "bar" || display === "ring" ? { kind: display, ...keyGauge(settings, reading, fahrenheit, config, palette.bg) } : undefined,
+		palette,
+		text
 	});
+}
+
+/** The effective single-layout display strip; see ReadingSettings.displayMode. */
+function displayModeOf(settings: ReadingSettings): "sparkline" | "bar" | "ring" | "none" {
+	const mode = settings.displayMode;
+	if (mode === "sparkline" || mode === "bar" || mode === "ring" || mode === "none") {
+		return mode;
+	}
+	return settings.sparkline === true ? "sparkline" : "none";
+}
+
+/**
+ * The Bar/Ring gauge for a single-reading key. Bounds are automatic: percent
+ * and yes/no readings get their fixed domains; everything else derives from
+ * values actually visited — HWiNFO's own session min/max where trustworthy
+ * (the gadget source reports min = max = value, which the union neutralizes)
+ * plus the poller's observed series — expanded to keep threshold zones
+ * inside the visible domain. The fill follows the LIVE value even while the
+ * text shows MIN/MAX/AVG, matching the dial bar and alert behavior.
+ */
+function keyGauge(settings: ReadingSettings, reading: Reading, fahrenheit: boolean, config: ThemesConfig, faceBg: string): { fraction: number; zones: DrawnZone[] } {
+	const display = (value: number): number => convertUnit(value, reading.unit, fahrenheit).value;
+	let min = Number.POSITIVE_INFINITY;
+	let max = Number.NEGATIVE_INFINITY;
+	for (const candidate of [reading.valueMin, reading.valueMax, ...(poller.getSeries(reading.key) ?? [])]) {
+		if (Number.isFinite(candidate)) {
+			min = Math.min(min, candidate);
+			max = Math.max(max, candidate);
+		}
+	}
+	const gauge = computeGauge({
+		value: display(reading.value),
+		evidence: Number.isFinite(min) && Number.isFinite(max) ? { min: display(min), max: display(max) } : undefined,
+		unit: reading.unit === "°C" && fahrenheit ? "°F" : reading.unit,
+		warn: parseThreshold(settings.warnValue),
+		crit: parseThreshold(settings.critValue),
+		alertBelow: settings.alertBelow === true
+	});
+	return { fraction: gauge.fraction, zones: drawnZones(gauge.zones, config.alerts, faceBg) };
 }
 
 /** Alert level, theme override and type accent for a key face; all three
@@ -315,18 +381,20 @@ function composeDual(settings: ReadingSettings, snapshot: SensorSnapshot, primar
 		return renderStatusKey(missingReadingScreen());
 	}
 	const fahrenheit = settings.fahrenheit === true;
-	const decimals: DecimalsSetting = settings.decimals ?? "auto";
+	const measureOpts = measureOptionsFrom(settings);
 	const { level, themeId, accent } = primaryContext(settings, primary, fahrenheit);
+	const palette = resolvePalette(loadThemes(), themeId, accent, level);
 	const topMode = isStatMode(settings.statMode) ? settings.statMode : "current";
 	// Absent, "follow", or junk all follow the first row (append-only
 	// salvage); only an explicit stat mode pins the second row.
 	const bottomMode = isStatMode(settings.secondaryStatMode) ? settings.secondaryStatMode : topMode;
 	const shared = topMode === bottomMode;
 	return renderDualKey({
-		top: dualRow(primary, settings.label, topMode, shared, fahrenheit, decimals),
-		bottom: dualRow(secondary, settings.secondaryLabel, bottomMode, shared, fahrenheit, decimals),
+		top: dualRow(primary, settings.label, topMode, shared, measureOpts),
+		bottom: dualRow(secondary, settings.secondaryLabel, bottomMode, shared, measureOpts),
 		sharedBadge: shared ? STAT_BADGE[topMode] : "",
-		palette: resolvePalette(loadThemes(), themeId, accent, level)
+		palette,
+		text: resolveTextColors(palette, effectiveTextFor(settings), level)
 	});
 }
 
@@ -348,12 +416,14 @@ function composeQuad(settings: ReadingSettings, snapshot: SensorSnapshot, slotKe
 		return renderStatusKey(missingReadingScreen());
 	}
 	const fahrenheit = settings.fahrenheit === true;
-	const decimals: DecimalsSetting = settings.decimals ?? "auto";
+	const measureOpts = measureOptionsFrom(settings);
 	const primary = readings[0];
 	const { level, themeId, accent } = primaryContext(settings, primary, fahrenheit);
 	const mode = isStatMode(settings.statMode) ? settings.statMode : "current";
 	const labeled = settings.quadLabels === true;
 	const palette = resolvePalette(loadThemes(), themeId, accent, level);
+	const textSettings = effectiveTextFor(settings);
+	const text = resolveTextColors(palette, textSettings, level);
 	// On alert the identity color collapses into the alert palette's own
 	// text token (the value in the default variant, the micro-label in the
 	// labeled one): the whole key is alert-colored, nothing else survives.
@@ -361,14 +431,32 @@ function composeQuad(settings: ReadingSettings, snapshot: SensorSnapshot, slotKe
 	const colors = quadColorsOf(settings);
 	const customLabels = [settings.label, settings.secondaryLabel, settings.quadLabel3, settings.quadLabel4];
 	return renderQuadKey({
-		cells: slotKeys.map((key, i) => (key === undefined ? null : quadCell(readings[i], customLabels[i], labeled, mode, fahrenheit, decimals, alertColor ?? (colors[i] as string)))),
+		cells: slotKeys.map((key, i) => (key === undefined ? null : quadCell(readings[i], customLabels[i], labeled, mode, measureOpts, alertColor ?? quadSlotColor(colors[i] as string, labeled, textSettings, text, palette)))),
 		labels: labeled,
 		sharedBadge: STAT_BADGE[mode],
-		palette
+		palette,
+		text
 	});
 }
 
-function quadCell(reading: Reading | undefined, customLabel: string | undefined, labeled: boolean, mode: StatMode, fahrenheit: boolean, decimals: DecimalsSetting, color: string): QuadKeyCell {
+/**
+ * A quad slot's identity color under the effective Text setting. The slot
+ * colors are textual (the value glyphs, or the micro-label), so Custom
+ * governs them too: the exact color for values, the secondary shade for
+ * micro-labels. Dim lowers the identity hues themselves; Theme keeps them.
+ */
+function quadSlotColor(identity: string, labeled: boolean, settings: TextSettings, text: TextColors, palette: { bg: string }): string {
+	const mode = appliedTextMode(settings);
+	if (mode === "custom") {
+		return labeled ? text.label : text.value;
+	}
+	if (mode === "dim") {
+		return mixToward(identity, palette.bg, labeled ? DIM_SECONDARY_BLEND : DIM_VALUE_BLEND);
+	}
+	return identity;
+}
+
+function quadCell(reading: Reading | undefined, customLabel: string | undefined, labeled: boolean, mode: StatMode, measureOpts: MeasureOptions, color: string): QuadKeyCell {
 	// The micro-label falls back to the reading label's first word; the
 	// renderer hard-cuts to 4 code points and uppercases either source.
 	const fallbackLabel = reading === undefined ? "" : (reading.label.split(" ")[0] ?? "");
@@ -377,20 +465,20 @@ function quadCell(reading: Reading | undefined, customLabel: string | undefined,
 		// The one permitted em dash: the key face's "no value" placeholder.
 		return { label, valueText: "—", unitText: "", color };
 	}
-	const displayed = convertUnit(statValue(reading, mode), reading.unit, fahrenheit);
-	return { label, valueText: formatQuadValue(displayed.value, decimals), unitText: displayed.unit, color };
+	const measured = formatQuadMeasurement(statValue(reading, mode), reading.unit, measureOpts);
+	return { label, valueText: measured.valueText, unitText: measured.unitText, color };
 }
 
-function dualRow(reading: Reading | undefined, customLabel: string | undefined, mode: StatMode, shared: boolean, fahrenheit: boolean, decimals: DecimalsSetting): DualKeyRow {
+function dualRow(reading: Reading | undefined, customLabel: string | undefined, mode: StatMode, shared: boolean, measureOpts: MeasureOptions): DualKeyRow {
 	if (reading === undefined) {
 		// The one permitted em dash: the key face's "no value" placeholder.
 		return { label: keyLabel(customLabel, "Sensor missing"), valueText: "—", unitText: "", statBadge: "" };
 	}
-	const displayed = convertUnit(statValue(reading, mode), reading.unit, fahrenheit);
+	const measured = formatMeasurement(statValue(reading, mode), reading.unit, measureOpts);
 	return {
 		label: keyLabel(customLabel, reading.label),
-		valueText: formatValue(displayed.value, decimals),
-		unitText: displayed.unit,
+		valueText: measured.valueText,
+		unitText: measured.unitText,
 		statBadge: shared ? "" : STAT_BADGE[mode]
 	};
 }

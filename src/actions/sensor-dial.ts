@@ -35,9 +35,12 @@ import { describeGestureState, hashId, trace, traceEnabled } from "../recorder";
 import { activeGroupIndex, autoCycleTarget, groupDisplayName, groupReadings, overviewWindow, rotationGroupsOf, rotationReadings, stepGroup, stepReading, stepSensorSource, type RotationGroup } from "../rotation";
 import { SessionStatsStore, type SessionStats } from "../stats";
 import { FOOTER_PX, renderDial, renderDialOverview, renderDialTwoRow, type OverviewRow } from "../ui/dial-renderer";
-import { alertLevel, convertUnit, dedupeSharedLabelPrefix, estimateFooterWidth, formatValue, parseThreshold, STAT_BADGE, STAT_MODES, thresholdsApplyTo, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
+import { alertLevel, convertUnit, dedupeSharedLabelPrefix, estimateFooterWidth, parseThreshold, STAT_BADGE, STAT_MODES, thresholdsApplyTo, truncateLabel, type DecimalsSetting, type StatMode } from "../ui/format";
+import { computeGauge, drawnZones } from "../ui/gauge";
+import { formatMeasurement, formatStat, isDataUnit } from "../ui/measure";
 import { statusDialText } from "../ui/state-screens";
-import { decideLegacyDefault, getDeckTheme, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
+import { resolveTextColors, type TextColors } from "../ui/text-colors";
+import { decideLegacyDefault, effectiveTextFor, getDeckTheme, measureOptionsFrom, onThemeChange, typeAccentsEnabled } from "../ui/theme-store";
 import { classifyTypeAccent, loadThemes, resolvePalette, type ThemesConfig } from "../ui/themes";
 
 /** Persisted per-dial settings (written by the PI; all optional). */
@@ -54,6 +57,15 @@ export type DialSettings = {
 	alertBelow?: boolean;
 	/** Per-dial theme override; empty/absent follows the deck default. */
 	theme?: string;
+	/**
+	 * Per-dial Text setting (issue #2): "theme", "dim" or "custom"; anything
+	 * else (absent, "", junk) follows the deck-wide Text default.
+	 */
+	textMode?: string;
+	/** Custom text color (#RRGGBB); invalid values degrade to theme text. */
+	textColor?: string;
+	/** Custom mode: labels, units and stats at lower intensity. */
+	textDimSecondary?: boolean;
 	/** Rotation set: rotate/autocycle move only through these picked readings. */
 	rotationKeys?: string[];
 	/**
@@ -178,9 +190,11 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		});
 		onThemeChange(() => {
 			this.renderAll(poller.getStatus());
-			// Keep the open PI's "Deck default" chip truthful in real time.
+			// Keep the open PI's "Deck default" chip and live preview truthful
+			// in real time (theme, Text and Data units are all deck-wide).
 			if (streamDeck.ui.action?.manifestId === this.manifestId) {
 				void streamDeck.ui.sendToPropertyInspector(buildThemesPayload());
+				pushPreviewToPi(poller.getStatus(), this.manifestId, this.instances, false);
 			}
 		});
 		registerDialCommandHandler((command) => this.applyControlCommand(command));
@@ -532,7 +546,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			this.autoCycle(status, now);
 		}
 		this.renderAll(status);
-		pushPreviewToPi(status, this.manifestId, this.instances);
+		pushPreviewToPi(status, this.manifestId, this.instances, false);
 	}
 
 	private sampleStats(state: InstanceState, snapshot: SensorSnapshot): void {
@@ -946,23 +960,27 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 	const settings = state.settings;
 	const config = loadThemes();
 	const themeId = settings.theme !== undefined && settings.theme !== "" ? settings.theme : getDeckTheme();
+	// Dial faces stay themed while alerting, so the Text setting resolves at
+	// level "normal" here; the alert expression (bar fill, alerting row
+	// values) is fixed separately and custom text never recolors it.
+	const textOf = (palette: Parameters<typeof resolveTextColors>[0]): TextColors => resolveTextColors(palette, effectiveTextFor(settings), "normal");
 
 	const problem = statusDialText(status);
 	if (problem !== null) {
 		const palette = resolvePalette(config, themeId, null, "normal");
-		return renderDial({ title: problem.title, valueText: problem.value, unitText: "", statsText: "", fraction: NaN, palette, barColor: palette.accent });
+		return renderDial({ title: problem.title, valueText: problem.value, unitText: "", statsText: "", fraction: NaN, palette, barColor: palette.accent, text: textOf(palette) });
 	}
 	const { snapshot } = status as Extract<PollerStatus, { state: "ok" }>;
 	if (settings.readingKey === undefined || settings.readingKey === "") {
 		const palette = resolvePalette(config, themeId, null, "normal");
-		return renderDial({ title: "HWiNFO", valueText: "rotate to pick", unitText: "", statsText: "or use the settings panel", fraction: NaN, palette, barColor: palette.accent });
+		return renderDial({ title: "HWiNFO", valueText: "rotate to pick", unitText: "", statsText: "or use the settings panel", fraction: NaN, palette, barColor: palette.accent, text: textOf(palette) });
 	}
 	const reading = snapshot.byKey.get(settings.readingKey);
 	if (reading === undefined) {
 		// Turns are ignored here on purpose (see advance): the saved selection
 		// survives a transient HWiNFO outage instead of being rotated away.
 		const palette = resolvePalette(config, themeId, null, "normal");
-		return renderDial({ title: "Sensor missing", valueText: "waiting", unitText: "", statsText: "reselect in settings", fraction: NaN, palette, barColor: palette.accent });
+		return renderDial({ title: "Sensor missing", valueText: "waiting", unitText: "", statsText: "reselect in settings", fraction: NaN, palette, barColor: palette.accent, text: textOf(palette) });
 	}
 
 	// Status, no-selection and missing faces above are shared with the single
@@ -974,11 +992,11 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 	}
 
 	const fahrenheit = settings.fahrenheit === true;
-	const decimals: DecimalsSetting = settings.decimals ?? "auto";
+	const measureOpts = measureOptionsFrom(settings);
 	const stats = state.stats.get(settings.readingKey) ?? { min: reading.value, max: reading.value, sum: reading.value, count: 1 };
 
 	const nativeShown = rowStatValue(reading.value, stats, state.statMode);
-	const shown = convertUnit(nativeShown, reading.unit, fahrenheit);
+	const shown = formatMeasurement(nativeShown, reading.unit, measureOpts);
 	const badge = STAT_BADGE[state.statMode];
 
 	const min = convertUnit(stats.min, reading.unit, fahrenheit).value;
@@ -986,12 +1004,23 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 	const live = convertUnit(reading.value, reading.unit, fahrenheit).value;
 
 	// Thresholds and the manual bar range only apply to readings in the unit
-	// they were configured against (mixed-unit rotation safety).
+	// they were configured against (mixed-unit rotation safety). Bounds and
+	// zones come from the shared gauge model: manual sides win exactly,
+	// automatic sides stay the session min/max (the dial's established
+	// behavior) and only expand when thresholds would fall outside.
 	const scoped = thresholdsApplyTo(settings.alertUnit, reading.unit);
-	const barMin = (scoped ? parseThreshold(settings.barMin) : undefined) ?? min;
-	const barMax = (scoped ? parseThreshold(settings.barMax) : undefined) ?? max;
-	const span = barMax - barMin;
-	const fraction = span > 0 && Number.isFinite(live) ? Math.max(0, Math.min(1, (live - barMin) / span)) : 0.5;
+	const warn = scoped ? parseThreshold(settings.warnValue) : undefined;
+	const crit = scoped ? parseThreshold(settings.critValue) : undefined;
+	const gauge = computeGauge({
+		value: live,
+		manualMin: scoped ? parseThreshold(settings.barMin) : undefined,
+		manualMax: scoped ? parseThreshold(settings.barMax) : undefined,
+		evidence: { min, max },
+		warn,
+		crit,
+		alertBelow: settings.alertBelow === true
+	});
+	const fraction = Number.isFinite(gauge.fraction) ? gauge.fraction : 0.5;
 
 	// Dials stay themed while alerting — only the bar fill flips to the alert
 	// field color (the touchscreen slot is too small for a full polarity flip).
@@ -1005,18 +1034,24 @@ function composeDialSvg(state: InstanceState, status: PollerStatus): string {
 	// A transient hint owns the whole stats line for its moment (appending it
 	// to min/max would run past the 200 px canvas); persistent states replace
 	// only the trailing "session" tag. Belt and braces: the line is truncated
-	// to what 12 px/600 fits, so no combination can clip off-canvas.
+	// to what 12 px/600 fits, so no combination can clip off-canvas. Data
+	// units carry their own tier suffix per stat, so that variant packs
+	// tighter to keep the whole line on canvas.
 	const overlay = state.overlay;
 	const stateTag = state.pinned ? "pinned" : state.cyclePaused && parseAutoCycleMs(settings.autoCycleMs) !== null ? "cycle paused" : "session";
-	const statsLine = overlay !== null && overlay.until > Date.now() ? overlay.text : `▼ ${formatValue(min, decimals)}   ▲ ${formatValue(max, decimals)}   ${stateTag}`;
+	const minText = formatStat(stats.min, reading.unit, measureOpts);
+	const maxText = formatStat(stats.max, reading.unit, measureOpts);
+	const statsLine = overlay !== null && overlay.until > Date.now() ? overlay.text : isDataUnit(reading.unit) ? `▼${minText} ▲${maxText} ${stateTag}` : `▼ ${minText}   ▲ ${maxText}   ${stateTag}`;
 	return renderDial({
 		title: label,
-		valueText: formatValue(shown.value, decimals),
-		unitText: `${shown.unit}${badge !== "" ? " · " + badge : ""}`.trim(),
+		valueText: shown.valueText,
+		unitText: `${shown.unitText}${badge !== "" ? " · " + badge : ""}`.trim(),
 		statsText: truncateLabel(statsLine, 28),
 		fraction,
 		palette,
-		barColor: level !== "normal" ? config.alerts[level].bg : palette.accent
+		barColor: level !== "normal" ? config.alerts[level].bg : palette.accent,
+		zones: drawnZones(gauge.zones, config.alerts, palette.bg),
+		text: textOf(palette)
 	});
 }
 
@@ -1053,7 +1088,7 @@ function rotationNamesOf(settings: DialSettings): Record<string, string> | undef
 function composeOverviewSvg(state: InstanceState, snapshot: SensorSnapshot, reading: Reading, config: ThemesConfig, themeId: string, rowCount: 2 | 3): string {
 	const settings = state.settings;
 	const fahrenheit = settings.fahrenheit === true;
-	const decimals: DecimalsSetting = settings.decimals ?? "auto";
+	const measureOpts = measureOptionsFrom(settings);
 	const stepList = stepListOf(settings, reading.key, rotationGroupsOf(settings.rotationGroups), snapshot);
 	// A set whose members are all absent from the snapshot (sensor asleep)
 	// still has a live selection to show; never render an empty face.
@@ -1084,21 +1119,24 @@ function composeOverviewSvg(state: InstanceState, snapshot: SensorSnapshot, read
 	// like the single view's accent follows it.
 	const accent = typeAccentsEnabled() ? classifyTypeAccent(reading.type, reading.unit, reading.label) : null;
 	const palette = resolvePalette(config, themeId, accent, "normal");
+	const text = resolveTextColors(palette, effectiveTextFor(settings), "normal");
 	const warn = parseThreshold(settings.warnValue);
 	const crit = parseThreshold(settings.critValue);
 
 	const overviewRows: (OverviewRow & { history?: readonly number[] })[] = rows.map((member, index) => {
 		const selected = index === selectedIndex;
-		const shown = convertUnit(rowStatValue(member.value, state.stats.get(member.key), state.statMode), member.unit, fahrenheit);
+		const shown = formatMeasurement(rowStatValue(member.value, state.stats.get(member.key), state.statMode), member.unit, measureOpts);
 		const scoped = thresholdsApplyTo(settings.alertUnit, member.unit);
 		const live = convertUnit(member.value, member.unit, fahrenheit).value;
 		const level = scoped ? alertLevel(live, warn, crit, settings.alertBelow === true) : "normal";
 		return {
 			label: deduped.labels[index] ?? member.label,
-			valueText: formatValue(shown.value, decimals),
-			unitText: shown.unit,
+			valueText: shown.valueText,
+			unitText: shown.unitText,
 			selected,
-			valueColor: level !== "normal" ? config.alerts[level].bg : palette.value,
+			// An alerting row's value is the alert indicator and stays fixed;
+			// custom text never recolors it.
+			valueColor: level !== "normal" ? config.alerts[level].bg : text.value,
 			// The two-row view draws each visible reading's trend from the
 			// poller's series store, which syncRowSeries keeps subscribed.
 			...(rowCount === 2 ? { history: poller.getSeries(member.key) } : {})
@@ -1106,8 +1144,8 @@ function composeOverviewSvg(state: InstanceState, snapshot: SensorSnapshot, read
 	});
 
 	const stats = state.stats.get(reading.key) ?? { min: reading.value, max: reading.value, sum: reading.value, count: 1 };
-	const min = convertUnit(stats.min, reading.unit, fahrenheit).value;
-	const max = convertUnit(stats.max, reading.unit, fahrenheit).value;
+	const minText = formatStat(stats.min, reading.unit, measureOpts);
+	const maxText = formatStat(stats.max, reading.unit, measureOpts);
 	const badge = STAT_BADGE[state.statMode];
 	// One tag slot: pinned wins, then paused, then the stat badge; "session"
 	// fills the quiet default, but yields to the shared-prefix context.
@@ -1121,24 +1159,25 @@ function composeOverviewSvg(state: InstanceState, snapshot: SensorSnapshot, read
 		// ("· Virtual Mem…") but can never eat a number; the tight variant
 		// (markers hugging their numbers) usually saves the whole text first.
 		const context = deduped.prefix !== "" ? `· ${deduped.prefix}` : "";
-		const roomy = [`▼ ${formatValue(min, decimals)}`, `▲ ${formatValue(max, decimals)}`, tags, context].filter((part) => part !== "").join("  ");
-		const tight = [`▼${formatValue(min, decimals)}`, `▲${formatValue(max, decimals)}`, tags, context].filter((part) => part !== "").join(" ");
+		const roomy = [`▼ ${minText}`, `▲ ${maxText}`, tags, context].filter((part) => part !== "").join("  ");
+		const tight = [`▼${minText}`, `▲${maxText}`, tags, context].filter((part) => part !== "").join(" ");
 		const footer = overlayActive ? overlay.text : estimateFooterWidth(roomy) <= FOOTER_PX ? roomy : tight;
-		return renderDialTwoRow({ rows: overviewRows, footerText: footer, palette });
+		return renderDialTwoRow({ rows: overviewRows, footerText: footer, palette, text });
 	}
 	// The three-row wide tile splits that line: the stats are their own
 	// right-anchored element the renderer never clips, and the left region
 	// carries the tags and shared name (or a transient overlay, which takes
 	// the whole line exactly as it took the whole footer).
 	const contextText = overlayActive ? overlay.text : [tags, deduped.prefix].filter((part) => part !== "").join(" · ");
-	const statsText = overlayActive ? "" : `▼${formatValue(min, decimals)} ▲${formatValue(max, decimals)}`;
+	const statsText = overlayActive ? "" : `▼${minText} ▲${maxText}`;
 	return renderDialOverview({
 		rows: overviewRows,
 		contextText,
 		statsText,
 		header: settings.overviewHeader === "bottom" ? "bottom" : "top",
 		separators: settings.overviewSeparators !== "off",
-		palette
+		palette,
+		text
 	});
 }
 

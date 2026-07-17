@@ -39,38 +39,70 @@ export function convertUnit(value: number, unit: string, fahrenheit: boolean): {
 	return { value, unit };
 }
 
+/** The generic magnitude ladder auto-compaction climbs (thousand steps). */
+const MAGNITUDES = [
+	{ suffix: "k", scale: 1_000 },
+	{ suffix: "M", scale: 1_000_000 },
+	{ suffix: "G", scale: 1_000_000_000 },
+	{ suffix: "T", scale: 1_000_000_000_000 }
+] as const;
+
+/**
+ * Precision by magnitude band: whole numbers from 100, one decimal from 10,
+ * two below. The key's established rhythm, reused at every compacted tier.
+ */
+export function bandPrecision(abs: number): 0 | 1 | 2 {
+	return abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+}
+
+/** toFixed with the sign dropped from a zero result: "-0.00" reads as a
+ * negative reading that isn't there. */
+export function fixed(value: number, digits: number): string {
+	const text = value.toFixed(digits);
+	return Number(text) === 0 ? (0).toFixed(digits) : text;
+}
+
 /**
  * Formats a value for a 72 px key. "auto" scales precision with magnitude and
- * compacts very large values (48700 → "48.7k") so they never overflow the key.
+ * compacts large values through k/M/G/T (48700 → "48.7k", 48700000 → "48.7M")
+ * so they never overflow the key. Rounding rolls over cleanly: a value that
+ * would round to "1000k" is promoted to "1.00M" instead.
  */
 export function formatValue(value: number, decimals: DecimalsSetting): string {
 	if (!Number.isFinite(value)) {
 		return "—";
 	}
 	if (decimals !== "auto") {
-		return value.toFixed(Number(decimals));
+		return fixed(value, Number(decimals));
 	}
 	const abs = Math.abs(value);
-	if (abs >= 100_000) {
-		return `${(value / 1000).toFixed(0)}k`;
+	if (abs < 10_000) {
+		return fixed(value, bandPrecision(abs));
 	}
-	if (abs >= 10_000) {
-		return `${(value / 1000).toFixed(1)}k`;
+	let tier = 0;
+	while (tier < MAGNITUDES.length - 1 && abs / (MAGNITUDES[tier] as (typeof MAGNITUDES)[number]).scale >= 1000) {
+		tier++;
 	}
-	if (abs >= 100) {
-		return value.toFixed(0);
+	for (;;) {
+		const { suffix, scale } = MAGNITUDES[tier] as (typeof MAGNITUDES)[number];
+		const scaled = value / scale;
+		const text = fixed(scaled, bandPrecision(Math.abs(scaled)));
+		const rounded = Math.abs(Number(text));
+		if (rounded >= 1000 && tier < MAGNITUDES.length - 1) {
+			tier++;
+			continue;
+		}
+		// Rounding can cross a precision band (9.99 → "10.0"): settle on the
+		// band the rounded value actually lands in.
+		return `${fixed(scaled, bandPrecision(rounded))}${suffix}`;
 	}
-	if (abs >= 10) {
-		return value.toFixed(1);
-	}
-	return value.toFixed(2);
 }
 
 /**
  * Formats a value for one 72 px quad-grid cell: at most 4 glyphs, ever. The
  * shared decimals setting is the starting precision ("auto" starts from
  * formatValue's magnitude rule); decimals drop first, then the magnitude
- * compacts through k/M/G, so 48700 reads "49k" instead of overflowing the
+ * compacts through k/M/G/T, so 48700 reads "49k" instead of overflowing the
  * cell. The sign counts as a glyph.
  */
 export function formatQuadValue(value: number, decimals: DecimalsSetting): string {
@@ -81,25 +113,26 @@ export function formatQuadValue(value: number, decimals: DecimalsSetting): strin
 		if (decimals !== "auto") {
 			return Number(decimals);
 		}
-		return abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+		return bandPrecision(abs);
 	};
 	const tiers = [
 		{ suffix: "", scale: 1 },
 		{ suffix: "k", scale: 1_000 },
 		{ suffix: "M", scale: 1_000_000 },
-		{ suffix: "G", scale: 1_000_000_000 }
+		{ suffix: "G", scale: 1_000_000_000 },
+		{ suffix: "T", scale: 1_000_000_000_000 }
 	];
 	for (const { suffix, scale } of tiers) {
 		const scaled = value / scale;
 		for (let d = startPrecision(Math.abs(scaled)); d >= 0; d--) {
-			const text = `${scaled.toFixed(d)}${suffix}`;
+			const text = `${fixed(scaled, d)}${suffix}`;
 			if (Array.from(text).length <= 4) {
 				return text;
 			}
 		}
 	}
-	// Past ±9999G, which no HWiNFO reading approaches: clamp, never overflow.
-	return `${Math.round(value / 1_000_000_000)}G`;
+	// Past ±9999T, which no HWiNFO reading approaches: clamp, never overflow.
+	return `${Math.round(value / 1_000_000_000_000)}T`;
 }
 
 /** Parses a threshold field coming from the PI (string or number, may be empty). */

@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { formatQuadValue } from "../src/ui/format";
-import { dualValueFontSize, QUAD_DEFAULT_COLORS, quadValueFontSize, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, valueFontSize, type DualKeyOptions, type DualKeyRow, type QuadKeyCell, type QuadKeyOptions, type ReadingKeyOptions } from "../src/ui/key-renderer";
+import { dualValueFontSize, QUAD_DEFAULT_COLORS, quadValueFontSize, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, ringValueFontSize, valueFontSize, type DualKeyOptions, type DualKeyRow, type KeyGauge, type QuadKeyCell, type QuadKeyOptions, type ReadingKeyOptions } from "../src/ui/key-renderer";
+import { resolveTextColors } from "../src/ui/text-colors";
 import { loadThemes, resolvePalette } from "../src/ui/themes";
 
 const config = loadThemes();
@@ -187,6 +188,262 @@ describe("hardening", () => {
 		assert.match(svg, />A&amp;B&lt;C&gt;</);
 		assert.match(svg, />1&quot;2</);
 		assert.match(svg, />&apos;u</);
+	});
+});
+
+// --- Bar gauge ----------------------------------------------------------------
+
+const WARN_BG = "#E8940D";
+const CRIT_BG = "#CB2114";
+
+function barGauge(overrides: Partial<KeyGauge>): KeyGauge {
+	return { kind: "bar", fraction: 0.5, zones: [], ...overrides };
+}
+
+describe("key Bar gauge", () => {
+	it("pill track x16 y120 112x10 r5 in track color, accent fill from the left", () => {
+		// Raised and inset from the physical lens crop (hardware-verified).
+		const svg = render({ gauge: barGauge({ fraction: 0.5 }) });
+		assert.match(svg, new RegExp(`<rect x="16" y="120" width="112" height="10" rx="5" fill="${VOID.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="16" y="120" width="56\\.0" height="10" rx="5" fill="${VOID.accent}"/>`));
+	});
+
+	it("fill clamps to the track and keeps a visible minimum", () => {
+		assert.match(render({ gauge: barGauge({ fraction: 1.5 }) }), /width="112\.0" height="10" rx="5"/);
+		assert.match(render({ gauge: barGauge({ fraction: 0.001 }) }), /width="10\.0" height="10" rx="5"/);
+	});
+
+	it("no fill at zero or on a non-finite fraction; the track stays", () => {
+		for (const fraction of [0, Number.NaN]) {
+			const svg = render({ gauge: barGauge({ fraction }) });
+			assert.match(svg, new RegExp(`<rect x="16" y="120" width="112" height="10" rx="5" fill="${VOID.track}"/>`));
+			assert.doesNotMatch(svg, new RegExp(`rx="5" fill="${VOID.accent}"`));
+		}
+	});
+
+	it("threshold zones sit on the track at their normalized spans", () => {
+		const svg = render({
+			gauge: barGauge({ fraction: 0.6, zones: [{ from: 0.7, to: 0.9, color: WARN_BG }, { from: 0.9, to: 1, color: CRIT_BG }] })
+		});
+		// warn: x = 16 + 0.7*112 = 94.4, w = 0.2*112 = 22.4, squared mid-track.
+		assert.match(svg, new RegExp(`<rect x="94\\.4" y="120" width="22\\.4" height="10" fill="${WARN_BG}"/>`));
+		// crit reaches the right end: rounded, with a same-color square overpaint
+		// squaring its left edge (solid fills are the proven clip idiom).
+		assert.match(svg, new RegExp(`<rect x="116\\.8" y="120" width="11\\.2" height="10" rx="5" fill="${CRIT_BG}"/><rect x="116\\.8" y="120" width="5\\.0" height="10" fill="${CRIT_BG}"/>`));
+	});
+
+	it("alertBelow zones round the left end instead", () => {
+		const svg = render({ gauge: barGauge({ zones: [{ from: 0, to: 0.25, color: CRIT_BG }] }) });
+		// Rounded rect for the left cap, same-color square overpaint squaring
+		// the right edge at 39..44.
+		assert.match(svg, new RegExp(`<rect x="16\\.0" y="120" width="28\\.0" height="10" rx="5" fill="${CRIT_BG}"/><rect x="39\\.0" y="120" width="5\\.0" height="10" fill="${CRIT_BG}"/>`));
+	});
+
+	it("zone draw order: track, zones, then the fill on top", () => {
+		const svg = render({ gauge: barGauge({ fraction: 0.8, zones: [{ from: 0.7, to: 1, color: WARN_BG }] }) });
+		const track = svg.indexOf(`fill="${VOID.track}"/>`, svg.indexOf('y="120"'));
+		const zone = svg.indexOf(`fill="${WARN_BG}"`);
+		const fill = svg.indexOf(`fill="${VOID.accent}"`);
+		assert.ok(track !== -1 && zone !== -1 && fill !== -1);
+		assert.ok(track < zone && zone < fill, "track < zone < fill");
+	});
+
+	it("the bar stays inside the physical safe area (>=14px off every edge it nears)", () => {
+		const svg = render({ gauge: barGauge({ fraction: 1 }) });
+		assert.doesNotMatch(svg, /y="13[0-9]"[^>]*height="10"/); // nothing below y=130
+		assert.doesNotMatch(svg, /<rect x="[0-9]" y="120"/); // nothing left of x=16
+	});
+
+	it("value, unit and label anchors stay locked; no sparkline alongside", () => {
+		const svg = render({ gauge: barGauge({}), history: [1, 2, 3] });
+		assert.match(svg, /<text x="72" y="94" /);
+		assert.match(svg, /<text x="72" y="118" /);
+		assert.match(svg, /<text x="72" y="32" /);
+		assert.doesNotMatch(svg, /polyline/);
+	});
+});
+
+// --- Ring gauge ---------------------------------------------------------------
+
+function ringGauge(overrides: Partial<KeyGauge>): KeyGauge {
+	return { kind: "ring", fraction: 0.5, zones: [], ...overrides };
+}
+
+/** Every arc's points, parsed from "Mx,y Ar,r 0 L S x2,y2". */
+function ringArcs(svg: string): Array<{ x1: number; y1: number; x2: number; y2: number; large: number; stroke: string; width: string; cap: string }> {
+	return [...svg.matchAll(/<path d="M([\d.-]+),([\d.-]+) A([\d.]+),([\d.]+) 0 ([01]) 1 ([\d.-]+),([\d.-]+)" fill="none" stroke="([^"]+)" stroke-width="([\d.]+)" stroke-linecap="([a-z]+)"\/>/g)].map((m) => ({
+		x1: Number(m[1]),
+		y1: Number(m[2]),
+		x2: Number(m[6]),
+		y2: Number(m[7]),
+		large: Number(m[5]),
+		stroke: m[8] as string,
+		width: m[9] as string,
+		cap: m[10] as string
+	}));
+}
+
+describe("key Ring gauge", () => {
+	it("track arc: r=46 around (72,90), 280 degrees opening downward, 10px round caps", () => {
+		// The automotive dial pattern: ends at the bottom, crown over the top.
+		// The crown's outer edge (y=39) clears the label band; the end caps
+		// (y≈130) stay inside the physical lens crop (hardware-verified).
+		const svg = render({ gauge: ringGauge({ fraction: 0 }) });
+		const arcs = ringArcs(svg);
+		assert.equal(arcs.length, 1);
+		const track = arcs[0] as (typeof arcs)[0];
+		assert.equal(track.stroke, VOID.track);
+		assert.equal(track.width, "10");
+		assert.equal(track.cap, "round");
+		assert.equal(track.large, 1);
+		// Start at 220° from top: (72 + 46 sin220, 90 - 46 cos220) = (42.4, 125.2).
+		assert.ok(Math.abs(track.x1 - 42.4) < 0.2 && Math.abs(track.y1 - 125.2) < 0.2, `start ${track.x1},${track.y1}`);
+		// End at 140° (bottom right): mirrored.
+		assert.ok(Math.abs(track.x2 - 101.6) < 0.2 && Math.abs(track.y2 - 125.2) < 0.2, `end ${track.x2},${track.y2}`);
+		// Every drawn endpoint stays at or below the crown (y=44), whose outer
+		// stroke edge (39) clears the label glyphs (which end near y=36).
+		for (const arc of arcs) {
+			assert.ok(arc.y1 > 43.9 && arc.y2 > 43.9, "arc clear of the label");
+		}
+	});
+
+	it("fill arc runs clockwise from the bottom-left end to the fraction", () => {
+		const svg = render({ gauge: ringGauge({ fraction: 0.5 }) });
+		const arcs = ringArcs(svg);
+		assert.equal(arcs.length, 2);
+		const fill = arcs[1] as (typeof arcs)[0];
+		assert.equal(fill.stroke, VOID.accent);
+		// 50% of 280° = 140° sweep from 220°: ends at 360° = the crown (72, 44).
+		assert.ok(Math.abs(fill.x2 - 72) < 0.2 && Math.abs(fill.y2 - 44) < 0.2, `fill end ${fill.x2},${fill.y2}`);
+	});
+
+	it("zones draw between track and fill at their normalized spans", () => {
+		const svg = render({ gauge: ringGauge({ fraction: 0.2, zones: [{ from: 0.75, to: 1, color: WARN_BG }] }) });
+		const arcs = ringArcs(svg);
+		assert.equal(arcs.length, 3);
+		assert.equal(arcs.map((a) => a.stroke).join(" "), `${VOID.track} ${WARN_BG} ${VOID.accent}`);
+		const zone = arcs[1] as (typeof arcs)[0];
+		// from 0.75: 220 + 210 = 70°, descending the right side toward the
+		// bottom-right end at 140° — the tachometer's redline placement.
+		assert.ok(Math.abs(zone.x1 - (72 + 46 * Math.sin((70 * Math.PI) / 180))) < 0.2, `zone start x ${zone.x1}`);
+		assert.ok(Math.abs(zone.x2 - 101.6) < 0.2, `zone end x ${zone.x2}`);
+	});
+
+	it("a non-finite fraction draws the empty track only", () => {
+		const svg = render({ gauge: ringGauge({ fraction: Number.NaN }) });
+		assert.equal(ringArcs(svg).length, 1);
+	});
+
+	it("the ring draws first so value and unit paint over its field", () => {
+		const svg = render({ gauge: ringGauge({ fraction: 0.5 }) });
+		assert.ok(svg.indexOf("<path") < svg.indexOf('y="94"'), "ring before value");
+	});
+
+	it("ring value sizes step down to keep the widest text inside the inner chord", () => {
+		const RAMP: Array<[string, number]> = [
+			["7", 44],
+			["42", 44],
+			["104", 40],
+			["56.3", 32],
+			["412.9", 27],
+			["-412.9", 23],
+			["48700.1", 20],
+			["-48700.1", 18],
+			["123456789", 16]
+		];
+		for (const [text, size] of RAMP) {
+			assert.equal(ringValueFontSize(text), size, text);
+		}
+		assert.match(render({ gauge: ringGauge({}), valueText: "56.3" }), /<text x="72" y="94" [^>]*font-size="32"/);
+		// Chord invariant: at the glyph-band TOP (baseline y=94, digit tops
+		// ~0.70 em above, so 0.70*F - 4 above the ring center at cy=90), the
+		// text width must fit the inner-circle chord (inner radius 46 - 10/2).
+		const STROKE = 10;
+		for (const [text, size] of RAMP) {
+			const halfChord = Math.sqrt((46 - STROKE / 2) ** 2 - (0.7 * size - 4) ** 2);
+			assert.ok(Array.from(text).length * 0.55 * size <= 2 * halfChord, `${text} at ${size}px exceeds the inner chord (${(Array.from(text).length * 0.55 * size).toFixed(1)} > ${(2 * halfChord).toFixed(1)})`);
+		}
+	});
+
+	it("bar and ring communicate the same fraction and zones", () => {
+		const zones = [{ from: 0.7, to: 1, color: WARN_BG }];
+		const bar = render({ gauge: { kind: "bar", fraction: 0.42, zones } });
+		const ring = render({ gauge: { kind: "ring", fraction: 0.42, zones } });
+		// Same value face, same zone color, both show a partial accent fill.
+		assert.match(bar, new RegExp(`fill="${WARN_BG}"`));
+		assert.match(ring, new RegExp(`stroke="${WARN_BG}"`));
+		assert.match(bar, new RegExp(`width="47\\.0" height="10" rx="5" fill="${VOID.accent}"`)); // 0.42*112 ≈ 47.0 wide
+		const fill = ringArcs(ring).find((a) => a.stroke === VOID.accent);
+		assert.ok(fill !== undefined, "ring fill present");
+	});
+});
+
+// --- Text setting (issue #2) ----------------------------------------------------
+
+describe("key text colors", () => {
+	const custom = resolveTextColors(VOID, { mode: "custom", color: "#660000", dimSecondary: false }, "normal");
+	const customDim = resolveTextColors(VOID, { mode: "custom", color: "#660000", dimSecondary: true }, "normal");
+	const dim = resolveTextColors(VOID, { mode: "dim", color: undefined, dimSecondary: false }, "normal");
+
+	it("custom: the main value is the exact selected color", () => {
+		const svg = render({ text: custom });
+		assert.match(svg, /<text x="72" y="94" [^>]*fill="#660000">56\.3<\/text>/);
+	});
+
+	it("custom without secondary dim: label, unit and badge take the exact color", () => {
+		const svg = render({ text: custom, statBadge: "MAX" });
+		assert.match(svg, /y="32"[^>]*fill="#660000"/);
+		assert.match(svg, /y="118"[^>]*fill="#660000"/);
+		assert.match(svg, />MAX<\/text>/);
+		assert.match(svg, /x="132" y="32"[^>]*fill="#660000"/);
+	});
+
+	it("custom with secondary dim: value exact, secondary stepped toward bg", () => {
+		const svg = render({ text: customDim, statBadge: "MAX" });
+		assert.match(svg, /y="94"[^>]*fill="#660000"/);
+		assert.match(svg, new RegExp(`y="118"[^>]*fill="${customDim.unit}"`));
+		assert.notEqual(customDim.unit, "#660000");
+	});
+
+	it("dim mode dims every textual element but nothing structural", () => {
+		const svg = render({ text: dim, history: [1, 2, 3] });
+		assert.match(svg, new RegExp(`y="94"[^>]*fill="${dim.value}"`));
+		// The sparkline keeps the theme accent and track: graphics never dim.
+		assert.match(svg, new RegExp(`<polyline [^>]*stroke="${VOID.accent}"`));
+		assert.match(svg, new RegExp(`<path [^>]*fill="${VOID.track}"`));
+		assert.match(svg, new RegExp(`<rect width="144" height="144" fill="${VOID.bg}"/>`));
+	});
+
+	it("gauge fills and tracks are not recolored by text", () => {
+		const svg = render({ text: custom, gauge: { kind: "bar", fraction: 0.5, zones: [] } });
+		assert.match(svg, new RegExp(`rx="5" fill="${VOID.accent}"`));
+		assert.match(svg, new RegExp(`rx="5" fill="${VOID.track}"`));
+	});
+
+	it("dual rows and quad cells take the resolved text", () => {
+		const dual = renderDualKey({
+			top: dualRow({}),
+			bottom: dualRow({ label: "GPU", valueText: "48.2", statBadge: "max" }),
+			palette: VOID,
+			text: custom
+		});
+		assert.match(dual, /y="56"[^>]*fill="#660000"/);
+		assert.match(dual, /<tspan dx="6" font-size="14" font-weight="600" fill="#660000">°C<\/tspan>/);
+		assert.match(dual, /fill="#660000">MAX<\/tspan>/);
+		const quad = renderQuadKey({ cells: [quadCell({ color: "#660000" }), null, null, null], palette: VOID, text: custom, sharedBadge: "MIN" });
+		assert.match(quad, /y="40"[^>]*fill="#660000"/);
+		assert.match(quad, /y="76"[^>]*fill="#660000">MIN<\/text>/);
+	});
+
+	it("alert palettes override custom text outright", () => {
+		const crit = resolvePalette(config, "void", null, "crit");
+		// The action resolves text at the alert level, which returns the alert
+		// palette's own tokens; the render is then the plain alert face.
+		const text = resolveTextColors(crit, { mode: "custom", color: "#660000", dimSecondary: false }, "crit");
+		const svg = render({ palette: crit, text });
+		assert.match(svg, /<rect width="144" height="144" fill="#CB2114"\/>/);
+		assert.match(svg, /y="94"[^>]*fill="#FFFFFF"/);
+		assert.doesNotMatch(svg, /#660000/);
 	});
 });
 

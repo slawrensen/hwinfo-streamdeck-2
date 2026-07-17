@@ -3,6 +3,44 @@
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
+## 1.3.0.0 - 2026-07-16
+
+- A Display select for keys: None, Sparkline (recent history), Bar, or
+  Ring. Bar draws a rounded track along the bottom of the key showing
+  where the value sits in its range (0 to 100 for percentages,
+  otherwise the values seen this session); Ring is an automotive-style
+  arc opening downward, sweeping from bottom-left over the crown to
+  bottom-right, so a high-is-bad redline lands at the lower right. With
+  Warn at or Critical at set, both gauges mark the threshold zones in
+  muted amber and red, blended toward the face background so the live
+  fill always reads over them, toward the alarmed end (the low side
+  when Direction alerts below). Existing keys are untouched: the new
+  Display setting wins over the legacy sparkline checkbox when both
+  exist, and a key that never touched the select renders exactly as
+  before.
+- The dial's range bar marks the same warn/critical zones on its
+  track. An automatic session range widens just enough to keep the
+  zones visible; a manual Bar min/max is never widened, and zones
+  outside it are clipped.
+- Deck-wide Data units: byte and rate readings re-tier as decimal
+  (KB, MB, GB, rates in Mbps) or binary (KiB, MiB, GiB, rates in
+  MiB/s). Thresholds keep comparing in the reading's native display
+  unit, so flipping the preference never re-arms an alert.
+- The Text setting: Theme, Dim, or Custom text per key, per dial, or
+  once for the whole deck (the Deck text row under Advanced). Custom
+  paints the main value your exact color, with a "Dim labels, units
+  and stats" checkbox for the secondary text; warn and critical
+  colors always win, and status screens keep their fixed safety
+  colors. (Requested in issue #2.)
+- Sectioned settings panels. Both property inspectors group their
+  rows under flat headers (Sensor, Format, Appearance, Layout and
+  Alerts on keys; Sensor, Rotation, View, Format, Appearance, Bar
+  range and Alerts on dials) with a left rule marking the blocks a
+  select reveals. The dial's "Rotation" row is renamed "Bump guard",
+  the deck-wide Text row "Deck text", and the Bar min/max fields hide
+  on the overview views, where the bar does not draw. Every control
+  keeps its place in the panel and its stored setting.
+
 ## 1.2.0.0 - 2026-07-13
 
 - Two readings on one key. A new Layout setting on the Sensor Reading

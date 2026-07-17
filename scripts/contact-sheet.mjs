@@ -20,7 +20,9 @@ const READINGS = {
 	void: { label: "CPU (Tctl/Tdie)", value: "56.3", unit: "°C", type: SensorType.Temperature },
 	graphite: { label: "CPU Fan", value: "1180", unit: "RPM", type: SensorType.Fan },
 	ultraviolet: { label: "Total CPU Usage", value: "37.4", unit: "%", type: SensorType.Usage },
-	midnight: { label: "Current DL rate", value: "48.7", unit: "MB/s", type: SensorType.Other },
+	// Rates display as bits under the decimal data-units default (48.7 MB/s
+	// reads 390 Mbps), so the showcase face shows what the runtime produces.
+	midnight: { label: "Current DL rate", value: "390", unit: "Mbps", type: SensorType.Other },
 	forest: { label: "Core 0 Clock", value: "5462", unit: "MHz", type: SensorType.Clock },
 	ember: { label: "CPU Package Power", value: "142.8", unit: "W", type: SensorType.Power },
 	paper: { label: "Vcore", value: "1.288", unit: "V", type: SensorType.Voltage }

@@ -302,7 +302,7 @@ async function dials() {
 async function settings(piDir) {
 	const panels = [
 		{ file: "pi-picker.png", title: "Searchable picker: every reading, live values" },
-		{ file: "pi-settings.png", title: "Themes, thresholds and sparkline per key" }
+		{ file: "pi-settings.png", title: "Themes, thresholds and gauges per key" }
 	];
 	const CROP_H = 1150; // content ends at the Advanced fold (2× captures are 800px wide)
 	const SCALE_H = 700;

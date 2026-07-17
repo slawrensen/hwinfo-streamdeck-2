@@ -349,3 +349,56 @@ against a 6.5 µs decode; nothing measurable moved. Note: the snapshot
 table's "plugin process" row samples the machine's installed release, not
 this working tree; this build's numbers are the load-e2e ones above.
 Ruling: no material CPU or RSS regression.
+
+### 2026-07-16 18:00: 1.3.0.0 (bar/ring gauges, data units, text colors, quiet sections)
+
+Measured with `node scripts/perf-report.mjs 1.3.0.0` AFTER `npm run pack`,
+so the pack row is the shipping 1.3.0.0 artifact (SHA 863fe0bb…).
+
+| Artifact | Bytes | gzip |
+| --- | ---: | ---: |
+| .streamDeckPlugin pack | 583,133 B | 551,595 B |
+| bin/plugin.js | 154,964 B | 46,826 B |
+| bin/node_modules (total) | 1,062,461 B (1037.6 KB) | |
+|   koffi.node | 1,045,504 B (1021.0 KB) | |
+| ui/ | 143,038 B (139.7 KB) | |
+| imgs/ | 33,750 B (33.0 KB) | |
+| layouts/ + manifest + themes | 5,031 B (4.9 KB) | |
+
+Pack 571,421 → 583,133 B (+11,712 B vs the 1.1.10-era preset build; the
+delta is the gauge/measure/text-color modules in plugin.js, 144,189 →
+154,964 B raw, and the sectioned settings panels in ui/; repacked after
+a one-line PI help-string sync, 583,072 → 583,133 B). koffi stays
+aboard at 1,021 KB; the hwsm swap is staged for the next release
+(design/KOFFI-REPLACEMENT.md).
+
+| Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| PID 13604 | 46.5 MB | 65.0 MB | 45.8 s | 425 min | 0.18% |
+
+The live-process row sampled the dev-junction `bin/plugin.js` launched at
+~10:55 with the morning presentation-pass bundle (pre ring-stroke edit),
+driving the full live deck for 7 hours, NOT the artifact packed above;
+this build's own runtime numbers are the load-e2e ones below.
+
+Parse bench (1000 iters, live mapping, region 241.7 KB):
+
+| Path | mean µs | p50 µs | p95 µs | alloc/tick | retained |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| raw copy (session.read) | 3.6 | 3.0 | 3.7 | | |
+| shared-memory tick (520 readings) | 6.9 | 5.8 | 11.6 | 470 B | 3,512 B |
+| gadget tick | n/a: HKCU\Software\HWiNFO64\VSB absent (Gadget reporting off on this machine; covered by e2e:gadget's synthetic key) | | | | |
+
+Tick 6.5 → 6.9 µs mean against 520 readings (was 516): parse-path noise,
+same class since the incremental reader. Render-path ruling: bench-parse
+never executes gauge.ts, measure.ts or text-colors.ts (it stops at the
+decoded snapshot), so the 1.3 render additions are judged by the compose
+path under load instead. This session's suite:full (ALL GREEN, ZERO
+ORPHANS) ran e2e:load against this working tree with gauges and text
+colors live: 520 key contexts + 8 dials at 250 ms, 520 first frames, 0
+invalid frames, 3,956 frames through 12 churn waves (~260 contexts each),
+45 s soak RSS 130.2 → 130.3 MB (**+0.1 MB**), 0 late frames after mass
+disappear, clean self-exit. computeGauge is O(zones) arithmetic and
+resolveTextColors a palette lookup, both per-render not per-tick, and the
+load numbers show no measurable cost. Ruling: no CPU or RSS regression;
+pack growth accepted and staged to shrink ~380 KB at the hwsm swap.

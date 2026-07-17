@@ -7,9 +7,22 @@
  * glyph size flexes with character count.
  */
 import { truncateLabel } from "./format";
+import { themeTextColors, type TextColors } from "./text-colors";
 import type { Palette } from "./themes";
 
 export const FONT = "Segoe UI, Arial, sans-serif";
+
+/** A gauge zone with its fill already resolved by the caller (the renderers
+ * never decide alert colors). Normalized 0..1 along the track. */
+export type DrawnZone = { from: number; to: number; color: string };
+
+/** A resolved bounded-value gauge for the single-key Bar and Ring displays. */
+export type KeyGauge = {
+	kind: "bar" | "ring";
+	/** Fill fraction 0..1; NaN draws the empty track only. */
+	fraction: number;
+	zones: readonly DrawnZone[];
+};
 
 /** The canvas open every renderer shares: the SVG header plus the full-bleed
  * background rect. */
@@ -27,6 +40,36 @@ const SPARK = { x: 8, y: 120, w: 128, h: 14 } as const;
 /** Accent polyline stroke; the spec's absolute minimum is 3. */
 const SPARK_STROKE = 4;
 const SPARK_SAMPLES = 36;
+
+/** Bar gauge track: raised above the sparkline strip's row and inset from
+ * the sides, because the physical key's lens crops the outer ~10 px of the
+ * canvas and rounds its corners (hardware-verified 2026-07-16: a pill at
+ * x8/y124 ran into the crop). 10 px tall is 5 physical px on the 72 px
+ * key — clearly readable, with 14 px of bottom clearance. */
+const KEY_BAR = { x: 16, y: 120, w: 112, h: 10, r: 5 } as const;
+
+/** Ring gauge: an automotive-style arc opening DOWNWARD (the gauge pattern
+ * every tachometer and dashboard meter trains: sweep starts bottom-left,
+ * crests the top, ends bottom-right, so a high-is-bad redline lands at the
+ * lower right). r=46 at cy=90: the crown's outer stroke edge sits at y=39,
+ * clear of the label band, and the arc ends' round caps reach y≈130, inside
+ * the physical lens crop that cuts below ~y=134 (hardware-verified
+ * 2026-07-16). Value and unit keep their locked anchors inside the ring. */
+const RING = { cx: 72, cy: 90, r: 46, stroke: 10, gapDeg: 80 } as const;
+
+/** Ring-mode value sizes by character count: the same shrink idea as the
+ * single layout, stepped so the widest rendered value (~0.55 em per glyph)
+ * stays inside the ring's inner chord across the glyph band. The fit rule
+ * is the inner-circle chord at the glyph-band TOP (value baseline y=94,
+ * digit tops ~0.70 em above it, inner radius r minus stroke/2), not the
+ * midline diameter: text half-width n*0.55*F/2 must stay inside the chord
+ * half-width at that height. */
+const RING_VALUE_SIZES = [44, 44, 44, 40, 32, 27, 23, 20, 18] as const;
+
+export function ringValueFontSize(text: string): number {
+	const count = Array.from(text).length;
+	return count >= 9 ? 16 : (RING_VALUE_SIZES[count] as number);
+}
 
 /** Label lengths: 16 chars centred, 9 when a stat badge shares the row. */
 const LABEL_MAX = 16;
@@ -102,6 +145,82 @@ export function sparklineSvg(points: ReadonlyArray<{ px: number; py: number }>, 
 	];
 }
 
+/**
+ * One horizontal bar-track segment, squared or pill-rounded per end. Rounding
+ * both ends is one rect; a single rounded end is the rounded rect plus a
+ * same-color square overpaint on the other end — solid fills are the only
+ * clipping primitive proven on the Stream Deck engine. Shared with the dial
+ * bar's zones, so this idiom has exactly one home.
+ */
+export function barSegment(x: number, w: number, y: number, h: number, r: number, color: string, roundLeft: boolean, roundRight: boolean): string {
+	if (!roundLeft && !roundRight) {
+		return `<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h}" fill="${color}"/>`;
+	}
+	const rounded = `<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h}" rx="${r}" fill="${color}"/>`;
+	if (roundLeft && roundRight) {
+		return rounded;
+	}
+	const squareW = Math.min(r, w / 2);
+	const squareX = roundLeft ? x + w - squareW : x;
+	return `${rounded}<rect x="${squareX.toFixed(1)}" y="${y}" width="${squareW.toFixed(1)}" height="${h}" fill="${color}"/>`;
+}
+
+/** The key Bar gauge: pill track in the sparkline strip's row, threshold
+ * zones on the track, accent fill following the live value. */
+function keyBarSvg(gauge: KeyGauge, palette: Palette): string[] {
+	const { x, y, w, h, r } = KEY_BAR;
+	const parts = [`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${palette.track}"/>`];
+	for (const zone of gauge.zones) {
+		const zx = x + zone.from * w;
+		const zw = (zone.to - zone.from) * w;
+		if (zw <= 0) {
+			continue;
+		}
+		parts.push(barSegment(zx, zw, y, h, r, zone.color, zone.from <= 0, zone.to >= 1));
+	}
+	if (Number.isFinite(gauge.fraction) && gauge.fraction > 0) {
+		const fw = Math.max(h, Math.min(1, gauge.fraction) * w);
+		parts.push(`<rect x="${x}" y="${y}" width="${fw.toFixed(1)}" height="${h}" rx="${r}" fill="${palette.accent}"/>`);
+	}
+	return parts;
+}
+
+/** Point on the ring at `deg` degrees clockwise from 12 o'clock. */
+function ringPoint(deg: number): { x: number; y: number } {
+	const rad = (deg * Math.PI) / 180;
+	return { x: RING.cx + RING.r * Math.sin(rad), y: RING.cy - RING.r * Math.cos(rad) };
+}
+
+/** One stroked arc along the ring from `fromDeg` to `toDeg` (clockwise).
+ * Arc path commands are proven on this engine (the status-key lock icon). */
+function ringArc(fromDeg: number, toDeg: number, color: string): string {
+	const from = ringPoint(fromDeg);
+	const to = ringPoint(toDeg);
+	const large = toDeg - fromDeg > 180 ? 1 : 0;
+	return `<path d="M${from.x.toFixed(1)},${from.y.toFixed(1)} A${RING.r},${RING.r} 0 ${large} 1 ${to.x.toFixed(1)},${to.y.toFixed(1)}" fill="none" stroke="${color}" stroke-width="${RING.stroke}" stroke-linecap="round"/>`;
+}
+
+/** The key Ring gauge: one restrained arc around the value, opening
+ * downward like a meter dial. Track, threshold zones, then the accent fill
+ * sweeping clockwise from the bottom-left end. */
+function keyRingSvg(gauge: KeyGauge, palette: Palette): string[] {
+	const start = 180 + RING.gapDeg / 2;
+	const sweep = 360 - RING.gapDeg;
+	const parts = [ringArc(start, start + sweep, palette.track)];
+	for (const zone of gauge.zones) {
+		if (zone.to - zone.from <= 0) {
+			continue;
+		}
+		parts.push(ringArc(start + zone.from * sweep, start + zone.to * sweep, zone.color));
+	}
+	if (Number.isFinite(gauge.fraction) && gauge.fraction > 0) {
+		// Round caps keep a minimum sweep visible, like the bar's h-wide floor.
+		const fillSweep = Math.max(4, Math.min(1, gauge.fraction) * sweep);
+		parts.push(ringArc(start, start + fillSweep, palette.accent));
+	}
+	return parts;
+}
+
 export interface ReadingKeyOptions {
 	label: string;
 	valueText: string;
@@ -110,15 +229,26 @@ export interface ReadingKeyOptions {
 	statBadge: string;
 	/** Recent values (display unit); rendered as a sparkline when 2+ points. */
 	history?: readonly number[];
+	/** Bounded-value gauge (Bar or Ring display); the caller passes either
+	 * this or `history`, never both. */
+	gauge?: KeyGauge;
 	/** Fully resolved tokens (alert override and type accent already applied). */
 	palette: Palette;
+	/** Resolved textual fills; defaults to the palette's own text tokens. */
+	text?: TextColors;
 }
 
 export function renderReadingKey(opts: ReadingKeyOptions): string {
-	const { valueText, unitText, statBadge, history, palette } = opts;
+	const { valueText, unitText, statBadge, history, gauge, palette } = opts;
+	const text = opts.text ?? themeTextColors(palette);
+	const ring = gauge?.kind === "ring";
 	const hasBadge = statBadge !== "";
 	const label = truncateLabel(opts.label, hasBadge ? LABEL_MAX_WITH_BADGE : LABEL_MAX);
 	const parts: string[] = svgOpen(144, 144, palette.bg);
+	if (ring && gauge !== undefined) {
+		// The ring draws first so the value and unit paint over its field.
+		parts.push(...keyRingSvg(gauge, palette));
+	}
 	if (hasBadge) {
 		// Left-anchored label hard-clipped at x=92 (max 80 px) so it can never
 		// reach the end-anchored badge, which owns x≥96. The clip is an opaque
@@ -126,18 +256,21 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 		// SVG feature the Stream Deck engine isn't proven to honor; a solid
 		// fill is renderer-proof by construction.
 		parts.push(
-			`<text x="12" y="32" text-anchor="start" font-family="${FONT}" font-size="16" font-weight="600" fill="${palette.label}">${escapeXml(label)}</text>`,
+			`<text x="12" y="32" text-anchor="start" font-family="${FONT}" font-size="16" font-weight="600" fill="${text.label}">${escapeXml(label)}</text>`,
 			`<rect x="92" y="14" width="52" height="24" fill="${palette.bg}"/>`,
-			`<text x="132" y="32" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${palette.accent}">${escapeXml(statBadge.toUpperCase())}</text>`
+			`<text x="132" y="32" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${text.badge}">${escapeXml(statBadge.toUpperCase())}</text>`
 		);
 	} else {
-		parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${palette.label}">${escapeXml(label)}</text>`);
+		parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${text.label}">${escapeXml(label)}</text>`);
 	}
-	parts.push(`<text x="72" y="94" text-anchor="middle" font-family="${FONT}" font-size="${valueFontSize(valueText)}" font-weight="700" fill="${palette.value}">${escapeXml(valueText)}</text>`);
+	parts.push(`<text x="72" y="94" text-anchor="middle" font-family="${FONT}" font-size="${ring ? ringValueFontSize(valueText) : valueFontSize(valueText)}" font-weight="700" fill="${text.value}">${escapeXml(valueText)}</text>`);
 	if (unitText !== "") {
-		parts.push(`<text x="72" y="118" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${palette.unit}">${escapeXml(unitText)}</text>`);
+		parts.push(`<text x="72" y="118" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${text.unit}">${escapeXml(unitText)}</text>`);
 	}
-	if (history !== undefined) {
+	if (gauge !== undefined && gauge.kind === "bar") {
+		parts.push(...keyBarSvg(gauge, palette));
+	}
+	if (gauge === undefined && history !== undefined) {
 		const samples = history.slice(-SPARK_SAMPLES);
 		const points = sparklinePoints(samples, SPARK.x, SPARK.y, SPARK.w, SPARK.h);
 		if (points.length > 0) {
@@ -164,10 +297,10 @@ const DUAL_BADGE_GAP = { x: 47, y: 63, w: 50, h: 14 } as const;
 
 /** Gap first (opaque bg over the divider or cross arms), then the badge into
  * it: solid fills, the only clipping primitive proven on this engine. */
-function sharedBadgeSvg(badge: string, palette: Palette): [string, string] {
+function sharedBadgeSvg(badge: string, palette: Palette, badgeColor: string): [string, string] {
 	return [
 		`<rect x="${DUAL_BADGE_GAP.x}" y="${DUAL_BADGE_GAP.y}" width="${DUAL_BADGE_GAP.w}" height="${DUAL_BADGE_GAP.h}" fill="${palette.bg}"/>`,
-		`<text x="72" y="76" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${palette.accent}">${escapeXml(badge.toUpperCase())}</text>`
+		`<text x="72" y="76" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${badgeColor}">${escapeXml(badge.toUpperCase())}</text>`
 	];
 }
 
@@ -203,6 +336,8 @@ export interface DualKeyOptions {
 	/** Fully resolved tokens (alert override and type accent already applied;
 	 * alerts come from the primary reading's thresholds only). */
 	palette: Palette;
+	/** Resolved textual fills; defaults to the palette's own text tokens. */
+	text?: TextColors;
 }
 
 /**
@@ -213,23 +348,24 @@ export interface DualKeyOptions {
  */
 export function renderDualKey(opts: DualKeyOptions): string {
 	const { palette } = opts;
+	const text = opts.text ?? themeTextColors(palette);
 	const sharedBadge = opts.sharedBadge ?? "";
 	const parts: string[] = svgOpen(144, 144, palette.bg);
 	[opts.top, opts.bottom].forEach((row, i) => {
 		const labelY = DUAL.labelY + i * DUAL.rowPitch;
 		const valueY = DUAL.valueY + i * DUAL.rowPitch;
-		parts.push(`<text x="72" y="${labelY}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${palette.label}">${escapeXml(truncateLabel(row.label, DUAL_LABEL_MAX))}</text>`);
+		parts.push(`<text x="72" y="${labelY}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${text.label}">${escapeXml(truncateLabel(row.label, DUAL_LABEL_MAX))}</text>`);
 		const valueText = truncateLabel(row.valueText, DUAL_VALUE_MAX);
 		const badged = row.statBadge !== "";
-		const unit = row.unitText !== "" ? `<tspan dx="6" font-size="14" font-weight="600" fill="${palette.unit}">${escapeXml(row.unitText)}</tspan>` : "";
-		const badge = badged ? `<tspan dx="6" font-size="12" font-weight="700" letter-spacing="0.5" fill="${palette.accent}">${escapeXml(row.statBadge.toUpperCase())}</tspan>` : "";
+		const unit = row.unitText !== "" ? `<tspan dx="6" font-size="14" font-weight="600" fill="${text.unit}">${escapeXml(row.unitText)}</tspan>` : "";
+		const badge = badged ? `<tspan dx="6" font-size="12" font-weight="700" letter-spacing="0.5" fill="${text.badge}">${escapeXml(row.statBadge.toUpperCase())}</tspan>` : "";
 		// One middle-anchored chunk: the engine centers the value, unit and
 		// badge as a unit, exactly like the single layout centers its value.
-		parts.push(`<text x="72" y="${valueY}" text-anchor="middle" font-family="${FONT}" font-size="${dualValueFontSize(valueText, badged)}" font-weight="700" fill="${palette.value}">${escapeXml(valueText)}${unit}${badge}</text>`);
+		parts.push(`<text x="72" y="${valueY}" text-anchor="middle" font-family="${FONT}" font-size="${dualValueFontSize(valueText, badged)}" font-weight="700" fill="${text.value}">${escapeXml(valueText)}${unit}${badge}</text>`);
 	});
 	parts.push(`<rect x="12" y="${DUAL.dividerY}" width="120" height="2" fill="${palette.track}"/>`);
 	if (sharedBadge !== "") {
-		parts.push(...sharedBadgeSvg(sharedBadge, palette));
+		parts.push(...sharedBadgeSvg(sharedBadge, palette, text.badge));
 	}
 	parts.push("</svg>");
 	return parts.join("");
@@ -299,6 +435,9 @@ export interface QuadKeyOptions {
 	/** Fully resolved tokens (alert override and type accent already applied;
 	 * alerts come from the primary reading's thresholds only). */
 	palette: Palette;
+	/** Resolved textual fills; defaults to the palette's own text tokens.
+	 * Cell identity colors arrive per cell, already resolved by the caller. */
+	text?: TextColors;
 }
 
 /**
@@ -308,6 +447,7 @@ export interface QuadKeyOptions {
  */
 export function renderQuadKey(opts: QuadKeyOptions): string {
 	const { palette } = opts;
+	const text = opts.text ?? themeTextColors(palette);
 	const labeled = opts.labels === true;
 	const sharedBadge = opts.sharedBadge ?? "";
 	const parts: string[] = svgOpen(144, 144, palette.bg);
@@ -327,12 +467,12 @@ export function renderQuadKey(opts: QuadKeyOptions): string {
 				parts.push(`<text x="${cx}" y="${top + 20}" text-anchor="middle" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${cell.color}">${escapeXml(micro)}</text>`);
 			}
 		}
-		parts.push(`<text x="${cx}" y="${top + (labeled ? 45 : 40)}" text-anchor="middle" font-family="${FONT}" font-size="${quadValueFontSize(valueText, labeled)}" font-weight="700" fill="${labeled ? palette.value : cell.color}">${escapeXml(valueText)}</text>`);
+		parts.push(`<text x="${cx}" y="${top + (labeled ? 45 : 40)}" text-anchor="middle" font-family="${FONT}" font-size="${quadValueFontSize(valueText, labeled)}" font-weight="700" fill="${labeled ? text.value : cell.color}">${escapeXml(valueText)}</text>`);
 		if (cell.unitText !== "") {
 			// 14 px matches the dual layout's unit step (single 16, dual 14,
 			// quad 14): the empty band under the value has the room, and the
 			// unit is what tells 1785 RPM from 1785 MHz at a glance.
-			parts.push(`<text x="${cx}" y="${top + (labeled ? 61 : 58)}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${palette.unit}">${escapeXml(cell.unitText)}</text>`);
+			parts.push(`<text x="${cx}" y="${top + (labeled ? 61 : 58)}" text-anchor="middle" font-family="${FONT}" font-size="14" font-weight="600" fill="${text.unit}">${escapeXml(cell.unitText)}</text>`);
 		}
 	}
 	parts.push(
@@ -340,7 +480,7 @@ export function renderQuadKey(opts: QuadKeyOptions): string {
 		`<rect x="${QUAD_CROSS_V.x}" y="${QUAD_CROSS_V.y}" width="${QUAD_CROSS_V.w}" height="${QUAD_CROSS_V.h}" fill="${palette.track}"/>`
 	);
 	if (sharedBadge !== "") {
-		parts.push(...sharedBadgeSvg(sharedBadge, palette));
+		parts.push(...sharedBadgeSvg(sharedBadge, palette, text.badge));
 	}
 	parts.push("</svg>");
 	return parts.join("");

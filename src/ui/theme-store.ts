@@ -1,16 +1,22 @@
 /**
- * Deck-wide theme state: the global default theme and the type-accent toggle,
- * plus the one-shot migration that decides what pre-theme installs see.
+ * Deck-wide presentation state: the global default theme, the type-accent
+ * toggle, the deck-wide Text setting, the data-unit preference, plus the
+ * one-shot migration that decides what pre-theme installs see.
  *
  * Per-key overrides live in each action's settings; this store only carries
  * what is shared across the whole deck.
  */
 import streamDeck from "@elgato/streamdeck";
 
+import type { DecimalsSetting } from "./format";
+import { parseDataUnitsPref, type DataUnitsPref, type MeasureOptions } from "./measure";
+import { effectiveTextSettings, parseTextSettings, type TextSettings } from "./text-colors";
 import { loadThemes } from "./themes";
 
 let deckTheme: string | undefined;
 let typeAccentsOn = true;
+let deckText: TextSettings | null = null;
+let dataUnits: DataUnitsPref = "decimal";
 let migrationDecided = false;
 const listeners = new Set<() => void>();
 
@@ -22,6 +28,25 @@ export function getDeckTheme(): string {
 /** Type accents replace the accent token when on (spec default: on). */
 export function typeAccentsEnabled(): boolean {
 	return typeAccentsOn;
+}
+
+/** One scope's effective Text setting: the action's own parsed override,
+ * else the deck-wide default, else theme. Every face and the PI preview
+ * resolve through here, so the precedence can never fork. */
+export function effectiveTextFor(raw: { textMode?: unknown; textColor?: unknown; textDimSecondary?: unknown }): TextSettings {
+	return effectiveTextSettings(parseTextSettings(raw), deckText);
+}
+
+/** The deck-wide data-unit preference (absent/malformed: decimal). */
+export function getDataUnits(): DataUnitsPref {
+	return dataUnits;
+}
+
+/** One action's measurement options: its decimals and °F settings under the
+ * deck-wide data-unit preference, the one policy every face and the PI
+ * preview format with. */
+export function measureOptionsFrom(settings: { decimals?: DecimalsSetting; fahrenheit?: boolean }): MeasureOptions {
+	return { decimals: settings.decimals ?? "auto", fahrenheit: settings.fahrenheit === true, dataUnits };
 }
 
 /** Re-render hook for the action classes. */
@@ -40,23 +65,28 @@ function notify(): void {
 }
 
 /** Ingests the global settings (startup read and every later change). */
-export function applyGlobalThemeSettings(settings: { theme?: unknown; typeAccents?: unknown }): void {
+export function applyGlobalThemeSettings(settings: { theme?: unknown; typeAccents?: unknown; textMode?: unknown; textColor?: unknown; textDimSecondary?: unknown; dataUnits?: unknown }): void {
 	const config = loadThemes();
 	const themeValid = typeof settings.theme === "string" && config.themes[settings.theme] !== undefined;
 	const nextTheme = themeValid ? (settings.theme as string) : deckTheme;
 	const nextAccents = settings.typeAccents !== "off";
+	const nextText = parseTextSettings(settings);
+	const nextUnits = parseDataUnitsPref(settings.dataUnits);
 	// Only a VALID stored theme counts as "the user (or migration) decided" —
 	// an empty/invalid value must not lock out the legacy migration while
 	// silently failing to apply.
 	if (themeValid) {
 		migrationDecided = true;
 	}
-	if (nextTheme === deckTheme && nextAccents === typeAccentsOn) {
+	const textChanged = JSON.stringify(nextText) !== JSON.stringify(deckText);
+	if (nextTheme === deckTheme && nextAccents === typeAccentsOn && !textChanged && nextUnits === dataUnits) {
 		return;
 	}
 	deckTheme = nextTheme;
 	typeAccentsOn = nextAccents;
-	streamDeck.logger.info(`Deck theme = ${getDeckTheme()} (type accents ${typeAccentsOn ? "on" : "off"}, source: global settings)`);
+	deckText = nextText;
+	dataUnits = nextUnits;
+	streamDeck.logger.info(`Deck theme = ${getDeckTheme()} (type accents ${typeAccentsOn ? "on" : "off"}, text ${deckText?.mode ?? "theme"}, data units ${dataUnits}, source: global settings)`);
 	notify();
 }
 

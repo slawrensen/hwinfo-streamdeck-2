@@ -7,9 +7,12 @@ import type { JsonValue } from "@elgato/utils";
 
 import { buildSupportReport } from "./diagnostics";
 import { poller, type PollerStatus } from "./poller";
+import { alertLevel, convertUnit, parseThreshold, type DecimalsSetting } from "./ui/format";
+import { formatMeasurement, formatStat, type MeasureOptions } from "./ui/measure";
 import { statusSentence } from "./ui/state-screens";
-import { getDeckTheme } from "./ui/theme-store";
-import { loadThemes } from "./ui/themes";
+import { resolveTextColors } from "./ui/text-colors";
+import { effectiveTextFor, getDataUnits, getDeckTheme, measureOptionsFrom } from "./ui/theme-store";
+import { loadThemes, resolvePalette } from "./ui/themes";
 
 type TreeReading = {
 	key: string;
@@ -17,6 +20,25 @@ type TreeReading = {
 	unit: string;
 	value: number;
 	type: number;
+	/** Formatted through the runtime's own measurement authority, under the
+	 * deck-wide data-unit preference, so picker rows can never drift from
+	 * what the key or dial face shows. */
+	display: string;
+};
+
+/** The presentation settings both sensor actions share; the PI preview is
+ * formatted and colored with the OPEN action's own effective settings. */
+export type PreviewSettings = {
+	readingKey?: string;
+	decimals?: DecimalsSetting;
+	fahrenheit?: boolean;
+	theme?: string;
+	textMode?: string;
+	textColor?: string;
+	textDimSecondary?: boolean;
+	warnValue?: string;
+	critValue?: string;
+	alertBelow?: boolean;
 };
 
 type TreeGroup = {
@@ -52,6 +74,17 @@ type PreviewPayload = {
 		valueMax: number;
 		valueAvg: number;
 	};
+	/** The preview line exactly as the face would show it: value and stats
+	 * formatted with the action's effective settings, colored by its resolved
+	 * theme and Text setting. Present whenever `reading` is. */
+	display?: {
+		value: string;
+		unit: string;
+		stats: string;
+		bg: string;
+		valueColor: string;
+		statsColor: string;
+	};
 	/** True when a reading is selected but absent from the current snapshot. */
 	missing: boolean;
 };
@@ -86,6 +119,7 @@ export function buildSensorTree(status: PollerStatus): SensorTreePayload {
 	const groups: TreeGroup[] = [];
 	if (status.state !== "unavailable") {
 		const { snapshot } = status;
+		const treeOpts: MeasureOptions = { decimals: "auto", fahrenheit: false, dataUnits: getDataUnits() };
 		const byIndex = new Map<number, TreeGroup>();
 		for (const reading of snapshot.readings) {
 			let group = byIndex.get(reading.sensorIndex);
@@ -95,12 +129,14 @@ export function buildSensorTree(status: PollerStatus): SensorTreePayload {
 				byIndex.set(reading.sensorIndex, group);
 				groups.push(group);
 			}
+			const m = formatMeasurement(reading.value, reading.unit, treeOpts);
 			group.readings.push({
 				key: reading.key,
 				label: reading.label,
 				unit: reading.unit,
 				value: reading.value,
-				type: reading.type
+				type: reading.type,
+				display: `${m.valueText} ${m.unitText}`.trim()
 			});
 		}
 	}
@@ -111,8 +147,11 @@ export function buildSensorTree(status: PollerStatus): SensorTreePayload {
 	return payload;
 }
 
-/** Live preview of the selected reading — pushed to the open PI every tick. */
-export function buildPreview(status: PollerStatus, readingKey: string | undefined): PreviewPayload {
+/** Live preview of the selected reading — pushed to the open PI every tick,
+ * formatted and colored with the open action's effective settings so the
+ * panel can never contradict the face. `alertsRecolor` mirrors the face:
+ * key faces flip their whole palette on warn/crit, dial faces stay themed. */
+export function buildPreview(status: PollerStatus, settings: PreviewSettings | undefined, alertsRecolor: boolean): PreviewPayload {
 	const payload: PreviewPayload = {
 		event: "preview",
 		state: status.state,
@@ -122,7 +161,8 @@ export function buildPreview(status: PollerStatus, readingKey: string | undefine
 	if (status.state !== "unavailable") {
 		payload.source = status.source;
 	}
-	if (status.state === "unavailable" || readingKey === undefined || readingKey === "") {
+	const readingKey = settings?.readingKey;
+	if (status.state === "unavailable" || settings === undefined || readingKey === undefined || readingKey === "") {
 		return payload;
 	}
 	const reading = status.snapshot.byKey.get(readingKey);
@@ -139,6 +179,24 @@ export function buildPreview(status: PollerStatus, readingKey: string | undefine
 		valueMin: reading.valueMin,
 		valueMax: reading.valueMax,
 		valueAvg: reading.valueAvg
+	};
+	const opts = measureOptionsFrom(settings);
+	const m = formatMeasurement(reading.value, reading.unit, opts);
+	const config = loadThemes();
+	const themeId = settings.theme !== undefined && settings.theme !== "" ? settings.theme : getDeckTheme();
+	// The key face's alert precedence, mirrored (see primaryContext): the
+	// alert palettes outrank the theme and every text mode on the face, so
+	// they must outrank them in the panel too.
+	const level = alertsRecolor ? alertLevel(convertUnit(reading.value, reading.unit, opts.fahrenheit).value, parseThreshold(settings.warnValue), parseThreshold(settings.critValue), settings.alertBelow === true) : "normal";
+	const palette = resolvePalette(config, themeId, null, level);
+	const text = resolveTextColors(palette, effectiveTextFor(settings), level);
+	payload.display = {
+		value: m.valueText,
+		unit: m.unitText,
+		stats: `min ${formatStat(reading.valueMin, reading.unit, opts)} · max ${formatStat(reading.valueMax, reading.unit, opts)} · avg ${formatStat(reading.valueAvg, reading.unit, opts)}`,
+		bg: palette.bg,
+		valueColor: text.value,
+		statsColor: text.unit
 	};
 	return payload;
 }
@@ -162,11 +220,11 @@ export function handlePiRequest(payload: JsonValue): void {
 
 /** Live numbers for the PI while it is open on one of the caller's instances
  *  (the manifestId check keeps each action class feeding only its own PI). */
-export function pushPreviewToPi(status: PollerStatus, manifestId: string | undefined, instances: { get(id: string): { settings: { readingKey?: string } } | undefined }): void {
+export function pushPreviewToPi(status: PollerStatus, manifestId: string | undefined, instances: { get(id: string): { settings: PreviewSettings } | undefined }, alertsRecolor: boolean): void {
 	const piAction = streamDeck.ui.action;
 	if (piAction === undefined || piAction.manifestId !== manifestId) {
 		return;
 	}
 	const state = instances.get(piAction.id);
-	void streamDeck.ui.sendToPropertyInspector(buildPreview(status, state?.settings.readingKey));
+	void streamDeck.ui.sendToPropertyInspector(buildPreview(status, state?.settings, alertsRecolor));
 }

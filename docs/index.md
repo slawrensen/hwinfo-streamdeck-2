@@ -5,7 +5,7 @@ description: >-
   Live HWiNFO sensor readings on your Elgato Stream Deck.
 ---
 
-**HWiNFO Sensors** puts live [HWiNFO](https://www.hwinfo.com) readings (temperatures, clocks, fan speeds, usage, power, voltages and everything else HWiNFO measures) directly onto your Elgato Stream Deck. A key shows one value with an optional warn/critical color and a recent-history sparkline, stacks two readings as compact rows, or splits into a quad grid of four; on a Stream Deck + or Stream Deck + XL each dial gets a touchscreen readout with a range bar and per-reading session min/max, and you rotate to switch readings or list them in a two- or three-row overview. Seven display themes (per key or deck-wide) keep every key on the same visual language.
+**HWiNFO Sensors** puts live [HWiNFO](https://www.hwinfo.com) readings (temperatures, clocks, fan speeds, usage, power, voltages and everything else HWiNFO measures) directly onto your Elgato Stream Deck. A key shows one value with an optional warn/critical color and a sparkline, bar or ring under it, stacks two readings as compact rows, or splits into a quad grid of four; on a Stream Deck + or Stream Deck + XL each dial gets a touchscreen readout with a range bar and per-reading session min/max, and you rotate to switch readings or list them in a two- or three-row overview. Seven display themes (per key or deck-wide) keep every key on the same visual language, the Text setting picks the value color, and data units render decimal or binary deck-wide.
 
 ![HWiNFO Sensors on a Stream Deck: seven display themes across the top row (Void, Graphite, Ultraviolet, Midnight, Forest, Ember, Paper), each key showing a live value, unit and sparkline, below them the aviation-style amber warn and red critical alert states, and two Stream Deck + dials with session range bars.]({{ '/assets/img/themes-contact-sheet.png' | relative_url }})
 
@@ -18,7 +18,9 @@ description: >-
 - **HWiNFO Control key.** Drive Sensor Dials from any key, pedal, G-key or Multi Action step: switch readings, pause or pin, reset session stats, targeted at one [Link ID](controls.md#the-hwinfo-control-key-action) or every dial.
 - **Seven themes.** Void, Graphite, Ultraviolet, Midnight, Forest, Ember and Paper, set per key or once for the whole deck, plus optional sensor-type accent colors.
 - **Thresholds and alerts.** Set a warn and critical value; the key flips to amber, then red (aviation-style master caution/warning). Alert colors are global and never themed, so they stay unmistakable.
-- **Sparklines.** Recent history drawn along the bottom of a key; it persists across page changes, wake and reconnect.
+- **Sparkline, bar or ring.** The Display setting draws recent history along the bottom of a key (it persists across page changes, wake and reconnect), or a bar or downward-opening ring showing where the value sits in its range, warn and critical zones marked toward the alarmed end.
+- **Text color.** Theme, Dim or Custom text per key, per dial, or once for the deck; alert colors always win.
+- **Data units.** Decimal (KB, MB, GB, rates in Mbps) or binary (KiB, MiB, GiB, rates in MiB/s), set once for the whole deck. Thresholds keep the unit the face shows.
 - **Stat modes.** Show the current value or HWiNFO's min / max / average; press a key to cycle through them.
 - **Dual data source with auto-fallback.** Reads HWiNFO's Shared Memory (full min/max/avg) when available and silently falls back to the Gadget registry (no 12-hour limit on the free version), then upgrades back on its own.
 

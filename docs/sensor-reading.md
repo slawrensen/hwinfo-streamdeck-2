@@ -3,11 +3,11 @@ title: Sensor Reading (keys)
 nav_order: 4
 ---
 
-The **Sensor Reading** action puts a live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional sparkline, and warn/critical coloring. A key can also [stack two readings](#layout-two-readings-on-one-key) as two compact rows, or show [four readings in a quad grid](#layout-four-readings-the-quad-grid). Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
+The **Sensor Reading** action puts a live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional [sparkline, bar, or ring display](#display-sparkline-bar-ring), and warn/critical coloring. A key can also [stack two readings](#layout-two-readings-on-one-key) as two compact rows, or show [four readings in a quad grid](#layout-four-readings-the-quad-grid). Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
 
 This page documents every setting in the key's settings panel. For the Stream Deck + dial, see [Sensor Dial](sensor-dial.md).
 
-![The full Sensor Reading settings panel in the Stream Deck property inspector: the sensor picker with a live value, the label field, the theme gallery, the layout select, the stat, decimals, unit, sparkline and threshold controls, and the expanded Advanced section with the deck theme, type accents, data source, poll rate, and the Copy support report button.]({{ '/assets/img/settings-panel.png' | relative_url }})
+![The full Sensor Reading settings panel in the Stream Deck property inspector, its rows grouped under flat Sensor, Format, Appearance, Layout and Alerts headers: the sensor picker with a live value and the label field, the stat, decimals and unit rows, the theme gallery with the Text select under it, the layout and Display selects, the threshold controls, and the expanded Advanced section headed Deck defaults (deck theme, Deck text, type accents, data units), Connection (data source, poll rate) and Support (the Copy support report button).]({{ '/assets/img/settings-panel.png' | relative_url }})
 
 ## Settings
 
@@ -31,6 +31,17 @@ A live gallery of the seven presets: **Void** (default), **Graphite**, **Ultravi
 
 Precedence: a per-key theme always wins; the deck theme only affects keys set to Deck default. The Deck default chip wears a dashed border and a link badge so it can't be mistaken for a preset chip, and names the theme it currently resolves to in its tooltip and the help line under the gallery (e.g. *Deck default · Void*). See [Themes](themes.md) for the full palette and type-accent details.
 
+### Text
+
+How bright the key's text draws, directly under the theme gallery:
+
+- **Deck default** *(default)*: follows the **Deck text** setting under *Advanced*.
+- **Theme**: the selected theme's own text colors, bypassing a deck-wide Dim or Custom.
+- **Dim**: a lower-intensity version of the theme's text, for dark rooms and light-sensitive eyes.
+- **Custom**: your exact color. Two extra controls appear: **Text color** (the main value uses it exactly as picked) and **Dim labels, units and stats** (secondary text takes the same hue at lower intensity; untick it to paint every textual element the exact color).
+
+The setting recolors text only: backgrounds, accents, sparklines, bars and rings keep their theme colors, and a warn or critical alert always overrides it. Existing keys keep their current look until you change the setting. Details on [Themes](themes.md#text-theme-dim-or-custom).
+
 ### Show (stat mode)
 
 What the key displays, drawn from HWiNFO's own statistics since it started:
@@ -48,7 +59,7 @@ When a non-current mode is selected, a small **MIN / MAX / AVG** badge appears i
 
 ### Layout: two readings on one key
 
-**Layout → Two readings, stacked** splits the key into two rows, each with its own small label and a value with the unit inline, separated by a thin divider. Pick the second reading in the **Second sensor** picker that appears (same searchable picker as the first), and give it an optional **Second label**. While the layout is dual, the Sparkline row hides.
+**Layout → Two readings, stacked** splits the key into two rows, each with its own small label and a value with the unit inline, separated by a thin divider. Pick the second reading in the **Second sensor** picker that appears (same searchable picker as the first), and give it an optional **Second label**. While the layout is dual, the Display row hides.
 
 **Second shows** decides the second row's stat:
 
@@ -70,7 +81,7 @@ What carries over, and what stays with the first reading:
 - **Decimals** and **°F** apply to both rows.
 - **Warn at / Critical at** watch the **first** reading only, and an alert recolors the whole key exactly like the single layout. There are no per-row thresholds; put the reading you want alerts on first (or use two keys).
 - The sensor-type accent (badge color) follows the first reading.
-- The **sparkline is a single-layout feature**: the second row takes its space, so the Sparkline row hides while the layout is dual (the setting is kept for when you switch back).
+- The **Display strip is a single-layout feature**: the second row takes its space, so the Display row hides while the layout is dual (the setting is kept for when you switch back).
 - Row labels truncate at **16 characters**; badges never cost label space.
 - If one row's sensor drops out of HWiNFO's output, that row shows an em-dash placeholder while the other keeps updating; if both drop out, the key shows the usual **Sensor missing** screen.
 
@@ -94,7 +105,7 @@ What carries over from the other layouts, and what stays with the first sensor:
 - All cells show the **same stat**, and pressing the key cycles them together; a non-current stat shows one MIN / MAX / AVG badge centered on the cross. Per-cell stat pins are a dual-layout feature.
 - **Decimals** and **°F** apply to every cell.
 - **Warn at / Critical at** watch the **first** sensor only, and an alert recolors the whole key in the global alert palette, over the cell colors, exactly like the other layouts; no cell color can be mistaken for an alert.
-- The sensor-type accent (badge color) follows the first sensor, and the **sparkline stays a single-layout feature**.
+- The sensor-type accent (badge color) follows the first sensor, and the **Display strip stays a single-layout feature**.
 - A cell whose sensor drops out of HWiNFO's output shows an em-dash placeholder while the rest keep updating; if every picked sensor drops out, the key shows the usual **Sensor missing** screen.
 
 Switching back to **One reading** or **Two readings, stacked** restores that exact face; the extra sensors, labels and colors are remembered for the next switch to quad.
@@ -103,23 +114,45 @@ Switching back to **One reading** or **Two readings, stacked** restores that exa
 
 Controls value precision:
 
-- **Auto** *(default)*: scales precision with magnitude and compacts large numbers so they never overflow the key: values ≥ 100,000 and ≥ 10,000 are shown in thousands (e.g. `48700` → `48.7k`); ≥ 100 shows 0 decimals; ≥ 10 shows 1; below 10 shows 2.
+- **Auto** *(default)*: scales precision with magnitude and compacts large numbers through **k, M, G and T** so they never overflow the key (`48700` → `48.7k`, `48700000` → `48.7M`): ≥ 100 shows 0 decimals; ≥ 10 shows 1; below 10 shows 2, at every tier.
 - **0 / 1 / 2 / 3**: a fixed number of decimal places.
+
+Byte quantities and transfer rates scale by their real units instead of the generic ladder; see [Data units](#advanced-deck-wide).
 
 ### Unit
 
-**Show temperatures in °F** converts °C readings to Fahrenheit for display. It only affects readings whose unit is °C; every other unit is left as HWiNFO reports it. Thresholds and the sparkline follow the displayed unit; see the notes below.
+**Show temperatures in °F** converts °C readings to Fahrenheit for display. It only affects readings whose unit is °C; every other unit is left as HWiNFO reports it. Thresholds and the Display strip follow the displayed unit; see the notes below.
 
-### Sparkline
+### Display: sparkline, bar, ring
 
-**Show recent history** draws a filled line of the reading's recent values along the bottom of the key, tinted with the key's accent (or its sensor-type accent, if type accents are on).
+One strip under the value, on the single layout only:
+
+- **None (value only)** *(default)*: just the value.
+- **Sparkline (recent history)**: a filled line of the reading's recent values along the bottom of the key, tinted with the key's accent (or its sensor-type accent).
+- **Bar (value in its range)**: a horizontal gauge in the sparkline's spot showing where the live value sits in its range.
+- **Ring (value in its range)**: the same gauge as a radial arc around the value.
+
+![Display modes and the Text setting rendered by the plugin: a sparkline key, a percentage bar, a bar with amber and red threshold zones, a ring, a dial bar sharing the zones, and theme, dim, custom and secondary-dimmed text faces.]({{ '/assets/img/display-text.png' | relative_url }})
+
+![The Display selector in the key's settings panel, set to Bar, with its help line.]({{ '/assets/img/pi-key-display.png' | relative_url }})
+
+Bar and Ring find their range automatically:
+
+- **Percentages** (and duty cycles) run 0 to 100.
+- **Yes/No readings** run 0 to 1.
+- Everything else spans the **values actually seen**: HWiNFO's session min/max plus the plugin's own recent samples, so the gauge settles as the session accumulates. There are no manual bounds to type.
+- **Warn at / Critical at** draw amber and red zones that escalate **toward the alarmed end**: amber then red at the high side normally, mirrored to the low side when *Direction* alerts below, the classic instrument convention (a fuel gauge is red at empty, a tachometer at the top). The range widens to keep the zones visible.
+
+The zones are **fixed landmarks**, drawn as muted shades so they read as markers, not state; the **moving fill is the live value**, and it keeps its full color (accent normally, amber/red while alerting) so it always stands out over them. The gauge follows the **live** value even while the key's text shows MIN, MAX, or AVG, exactly like alert coloring. Dual and quad layouts have no strip, so the Display row hides there.
+
+Sparkline notes:
 
 - It holds the last **36 samples** and fills at **HWiNFO's own update rate** (default 2 s), not the plugin's poll rate: one new point per genuinely fresh HWiNFO snapshot.
 - History **persists across page changes** (1.1.6.0): switching Stream Deck pages, waking the machine, or the app reconnecting no longer wipes the line; the graph stays drawn. A graph on a page you haven't viewed in a long while (over a minute) does rebuild from scratch.
 - It **survives a °C/°F toggle** unchanged (same data, just relabelled), and a frozen HWiNFO holds the line's last real shape instead of flattening it.
 - The sparkline self-scales to its own visible min/max, so the shape reflects recent variation, not absolute magnitude.
 
-> **Note:** Changing the poll interval (*Advanced → Poll every*) resets sparkline history, because the ring is spaced by sample index and can't honestly span a cadence change. The sparkline is also a single-layout feature: it does not draw on a [dual](#layout-two-readings-on-one-key) or [quad](#layout-four-readings-the-quad-grid) key.
+> **Note:** Changing the poll interval (*Advanced → Poll every*) resets sparkline history, because the ring is spaced by sample index and can't honestly span a cadence change. Keys configured before 1.2.x keep their old Sparkline checkbox behavior until you touch the Display select.
 
 ### Warn at / Critical at
 
@@ -159,4 +192,13 @@ The settings panel shows the matching plain-language explanation and fix while t
 
 ## Advanced (deck-wide)
 
-The **Advanced** section in this panel holds plugin-wide settings shared by every key and dial: **Deck theme**, **Type accents**, **Data source**, and **Poll every**. They're documented under [Themes](themes.md) and [Data sources](data-sources.md).
+The **Advanced** section in this panel holds plugin-wide settings shared by every key and dial, in three headed groups: **Deck defaults (every key and dial)** with **Deck theme**, **Deck text**, **Type accents** and **Data units**; **Connection** with **Data source** and **Poll every**; and **Support**. Themes and Deck text are documented under [Themes](themes.md), the sources under [Data sources](data-sources.md).
+
+![The expanded Advanced section in the Stream Deck app: the Deck defaults header over Deck theme, Deck text, Type accents and Data units rows, then Connection with Data source and Poll every, and Support with the Copy support report button.]({{ '/assets/img/pi-live-key-advanced.png' | relative_url }})
+
+**Data units** decides how byte quantities and transfer rates read, everywhere at once:
+
+- **Decimal** *(default)*: bytes in **B / KB / MB / GB / TB** (steps of 1000) and rates as **bits: bps / kbps / Mbps / Gbps / Tbps** (byte rates multiply by 8), so `12000000 B/s` reads **96.0 Mbps**.
+- **Binary**: bytes in **B / KiB / MiB / GiB / TiB** (steps of 1024) and rates as **bytes: B/s through TiB/s** (bit rates divide by 8), so the same reading reads **11.4 MiB/s**.
+
+The value is converted whenever the label changes; a `12345.6 MB` reading shows as `12.3 GB` in Decimal and `11.5 GiB` in Binary, never as a relabeled raw number. This is display only: **Warn at**, **Critical at**, and the dial's bar range keep working against the number HWiNFO reports (the displayed unit before this re-tiering), exactly as before.

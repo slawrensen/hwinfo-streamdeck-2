@@ -361,6 +361,92 @@ async function scenario(send) {
 			send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key4", device: "dev1", payload: { settings: {}, coordinates: { column: 3, row: 0 }, controller: "Keypad", isInMultiAction: false } });
 		}
 
+		// Display modes, Text setting and Data units through REAL settings and
+		// globals: bar/ring gauges, legacy sparkline compatibility, custom
+		// text colors with alert precedence, deck-wide dim, decimal/binary
+		// re-tiering, and the PI preview formatted by the same authority.
+		{
+			const dispSet = (settings) =>
+				send({ event: "didReceiveSettings", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-disp", device: "dev1", payload: { settings, coordinates: { column: 4, row: 0 }, isInMultiAction: false } });
+			const dispLatest = () => results.images.filter((i) => i.context === "ctx-key-disp").map((i) => decodeSvg(i.image)).filter((s) => s !== null).at(-1);
+			send({
+				event: "willAppear",
+				action: "com.lawrensen.hwinfo.reading",
+				context: "ctx-key-disp",
+				device: "dev1",
+				payload: { settings: { readingKey: k1, displayMode: "bar", warnValue: "200", critValue: "300" }, coordinates: { column: 4, row: 0 }, controller: "Keypad", isInMultiAction: false }
+			});
+			await sleep(700);
+			results.displayBarFrame = dispLatest();
+			dispSet({ readingKey: k1, displayMode: "ring", warnValue: "200", critValue: "300" });
+			await sleep(500);
+			results.displayRingFrame = dispLatest();
+			// Legacy compatibility: sparkline false (or junk displayMode with
+			// the old checkbox on) keeps the pre-Display behavior exactly.
+			dispSet({ readingKey: k1, sparkline: false });
+			await sleep(500);
+			results.displayNoneFrame = dispLatest();
+			dispSet({ readingKey: k1, sparkline: true, displayMode: "histogram-from-the-future" });
+			await sleep(500);
+			results.displayJunkFrame = dispLatest();
+			// Custom text: the main value must be the exact selected color.
+			dispSet({ readingKey: k1, textMode: "custom", textColor: "#660000" });
+			await sleep(500);
+			results.customTextFrame = dispLatest();
+			// Warn precedence: the alert palette overrides the custom color.
+			dispSet({ readingKey: k1, textMode: "custom", textColor: "#660000", warnValue: "0" });
+			await sleep(500);
+			results.customTextWarnFrame = dispLatest();
+			// The PI preview mirrors the face's alert precedence: warn palette
+			// background, custom text color suppressed.
+			send({ event: "propertyInspectorDidAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-disp", device: "dev1" });
+			const alertPreviewsBefore = results.piPayloads.filter((p) => p?.event === "preview").length;
+			await sleep(1600);
+			results.alertPreview = results.piPayloads.filter((p) => p?.event === "preview").slice(alertPreviewsBefore).findLast((p) => p.display !== undefined)?.display;
+			send({ event: "propertyInspectorDidDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-disp", device: "dev1" });
+			// Deck-wide dim through the global settings channel; the key has no
+			// local Text setting, so it must follow and re-render.
+			dispSet({ readingKey: k1 });
+			await sleep(400);
+			send({ event: "didReceiveGlobalSettings", payload: { settings: { textMode: "dim" } } });
+			await sleep(500);
+			results.deckDimFrame = dispLatest();
+			send({ event: "didReceiveGlobalSettings", payload: { settings: {} } });
+			await sleep(400);
+			// None of the reads above may write settings back (no rewrite on read).
+			results.displayContextWrites = results.setSettings.filter((s) => s.context === "ctx-key-disp").length;
+			send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-disp", device: "dev1", payload: { settings: {}, coordinates: { column: 4, row: 0 }, controller: "Keypad", isInMultiAction: false } });
+
+			// Data units: a byte-unit reading re-tiers under the global
+			// preference, and the PI preview carries the same formatted text.
+			const dataReading = (treeMsg?.groups ?? []).flatMap((g) => g.readings).find((r) => (r.unit === "MB" || r.unit === "GB" || r.unit === "KB/s" || r.unit === "MB/s") && r.value > 1);
+			results.dataReadingUnit = dataReading?.unit;
+			if (dataReading !== undefined) {
+				send({
+					event: "willAppear",
+					action: "com.lawrensen.hwinfo.reading",
+					context: "ctx-key-data",
+					device: "dev1",
+					payload: { settings: { readingKey: dataReading.key }, coordinates: { column: 4, row: 1 }, controller: "Keypad", isInMultiAction: false }
+				});
+				send({ event: "propertyInspectorDidAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-data", device: "dev1" });
+				await sleep(700);
+				const dataLatest = () => results.images.filter((i) => i.context === "ctx-key-data").map((i) => decodeSvg(i.image)).filter((s) => s !== null).at(-1);
+				results.dataDecimalFrame = dataLatest();
+				const previewsBefore = results.piPayloads.filter((p) => p?.event === "preview").length;
+				send({ event: "didReceiveGlobalSettings", payload: { settings: { dataUnits: "binary" } } });
+				await sleep(1600);
+				results.dataBinaryFrame = dataLatest();
+				results.dataBinaryPreview = results.piPayloads.filter((p) => p?.event === "preview").slice(previewsBefore).findLast((p) => p.display !== undefined)?.display;
+				send({ event: "didReceiveGlobalSettings", payload: { settings: {} } });
+				await sleep(400);
+				send({ event: "propertyInspectorDidDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-data", device: "dev1" });
+				send({ event: "willDisappear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key-data", device: "dev1", payload: { settings: {}, coordinates: { column: 4, row: 1 }, controller: "Keypad", isInMultiAction: false } });
+				// The PI reopens on the original key for the sections below.
+				send({ event: "propertyInspectorDidAppear", action: "com.lawrensen.hwinfo.reading", context: "ctx-key", device: "dev1" });
+			}
+		}
+
 		// Malformed / old settings must neither crash the plugin nor corrupt
 		// the deck: the context still renders AND rotation still works (the
 		// invalid readingKey counts as no selection, so a turn adopts one).
@@ -698,6 +784,68 @@ async function finish() {
 		"quad with one resolvable slot degrades to the unchanged single face",
 		typeof results.quadDegradedFrame === "string" && !hasCross(results.quadDegradedFrame) && results.quadDegradedFrame.includes('<text x="72" y="32"'),
 		(results.quadDegradedFrame ?? "no frame").slice(0, 100)
+	);
+
+	// Display modes on the single key: bar, ring, legacy sparkline salvage.
+	// The memory reading sits far past warn 200 / crit 300 (native MB), so the
+	// face is stably CRITICAL: zones blend toward the crit-red face background
+	// (#E8940D -> #CB2114 at the fixed 0.45 = #DB6010) and the pale crit-accent
+	// fill rides on top.
+	check(
+		"displayMode bar renders the pill track with threshold zones, no sparkline",
+		typeof results.displayBarFrame === "string" && results.displayBarFrame.includes('<rect x="16" y="120" width="112" height="10" rx="5"') && results.displayBarFrame.includes("#DB6010") && !results.displayBarFrame.includes("<polyline"),
+		(results.displayBarFrame ?? "no frame").slice(-220)
+	);
+	check(
+		"displayMode ring renders 10px round-cap arcs with zones, no bar strip",
+		typeof results.displayRingFrame === "string" && results.displayRingFrame.includes('A46,46 0') && results.displayRingFrame.includes('stroke-width="10" stroke-linecap="round"') && results.displayRingFrame.includes('stroke="#DB6010"') && !results.displayRingFrame.includes('<rect x="16" y="120"'),
+		(results.displayRingFrame ?? "no frame").slice(-220)
+	);
+	check(
+		"legacy sparkline:false face stays bare (no strip of any kind)",
+		typeof results.displayNoneFrame === "string" && !results.displayNoneFrame.includes("<polyline") && !results.displayNoneFrame.includes('<rect x="16" y="120"') && !results.displayNoneFrame.includes("A46,46"),
+		(results.displayNoneFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"a future displayMode value salvages to the legacy sparkline field",
+		typeof results.displayJunkFrame === "string" && results.displayJunkFrame.includes("<polyline"),
+		(results.displayJunkFrame ?? "no frame").slice(0, 120)
+	);
+	check("display and text reads never wrote settings back", results.displayContextWrites === 0, `${results.displayContextWrites} writes`);
+
+	// Text setting end to end: exact custom color, alert precedence, deck dim.
+	check(
+		"custom text paints the main value in the exact selected color",
+		typeof results.customTextFrame === "string" && /y="94"[^>]*fill="#660000"/.test(results.customTextFrame),
+		(results.customTextFrame ?? "no frame").slice(0, 200)
+	);
+	check(
+		"warn palette overrides the custom text color outright",
+		typeof results.customTextWarnFrame === "string" && results.customTextWarnFrame.includes('fill="#E8940D"') && !results.customTextWarnFrame.includes("#660000"),
+		(results.customTextWarnFrame ?? "no frame").slice(0, 120)
+	);
+	check(
+		"the PI preview mirrors the warn palette, custom color suppressed",
+		results.alertPreview !== undefined && results.alertPreview.bg === "#E8940D" && results.alertPreview.valueColor === "#1C1200",
+		`preview=${JSON.stringify(results.alertPreview ?? null)}`
+	);
+	check(
+		"deck-wide dim reaches a key with no local Text setting",
+		typeof results.deckDimFrame === "string" && results.deckDimFrame !== results.displayNoneFrame && !/y="94"[^>]*fill="#F4F6FA"/.test(results.deckDimFrame),
+		(results.deckDimFrame ?? "no frame").slice(0, 200)
+	);
+
+	// Data units: decimal vs binary re-tiering, PI preview via the same authority.
+	check("the tree offered a byte-unit reading for the data-units drive", typeof results.dataReadingUnit === "string", `unit=${results.dataReadingUnit}`);
+	check(
+		"binary preference re-tiers the face to an iB unit; decimal does not",
+		typeof results.dataDecimalFrame === "string" && typeof results.dataBinaryFrame === "string" && results.dataBinaryFrame.includes("iB") && !results.dataDecimalFrame.includes("iB"),
+		`decimal=${(results.dataDecimalFrame ?? "").match(/>([A-Za-z/]+)<\/text>/)?.[1]} binary=${(results.dataBinaryFrame ?? "").match(/>([A-Za-z/]+)<\/text>/)?.[1]}`
+	);
+	check(
+		"the PI preview carries the plugin-formatted unit the face shows",
+		results.dataBinaryPreview !== undefined && typeof results.dataBinaryPreview.unit === "string" && results.dataBinaryFrame?.includes(`>${results.dataBinaryPreview.unit}<`) === true,
+		`preview unit=${results.dataBinaryPreview?.unit}`
 	);
 
 	// Elite preset: pressed rotation is a sensor jump, not a reading step.

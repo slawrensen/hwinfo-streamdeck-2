@@ -50,6 +50,20 @@ So even when the deck theme it follows renders an identical palette, the follow 
 
 ![The Theme gallery in the property inspector: the dashed "Deck default" chip with its link badge and "auto" face, followed by the seven preset chips, with the help line under the gallery naming the resolved theme.]({{ '/assets/img/settings-panel.png' | relative_url }})
 
+## Text: Theme, Dim, or Custom
+
+The dark themes use bright near-white values, and Ember uses amber. Both can be too much in a dark room or for light-sensitive eyes, so every key and dial has a **Text** setting directly under its theme gallery, with a deck-wide default under *Advanced → Deck text*:
+
+- **Theme** *(deck-wide default)*: the selected theme's own text colors, exactly as before.
+- **Dim**: a lower-intensity version of the theme's text. One fixed algorithm blends each text color toward the theme background, so it lands correctly on dark and light themes alike and keeps the value/label/unit hierarchy.
+- **Custom**: your own color. **Text color** sets it, and the main value uses it **exactly as picked**, never adjusted. **Dim labels, units and stats** decides the secondary text: ticked, labels, units, suffixes and MIN/MAX/AVG badges take the same hue at lower intensity; unticked, every textual element uses the exact color.
+
+Per-key and per-dial settings default to **Deck default**, which follows the deck-wide Text value; a local **Theme**, **Dim** or **Custom** wins over it, mirroring the theme precedence rule. An invalid custom color falls back to theme text.
+
+![The Text select under the theme gallery, set to Custom, with the Text color well and the "Dim labels, units and stats" checkbox revealed.]({{ '/assets/img/pi-key-text.png' | relative_url }})
+
+The setting recolors **text only**. Backgrounds, theme and type accents, sparklines, bars, rings, range bars, tracks and separators keep their theme colors, status screens keep their fixed safety colors, and the [alert palettes](#alerts-override-everything) always override it: a warning key is amber with black text whatever Text says, and a dial's alert-colored bar or overview row value is never recolored.
+
 ## Type accents
 
 **Type accents** (*Advanced → Type accents*, **on by default**) color each key's accent (the sparkline, the corner badge, and the dial's range bar) by the sensor's type. Only the accent changes; label, value and unit keep the theme's own luminance rhythm.

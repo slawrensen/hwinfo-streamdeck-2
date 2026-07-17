@@ -451,3 +451,90 @@ describe("two-line label wrap", () => {
 		assert.deepEqual(wrapLabelTwoLines("Supercalifragilisticexpialidocious", 27, 13), ["Supercalifragilisticexpial…"]);
 	});
 });
+
+// --- threshold zones on the dial bar --------------------------------------------
+
+describe("dial bar threshold zones", () => {
+	const WARN_BG = "#E8940D";
+	const CRIT_BG = "#CB2114";
+
+	it("no zones: exactly the established track and fill, nothing else", () => {
+		const svg = render({ zones: [] });
+		assert.equal(svg, render({}));
+		assert.match(svg, new RegExp(`<rect x="12" y="84" width="176" height="6" rx="3" fill="${MIDNIGHT.track}"/>`));
+	});
+
+	it("zones sit on the track between track and fill, squared mid-track", () => {
+		const svg = render({ fraction: 0.6, zones: [{ from: 0.7, to: 0.9, color: WARN_BG }] });
+		// x = 12 + 0.7*176 = 135.2, w = 0.2*176 = 35.2, no rounding mid-track.
+		assert.match(svg, new RegExp(`<rect x="135\\.2" y="84" width="35\\.2" height="6" fill="${WARN_BG}"/>`));
+		const track = svg.indexOf(`width="176" height="6" rx="3" fill="${MIDNIGHT.track}"`);
+		const zone = svg.indexOf(`fill="${WARN_BG}"`);
+		const fill = svg.indexOf(`fill="${MIDNIGHT.accent}"`);
+		assert.ok(track < zone && zone < fill, "track < zone < fill");
+	});
+
+	it("a zone reaching the right end rounds it, squaring its own start", () => {
+		const svg = render({ zones: [{ from: 0.9, to: 1, color: CRIT_BG }] });
+		// x = 12 + 0.9*176 = 170.4, w = 17.6: rounded rect plus square overpaint.
+		assert.match(svg, new RegExp(`<rect x="170\\.4" y="84" width="17\\.6" height="6" rx="3" fill="${CRIT_BG}"/><rect x="170\\.4" y="84" width="3\\.0" height="6" fill="${CRIT_BG}"/>`));
+	});
+
+	it("an alertBelow zone reaching the left end rounds it", () => {
+		const svg = render({ zones: [{ from: 0, to: 0.25, color: CRIT_BG }] });
+		assert.match(svg, new RegExp(`<rect x="12\\.0" y="84" width="44\\.0" height="6" rx="3" fill="${CRIT_BG}"/><rect x="53\\.0" y="84" width="3\\.0" height="6" fill="${CRIT_BG}"/>`));
+	});
+
+	it("zero-width zones draw nothing", () => {
+		assert.equal(render({ zones: [{ from: 0.5, to: 0.5, color: WARN_BG }] }), render({}));
+	});
+
+	it("the alert-colored fill still paints over the zones", () => {
+		const svg = render({ fraction: 1, barColor: CRIT_BG, zones: [{ from: 0.7, to: 1, color: WARN_BG }] });
+		const zone = svg.indexOf(`fill="${WARN_BG}"`);
+		const fill = svg.lastIndexOf(`fill="${CRIT_BG}"`);
+		assert.ok(zone !== -1 && fill > zone, "alert fill draws after the zone");
+	});
+});
+
+// --- Text setting on dial faces ---------------------------------------------------
+
+describe("dial text colors", () => {
+	const custom = { value: "#660000", label: "#550505", unit: "#440A0A", badge: "#440A0A" };
+
+	it("single view: title, value, unit chunk and stats take the resolved text", () => {
+		const svg = render({ text: custom });
+		assert.match(svg, /<text x="12" y="24" [^>]*fill="#550505"/);
+		assert.match(svg, /<text x="12" y="58" [^>]*fill="#660000">56\.3<tspan [^>]*fill="#440A0A">°C<\/tspan><\/text>/);
+		assert.match(svg, /<text x="12" y="78" [^>]*fill="#440A0A"/);
+	});
+
+	it("single view: bar track and fill are never recolored by text", () => {
+		const svg = render({ text: custom });
+		assert.match(svg, new RegExp(`rx="3" fill="${MIDNIGHT.track}"`));
+		assert.match(svg, new RegExp(`rx="3" fill="${MIDNIGHT.accent}"`));
+	});
+
+	it("three-row overview: labels, units, context and stats take the text; rail stays", () => {
+		const svg = renderOverview({ text: custom });
+		assert.match(svg, /letter-spacing="0.4" fill="#550505">CPU PACKAGE</); // selected row label
+		assert.match(svg, /letter-spacing="0.4" fill="#440A0A">GPU TEMP</); // unselected row label
+		assert.match(svg, /fill="#440A0A">°C</); // unit column
+		assert.match(svg, /fill="#550505">session</); // context line
+		assert.match(svg, /fill="#440A0A">▼42\.0 ▲78\.5</); // stats
+		assert.match(svg, new RegExp(`<rect x="0" y="16" width="4" height="84" fill="${MIDNIGHT.track}"/>`)); // rail groove
+		assert.match(svg, new RegExp(`rx="2" fill="${MIDNIGHT.accent}"`)); // rail thumb
+	});
+
+	it("two-row view: labels, units and footer take the text; sparkline stays themed", () => {
+		const svg = renderTwoRow({ rows: [twoRowRow({ selected: true, history: [1, 2, 3] }), twoRowRow({ label: "GPU" })], text: custom });
+		assert.match(svg, /<text x="12" y="17" [^>]*fill="#550505"/); // selected label
+		assert.match(svg, /<text x="6" y="96" [^>]*fill="#440A0A"/); // footer
+		assert.match(svg, new RegExp(`<polyline [^>]*stroke="${MIDNIGHT.accent}"`));
+	});
+
+	it("caller-fixed row value colors (alert indicators) pass through untouched", () => {
+		const svg = renderOverview({ rows: [overviewRow({ valueColor: "#CB2114" }), overviewRow({ label: "GPU Hot Spot", selected: false })], text: custom });
+		assert.match(svg, /fill="#CB2114">56\.3</);
+	});
+});

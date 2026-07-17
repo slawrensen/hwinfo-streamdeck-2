@@ -5,17 +5,21 @@
    Expected DOM (see sensor-reading.html / sensor-dial.html):
      #picker-search, #picker-refresh, #picker-list, #preview-value,
      #preview-stats, #status-hint, #theme-gallery
-   Optional (sensor-reading.html dual and quad layouts):
+   Optional (sensor-reading.html dual and quad layouts, Display select):
      #picker2-search, #picker2-refresh, #picker2-list, #second-slot,
-     #dual-rows, #sparkline-item, #quad-rows, #picker3-*, #picker4-*,
-     #quad-color-preset, #quad-color-1..4
+     #dual-rows, #display-item, #display-mode, #quad-rows, #picker3-*,
+     #picker4-*, #quad-color-preset, #quad-color-1..4
+   Optional (both sensor PIs, Text setting):
+     #text-custom, #text-color, #deck-text-custom, #deck-text-color
    Optional (sensor-dial.html overview views):
-     #overview-rows, #overview-three-rows                              */
+     #overview-rows, #overview-three-rows
+   Optional (sensor-dial.html single-view bar range):
+     #bar-range                                                        */
 /* global SDPIComponents */
 (() => {
 	"use strict";
 
-	const { streamDeckClient, useSettings } = SDPIComponents;
+	const { streamDeckClient, useSettings, useGlobalSettings } = SDPIComponents;
 
 	const previewValueEl = document.getElementById("preview-value");
 	const previewStatsEl = document.getElementById("preview-stats");
@@ -38,14 +42,9 @@
 		streamDeckClient.send("sendToPlugin", { event: "getSensorTree" });
 	}
 
-	function fmt(value) {
-		if (!Number.isFinite(value)) return "—";
-		const abs = Math.abs(value);
-		if (abs >= 10000) return `${(value / 1000).toFixed(1)}k`;
-		if (abs >= 100) return value.toFixed(0);
-		if (abs >= 10) return value.toFixed(1);
-		return value.toFixed(2);
-	}
+	// All value formatting comes from the plugin (its measurement authority):
+	// tree rows carry a `display` string and the preview a `display` object,
+	// so the panel can never drift from what the key or dial face shows.
 
 	function readingLabelOf(key) {
 		if (tree !== null) {
@@ -254,9 +253,11 @@
 	function updateRotationHelp() {
 		const help = document.getElementById("rotation-help");
 		if (help === null) return;
+		// Keep the flat-mode sentence order in sync with the static fallback
+		// in sensor-dial.html (empty-set default leads).
 		help.textContent =
 			rotationGroups === null
-				? "Tick readings in the sensor list above to limit rotation to just those. Leave the set empty to rotate through every reading of the picked sensor."
+				? "Leave the set empty to rotate through every reading of the picked sensor. Tick readings in the sensor list above to limit rotation to just those."
 				: "Ticks land in the group marked by the radio. Plain rotate stays inside a group; a gesture set to “Switch sensor or group” (Elite press+rotate) jumps between groups and shows the group name on the dial. Legacy rotates through all groups as one list.";
 	}
 
@@ -427,7 +428,7 @@
 					const val = document.createElement("span");
 					val.className = "hw-val";
 					const typeName = SENSOR_TYPE_NAMES[reading.type] || "";
-					val.textContent = `${fmt(reading.value)} ${reading.unit}${typeName ? " · " + typeName : ""}`;
+					val.textContent = `${reading.display ?? ""}${typeName ? " · " + typeName : ""}`;
 					row.append(label, val);
 					frag.appendChild(row);
 					shown++;
@@ -604,18 +605,35 @@
 	}
 
 	function renderPreview(p) {
-		if (p.reading) {
-			previewValueEl.textContent = `${fmt(p.reading.value)} ${p.reading.unit}`.trim();
-			previewStatsEl.textContent = `min ${fmt(p.reading.valueMin)} · max ${fmt(p.reading.valueMax)} · avg ${fmt(p.reading.valueAvg)}`;
-		} else if (p.missing) {
-			previewValueEl.textContent = "sensor missing";
-			previewStatsEl.textContent = "";
-		} else if (p.state !== "ok") {
-			previewValueEl.textContent = "—";
-			previewStatsEl.textContent = "";
+		const live = previewValueEl.closest(".hw-preview-live");
+		if (p.display) {
+			// Plugin-formatted and plugin-colored: the same measurement text and
+			// resolved theme/Text colors the face itself renders with.
+			previewValueEl.textContent = `${p.display.value} ${p.display.unit}`.trim();
+			previewStatsEl.textContent = p.display.stats;
+			previewValueEl.style.color = p.display.valueColor;
+			previewStatsEl.style.color = p.display.statsColor;
+			if (live !== null) {
+				live.classList.add("themed");
+				live.style.background = p.display.bg;
+			}
 		} else {
-			previewValueEl.textContent = "pick a sensor";
-			previewStatsEl.textContent = "";
+			previewValueEl.style.color = "";
+			previewStatsEl.style.color = "";
+			if (live !== null) {
+				live.classList.remove("themed");
+				live.style.background = "";
+			}
+			if (p.missing) {
+				previewValueEl.textContent = "sensor missing";
+				previewStatsEl.textContent = "";
+			} else if (p.state !== "ok") {
+				previewValueEl.textContent = "—";
+				previewStatsEl.textContent = "";
+			} else {
+				previewValueEl.textContent = "pick a sensor";
+				previewStatsEl.textContent = "";
+			}
 		}
 		// The stats line clips to one line (pi.css); the title carries the full text.
 		previewStatsEl.title = previewStatsEl.textContent;
@@ -676,31 +694,67 @@
 	// "quad" (the quad's slots 1 and 2 ARE the single/dual fields, so
 	// switching layouts keeps both sensors), the "Second shows" pin is
 	// dual-only, the quad rows (slots 3/4, cell colors, micro-labels) are
-	// quad-only, and the sparkline row hides on both multi layouts (their
-	// faces have no sparkline strip).
+	// quad-only, and the Display row hides on both multi layouts (their
+	// faces have no sparkline/bar/ring strip).
 	if (dualRowsEl !== null) {
 		const secondSlotEl = document.getElementById("second-slot");
 		const quadRowsEl = document.getElementById("quad-rows");
-		const sparklineItemEl = document.getElementById("sparkline-item");
+		const displayItemEl = document.getElementById("display-item");
 		const applyLayout = (value) => {
 			const dual = value === "dual";
 			const quad = value === "quad";
 			if (secondSlotEl !== null) secondSlotEl.hidden = !dual && !quad;
 			dualRowsEl.hidden = !dual;
 			if (quadRowsEl !== null) quadRowsEl.hidden = !quad;
-			if (sparklineItemEl !== null) sparklineItemEl.hidden = dual || quad;
+			if (displayItemEl !== null) displayItemEl.hidden = dual || quad;
 		};
 		followSetting("keyLayout", applyLayout);
 	}
 
+	// Display select (reading PI only): one control for the single layout's
+	// extra strip. It shows the EFFECTIVE mode (a valid displayMode wins,
+	// else the legacy sparkline checkbox's state), and any change writes only
+	// displayMode, so pre-Display profiles are never rewritten on read.
+	const displayModeEl = document.getElementById("display-mode");
+	if (displayModeEl !== null) {
+		const [getDisplayMode, setDisplayMode] = useSettings("displayMode", () => {}, null);
+		const [getSparkline] = useSettings("sparkline", () => {}, null);
+		// Assign only on a real change: rewriting a select's value can dismiss
+		// its open popup in this webview.
+		const show = (mode) => {
+			if (displayModeEl.value !== mode) displayModeEl.value = mode;
+		};
+		const showDisplayMode = () => {
+			getDisplayMode().then((mode) => {
+				if (mode === "sparkline" || mode === "bar" || mode === "ring" || mode === "none") {
+					show(mode);
+					return;
+				}
+				getSparkline().then((sparkline) => {
+					show(sparkline === true ? "sparkline" : "none");
+				});
+			});
+		};
+		displayModeEl.addEventListener("change", () => {
+			setDisplayMode(displayModeEl.value);
+		});
+		showDisplayMode();
+		setInterval(showDisplayMode, 400);
+	}
+
 	// Dial view (dial PI only): the overview rows serve both multi-row
 	// views; the Context line and Separators selects are three-row only.
+	// The bar-range section hides on the multi-row views. Hide-on-match
+	// polarity on purpose: an unset dialView (legacy single) stays visible;
+	// a `!== "single"` check would hide it for every legacy profile.
 	const overviewRowsEl = document.getElementById("overview-rows");
 	if (overviewRowsEl !== null) {
 		const overviewThreeEl = document.getElementById("overview-three-rows");
+		const barRangeEl = document.getElementById("bar-range");
 		const applyView = (value) => {
 			overviewRowsEl.hidden = value !== "overview" && value !== "tworow";
 			if (overviewThreeEl !== null) overviewThreeEl.hidden = value !== "overview";
+			if (barRangeEl !== null) barRangeEl.hidden = value === "tworow" || value === "overview";
 		};
 		followSetting("dialView", applyView);
 	}
@@ -829,7 +883,10 @@
 		frag.appendChild(deckChip);
 		const help = document.getElementById("theme-help");
 		if (help !== null) {
-			help.textContent = "Pick a preset for this " + (document.title.includes("Dial") ? "dial" : "key") + " only, or the dashed “Deck default” chip (currently " + deckDisplay + ") to follow the deck-wide theme set under Advanced.";
+			// The deck row lives under a different fold per PI; keep the static
+			// HTML fallbacks in both PIs in sync with these two strings.
+			const isDial = document.title.includes("Dial");
+			help.textContent = "Pick a preset for this " + (isDial ? "dial" : "key") + " only, or the dashed “Deck default” chip (currently " + deckDisplay + ") to follow the deck-wide theme set under " + (isDial ? "Dial gestures & advanced" : "Advanced") + ".";
 		}
 		for (const [id, palette] of Object.entries(themesConfig.themes)) {
 			frag.appendChild(themeChip(id, palette, id.charAt(0).toUpperCase() + id.slice(1), themeOverride === id));
@@ -847,6 +904,44 @@
 	// The plugin pushes a fresh themes payload (with effectiveDeckTheme)
 	// whenever the deck theme changes; no global-settings guessing here.
 	streamDeckClient.send("sendToPlugin", { event: "getThemes" });
+
+	// --- Text setting (issue #2) ----------------------------------------------
+	// The Text selects are sdpi-managed; this block reveals the conditional
+	// Custom rows (color well + dim checkbox) for the local and the deck-wide
+	// scope, and binds the color wells. Wells write only on change, so absent
+	// settings stay absent; an unset well shows the resolved theme's value
+	// color: the truthful "custom starts from what you see" seed.
+	const TEXT_HEX = /^#[0-9A-Fa-f]{6}$/;
+
+	function themeValueSeed() {
+		if (themesConfig === null) return "#ffffff";
+		const deckId = themesConfig.themes[themesConfig.effectiveDeckTheme] ? themesConfig.effectiveDeckTheme : themesConfig.defaultTheme;
+		const palette = themesConfig.themes[themeOverride] ?? themesConfig.themes[deckId];
+		return palette ? palette.value.toLowerCase() : "#ffffff";
+	}
+
+	function bindTextControls(customEl, colorEl, useStore) {
+		if (customEl === null || colorEl === null) return;
+		const [getMode] = useStore("textMode", () => {}, null);
+		const [getColor, setColor] = useStore("textColor", () => {}, null);
+		const refresh = () => {
+			getMode().then((mode) => {
+				customEl.hidden = mode !== "custom";
+			});
+			getColor().then((color) => {
+				if (document.activeElement === colorEl) return; // picker open: don't fight it
+				const shown = typeof color === "string" && TEXT_HEX.test(color) ? color.toLowerCase() : themeValueSeed();
+				if (colorEl.value !== shown) colorEl.value = shown;
+			});
+		};
+		// change (picker closed), not input: no write per drag frame.
+		colorEl.addEventListener("change", () => setColor(colorEl.value));
+		refresh();
+		setInterval(refresh, 400);
+	}
+
+	bindTextControls(document.getElementById("text-custom"), document.getElementById("text-color"), useSettings);
+	bindTextControls(document.getElementById("deck-text-custom"), document.getElementById("deck-text-color"), useGlobalSettings);
 
 	streamDeckClient.sendToPropertyInspector.subscribe((ev) => {
 		const p = ev && ev.payload;

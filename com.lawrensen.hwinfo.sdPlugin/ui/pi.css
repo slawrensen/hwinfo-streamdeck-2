@@ -75,6 +75,21 @@ details > summary:hover {
 	color: #d8d8d8;
 }
 
+/* A plain select styled like the sdpi ones (the Display selector resolves
+   its shown value from two settings, which sdpi-select cannot express). */
+.hw-select {
+	width: 100%;
+	min-width: 0;
+	background: #3d3d3d;
+	border: none;
+	border-radius: 0;
+	color: #d8d8d8;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 9pt;
+	padding: 4px 2px;
+	outline: none;
+}
+
 /* Quad cell colors: the preset select plus four native color wells. */
 .hw-quad-colors {
 	display: flex;
@@ -384,6 +399,15 @@ details > summary:hover {
 	min-height: 44px;
 }
 
+/* With plugin-resolved colors the preview becomes a mini face: the theme
+   background behind the theme/Dim/Custom text, so the Text setting's result
+   is visible in the panel exactly as it lands on the key. */
+.hw-preview-live.themed {
+	padding: 5px 10px;
+	border-radius: 4px;
+	border: 1px solid #1f1f1f;
+}
+
 #preview-value {
 	font-size: 14pt;
 	font-weight: 700;
@@ -425,6 +449,49 @@ details > summary:hover {
 }
 
 .hw-hint[hidden] {
+	display: none;
+}
+
+/* Quiet Sections: flat non-interactive headers, uppercase micro-type over a
+   hairline rule. Static divs on purpose: no focus stop, nothing to click.
+   Rhythm is deliberately tight: seven headers ride the dial panel, so every
+   vertical pixel here is paid that many times. */
+.hw-section {
+	margin: 10px 12px 3px;
+	padding-top: 7px;
+	border-top: 1px solid #3a3a3a;
+	color: #969696;
+	font-family: "Segoe UI", Arial, sans-serif;
+	font-size: 7.5pt;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* Inside the advanced folds the rhythm tightens another step. */
+details .hw-section {
+	margin: 8px 12px 2px;
+	padding-top: 6px;
+}
+
+/* The first header after the setup fold: the fold's edge is rule enough. */
+.hw-setup + .hw-section {
+	border-top: none;
+	margin-top: 6px;
+	padding-top: 0;
+}
+
+/* Conditional blocks a select reveals: a left rule marks their scope. The
+   1px vertical padding contains the child rows' margins, so two visible
+   blocks in a row (#second-slot then #dual-rows/#quad-rows) touch and
+   their rules read as one. */
+.hw-cond {
+	border-left: 2px solid #3d3d3d;
+	margin-left: 10px;
+	padding: 1px 0 1px 2px;
+}
+
+.hw-cond[hidden] {
 	display: none;
 }
 
