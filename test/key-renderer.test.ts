@@ -98,9 +98,17 @@ describe("label fitting and badge collision", () => {
 		assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="20" font-weight="600"[^>]*>CCD1</);
 	});
 
-	it("a long label steps down the ladder before it ellipsizes", () => {
+	it("the ladder floors at the pre-adaptive 16: a wide name is cut there, never drawn smaller", () => {
+		// "Total CPU Usage" rendered whole at 16 under the old 16-char rule by
+		// overflowing the lens-safe band; the pixel fit keeps the SIZE and
+		// trades the overflow for an ellipsis.
 		const svg = render({ label: "Total CPU Usage" });
-		assert.match(svg, /<text x="72" y="32" [^>]*font-size="14"[^>]*>Total CPU Usage</);
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>Total CPU Usa…</);
+	});
+
+	it("a parenthesized HWiNFO name renders whole at 16 (narrow-punct glyph class)", () => {
+		const svg = render({ label: "CPU (Tctl/Tdie)" });
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>CPU \(Tctl\/Tdie\)</);
 	});
 
 	it("a mid-width label lands on the ladder's interior 16px step", () => {
@@ -116,23 +124,23 @@ describe("label fitting and badge collision", () => {
 	});
 
 
-	it("past the 14px floor the label ellipsizes at the widest fitting prefix", () => {
+	it("past the floor the label ellipsizes at the widest fitting prefix", () => {
 		const svg = render({ label: "Virtual Memory Committed" });
-		assert.match(svg, /font-size="14"[^>]*>Virtual Memory…</);
+		assert.match(svg, /font-size="16"[^>]*>Virtual Memo…</);
 	});
 
 	it("a wide 16-char label no longer overflows the 120px band: it ellipsizes", () => {
 		// Under the flat 16-char rule this rendered ~145px wide at 16px, past
 		// the lens-safe span; the pixel-aware fit keeps it inside the budget.
 		const svg = render({ label: "0123456789ABCDEF" });
-		assert.match(svg, /font-size="14"[^>]*>0123456789ABC…</);
+		assert.match(svg, /font-size="16"[^>]*>0123456789AB…</);
 	});
 
 	it("badge switches the label to left x=12, pixel-fit to the x=92 clip", () => {
 		const svg = render({ label: "Virtual Memory Committed", statBadge: "AVG" });
-		const label = textElement(svg, "Virtual M…");
+		const label = textElement(svg, "Virtual…");
 		assert.match(label, /x="12" y="32" text-anchor="start"/);
-		assert.match(label, /font-size="14"/);
+		assert.match(label, /font-size="16"/);
 		// The 80px clip is an opaque bg rect between label and badge — a solid
 		// fill, the only clipping primitive proven on the Stream Deck engine.
 		const mask = svg.indexOf(`<rect x="92" y="14" width="52" height="24" fill="${VOID.bg}"/>`);

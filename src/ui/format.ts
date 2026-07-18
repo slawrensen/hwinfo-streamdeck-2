@@ -273,6 +273,12 @@ function keyGlyphWidth12(ch: string): number {
 	if (ch === "i" || ch === "j" || ch === "l" || ch === "." || ch === "," || ch === "'" || ch === ":" || ch === ";" || ch === "!" || ch === "|") {
 		return 3.2;
 	}
+	// Parens and the slash are narrow in Segoe UI (~4.7 px at 12): HWiNFO's
+	// own names use them constantly ("CPU (Tctl/Tdie)"), and pricing them at
+	// the 7 px default costs those names a whole ladder step.
+	if (ch === "(" || ch === ")" || ch === "/") {
+		return 4.7;
+	}
 	if (ch >= "0" && ch <= "9") {
 		return 6.3;
 	}

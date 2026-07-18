@@ -73,14 +73,16 @@ export function ringValueFontSize(text: string): number {
 
 /** Label fitting: a size ladder against the pixel budget the label band
  * actually owns, so a short label ("CCD1") renders large and a long one
- * ("Virtual Memory Committed") steps down before ellipsizing at the floor.
- * Centered labels own x=12..132 (the lens-safe span both dual rows and the
- * badge mask already respect); a badge-sharing label owns x=12 to the badge
- * mask at x=92. Both ladders floor at 14, above the 12 px legibility floor. */
+ * ("Virtual Memory Committed") ellipsizes at the floor. Centered labels own
+ * x=12..132 (the lens-safe span both dual rows and the badge mask already
+ * respect); a badge-sharing label owns x=12 to the badge mask at x=92. Both
+ * ladders FLOOR at the pre-adaptive fixed 16: sizes only ever grow (the
+ * issue #3 ask), never shrink an existing profile's label — a name too wide
+ * for 16 is cut there, pixel-safe, where the old 16-char rule overflowed. */
 const LABEL_BUDGET = 120;
-const LABEL_SIZES = [20, 18, 16, 14] as const;
+const LABEL_SIZES = [20, 18, 16] as const;
 const LABEL_BUDGET_WITH_BADGE = 80;
-const LABEL_SIZES_WITH_BADGE = [18, 16, 14] as const;
+const LABEL_SIZES_WITH_BADGE = [18, 16] as const;
 /** Estimation slack for every label fit: the estimator cannot ask the engine
  * for real glyph metrics, so a few px stay unspent on purpose. */
 const LABEL_FIT_SLACK = 4;
