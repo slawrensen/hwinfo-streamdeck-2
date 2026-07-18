@@ -3,7 +3,7 @@ title: Sensor Reading (keys)
 nav_order: 4
 ---
 
-The **Sensor Reading** action puts a live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional [sparkline, bar, or ring display](#display-sparkline-bar-ring), and warn/critical coloring. A key can also [stack two readings](#layout-two-readings-on-one-key) as two compact rows, show [three readings as rows](#layout-three-readings-rows) with labels left and values right, or show [four readings in a quad grid](#layout-four-readings-the-quad-grid). Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
+The **Sensor Reading** action puts a live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional [sparkline, bar, or ring display](#display-sparkline-bar-ring), and warn/critical coloring. A key can also [stack two readings](#layout-two-readings-on-one-key) as two compact rows, show [three readings as rows](#layout-three-readings-rows), or show [four readings in a quad grid](#layout-four-readings-the-quad-grid). Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
 
 This page documents every setting in the key's settings panel. For the Stream Deck + dial, see [Sensor Dial](sensor-dial.md).
 
@@ -23,7 +23,7 @@ The **Live value** row directly below the picker mirrors the current reading (an
 
 ### Label
 
-Custom text for the key. Leave it blank to use the sensor's own (HWiNFO-renamed) label. Labels size themselves to the key automatically: a short name like `CCD1` renders large, a longer one steps down through smaller sizes, and only a name too wide for the smallest size is truncated with an ellipsis. A stat badge (MIN/MAX/AVG) sharing the top row shortens the label's room but never collides with it.
+Custom text for the key. Leave it blank to use the sensor's own (HWiNFO-renamed) label. Labels size themselves to the key: a short name like `CCD1` renders large, a longer one steps down through smaller sizes, and only a name too wide for the smallest size is truncated with an ellipsis. A stat badge (MIN/MAX/AVG) sharing the top row shortens the label's room but never collides with it.
 
 ### Theme
 
@@ -82,16 +82,16 @@ What carries over, and what stays with the first reading:
 - **Warn at / Critical at** watch the **first** reading only, and an alert recolors the whole key exactly like the single layout. There are no per-row thresholds; put the reading you want alerts on first (or use two keys).
 - The sensor-type accent (badge color) follows the first reading.
 - The **Display strip is a single-layout feature**: the second row takes its space, so the Display row hides while the layout is dual (the setting is kept for when you switch back).
-- Row labels size themselves like the single layout's: short names render a step larger, long names step down before truncating with an ellipsis. Badges never cost label space.
+- Row labels size themselves like the single layout's label. Badges never cost label space.
 - If one row's sensor drops out of HWiNFO's output, that row shows an em-dash placeholder while the other keeps updating; if both drop out, the key shows the usual **Sensor missing** screen.
 
 Switching back to **One reading** restores the exact single-layout face; the second reading's settings are remembered.
 
 ### Layout: three readings, rows
 
-**Layout → Three readings, rows** shows three compact horizontal rows: the label on the left, the value with its unit aligned on the right, separated by thin rules. It reads like a small table (CCD1, CCD2 and the core maximum of a 9950X3D fit on one key), where the stacked layout's two big values would not leave room for a third. The first row is the key's own sensor, the **Second sensor** and **Third sensor** pickers fill the other two, each with an optional label. The third slot is the same field the quad grid uses, so switching between three and four readings keeps every pick; a triple needs the first sensor plus at least one more, and an unpicked row stays empty.
+**Layout → Three readings, rows** shows three compact horizontal rows: the label on the left, the value with its unit aligned on the right, separated by thin rules. It reads like a small table (CCD1, CCD2 and the core maximum of a 9950X3D fit on one key). The first row is the key's own sensor, the **Second sensor** and **Third sensor** pickers fill the other two, each with an optional label. The third slot is the same field the quad grid uses, so switching between three and four readings keeps every pick; a triple needs the first sensor plus at least one more, and an unpicked row stays empty.
 
-Each row's label gets the space its own value leaves over: short names render larger, long names step down and then truncate with an ellipsis, and the value always wins the contest for room. Values keep one shared size per key so they read as a column.
+Each row's label gets the space its own value leaves over, sizing itself like the other layouts' labels. Values keep one shared size per key so they read as a column.
 
 ![The key's settings panel with Layout set to Three readings, rows: the Second and Third sensor pickers holding a GPU temperature and a GPU clock, their label fields, and the three-row help text below.]({{ '/assets/img/pi-key-triple.png' | relative_url }})
 

@@ -1,9 +1,9 @@
 // Captures the property inspectors (served by scripts/pi-harness.mjs) in
 // headless Chrome over CDP with real-time waits, so live WebSocket data and
-// the theme gallery are present. Fourteen states: the key PI's settings view,
+// the theme gallery are present. Fifteen states: the key PI's settings view,
 // open picker (marketplace shot 3), Display selector on Bar, Text set to
-// Custom with the color well and dim checkbox, dual layout, and quad layout
-// with the cell-colors row; the dial PI's rotation-set picker with ticked
+// Custom with the color well and dim checkbox, dual, triple and quad layouts
+// (quad with the cell-colors row); the dial PI's rotation-set picker with ticked
 // rows and chips, the rotation-group editor (two named groups with the
 // collector radio), the Elite preset view, the Custom gesture rows with
 // touch zones, the overview view's Context line + Separators controls, and
@@ -285,17 +285,15 @@ try {
 		if (!input) return "no rendered input";
 		return input.placeholder === "Short name; 4 characters show" ? "ok" : input.placeholder;
 	})()`));
-	for (const [box, query] of [["picker4", "pump"]]) {
-		await evaluate(`(() => { const el = document.getElementById("${box}-search"); el.focus(); el.value = ${JSON.stringify(query)}; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
-		await sleep(700);
-		expectOk(`${box} row`, await evaluate(`(() => {
-			const row = document.querySelector("#${box}-list .hw-row");
-			if (!row) return "missing";
-			row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-			return "ok";
-		})()`));
-		await sleep(500);
-	}
+	await evaluate(`(() => { const el = document.getElementById("picker4-search"); el.focus(); el.value = "pump"; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+	await sleep(700);
+	expectOk("fourth picker row", await evaluate(`(() => {
+		const row = document.querySelector("#picker4-list .hw-row");
+		if (!row) return "missing";
+		row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+		return "ok";
+	})()`));
+	await sleep(500);
 	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
 	await sleep(400);
 	const quadHeight = await evaluate(`Math.ceil([...document.body.children].reduce((m, el) => Math.max(m, el.getBoundingClientRect().bottom), 0))`);
@@ -466,7 +464,7 @@ try {
 	await sleep(300);
 	await capture("pi-control.png");
 
-	console.log(`captured 14 PI states to ${outDir}`);
+	console.log(`captured 15 PI states to ${outDir}`);
 } finally {
 	// The open CDP socket would otherwise hold the event loop until the
 	// watchdog fires — close it, then take the browser tree down.

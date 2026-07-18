@@ -277,10 +277,7 @@ function compose(state: InstanceState, status: PollerStatus): string {
 			return composeQuad(settings, snapshot, slotKeys);
 		}
 	}
-	// The triple rows follow the quad's gate: the exact "triple" marker plus
-	// at least two resolvable slots (an unconfigured slot renders an empty
-	// band). With only the primary left, the marker degrades onto the
-	// unchanged single path, exactly like dual and quad.
+	// Same gate as the quad above, over its first three slots.
 	if (settings.keyLayout === "triple") {
 		const slotKeys = [primaryKey, secondaryKey, nonEmptyStringOf(settings.quadReadingKey3)];
 		if (slotKeys.filter((k) => k !== undefined).length >= 2) {

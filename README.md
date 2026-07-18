@@ -81,11 +81,11 @@ the current value.
 | Setting | What it does |
 | --- | --- |
 | **Sensor** | Searchable picker over every reading HWiNFO publishes, with a live preview. |
-| **Label** | Custom key label; defaults to the sensor's (renamed) label. |
+| **Label** | Custom key label; defaults to the sensor's (renamed) label. Sizes itself to fit: short names render large, long names step down before they truncate. |
 | **Theme** | Preset gallery: this key only, or "Deck default" to follow the deck-wide theme. |
 | **Text** | Text intensity: deck default, theme, dim, or an exact custom color. |
 | **Show** | Current value, or HWiNFO's min / max / average since it started. |
-| **Layout** | One reading (default), two stacked readings with their own labels and stats, three compact rows with labels left and values right, or four in a 2x2 quad grid with per-cell colors or labels. Labels size themselves automatically: short names render large, long names step down before they truncate. |
+| **Layout** | One reading (default), two stacked readings with their own labels and stats, three compact rows with labels left and values right, or four in a 2x2 quad grid with per-cell colors or labels. |
 | **Decimals** | Auto (magnitude-based, compacts through k/M/G/T: 48 700 → `48.7k`) or fixed 0–3. Bytes and rates re-tier by the deck-wide **Data units** (decimal KB/MB/GB with Mbps rates, or binary KiB/MiB/GiB with MiB/s). |
 | **Unit** | Show temperatures in °F instead of °C. |
 | **Display** | Recent history as a sparkline, or the value in its range as a bar or ring, with amber/red threshold zones. |

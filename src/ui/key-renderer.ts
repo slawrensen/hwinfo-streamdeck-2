@@ -508,9 +508,8 @@ export function renderTripleKey(opts: TripleKeyOptions): string {
 	});
 	const valueSize = tripleValueFontSize(rows);
 	// Fit every label first: the face-wide spread cap needs the smallest
-	// fitted peer before anything draws. A row whose chunk leaves no
-	// readable budget, or whose fit degenerates to a lone ellipsis, draws
-	// value-only (and doesn't drag the cap down).
+	// fitted peer before anything draws (a degenerate fit draws value-only
+	// and doesn't drag the cap down).
 	const fitted = rows.map((row) => {
 		if (row === null) {
 			return null;
@@ -523,7 +522,7 @@ export function renderTripleKey(opts: TripleKeyOptions): string {
 		const label = fitTextLadder(row.label, labelBudget, TRIPLE_LABEL_SIZES, { minimumSlack: 2 });
 		return { chunkWidth, label: label.text === "" || label.text === "…" ? null : label };
 	});
-	const minLabelSize = Math.min(...fitted.map((f) => (f?.label !== null && f !== null ? f.label.fontSize : Number.POSITIVE_INFINITY)));
+	const minLabelSize = Math.min(...fitted.map((f) => (f !== null && f.label !== null ? f.label.fontSize : Number.POSITIVE_INFINITY)));
 	const parts: string[] = svgOpen(144, 144, palette.bg);
 	rows.forEach((row, i) => {
 		if (row === null) {

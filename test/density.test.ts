@@ -46,10 +46,17 @@ function assertRenderable(svg: string, canvasW: number, canvasH: number, what: s
 		assert.ok(!svg.includes(poison), `${what}: contains ${poison}`);
 	}
 	assert.doesNotThrow(() => encodeURIComponent(svg), `${what}: not URI-encodable`);
-	// Every drawn x coordinate stays inside the canvas.
+	// SVG features the Stream Deck engine is not proven to honor.
+	for (const feature of ["clipPath", "dominant-baseline", "<style", "<filter", "<mask", "textLength"]) {
+		assert.ok(!svg.includes(feature), `${what}: unsupported SVG feature ${feature}`);
+	}
+	// Every drawn x coordinate stays inside the canvas; no negative extents.
 	for (const match of svg.matchAll(/ x="(-?[\d.]+)"/g)) {
 		const x = Number(match[1]);
 		assert.ok(x >= 0 && x <= canvasW, `${what}: x=${x} outside canvas`);
+	}
+	for (const match of svg.matchAll(/ width="(-?[\d.]+)"/g)) {
+		assert.ok(Number(match[1]) >= 0, `${what}: negative width ${match[1]}`);
 	}
 	// Legibility floor: nothing below 12px logical (6px at the 0.5x target)
 	// and no stroke under 3px (1.5px at 0.5x).

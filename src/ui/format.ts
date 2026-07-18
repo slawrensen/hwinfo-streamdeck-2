@@ -267,11 +267,6 @@ function keyGlyphWidth12(ch: string): number {
 	if (ch === " ") {
 		return 3.4;
 	}
-	if (ch === "…") {
-		// The label ellipsis' real advance (the footer budgets its own 10):
-		// overpricing the ellipsis retreats fits one character too far.
-		return 7;
-	}
 	if (isWideGlyph(ch.codePointAt(0) as number)) {
 		return 12;
 	}
@@ -293,6 +288,8 @@ function keyGlyphWidth12(ch: string): number {
 	if (ch >= "a" && ch <= "z") {
 		return 6.1;
 	}
+	// Also the label ellipsis' real advance (the footer budgets its own 10;
+	// overpricing the ellipsis retreats a floor fit one character too far).
 	return 7;
 }
 
@@ -305,8 +302,6 @@ export type TextFitOptions = {
 	fontWeight?: 600 | 700;
 	/** SVG letter-spacing in px, applied per inter-glyph gap at every size. */
 	letterSpacing?: number;
-	/** Estimate (and return) the uppercased text, for micro-label callers. */
-	uppercase?: boolean;
 	/** Extra px the fit must leave unused, on top of the caller's budget. */
 	minimumSlack?: number;
 };
@@ -331,12 +326,10 @@ export function estimateKeyTextWidth(text: string, fontSize: number, options?: T
 	return width + Math.max(0, count - 1) * (options?.letterSpacing ?? 0);
 }
 
-/** One fitted string: what to draw, at what size, and the width the fit
- * budgeted for it (so callers can lay out neighbors deterministically). */
+/** One fitted string: what to draw, at what size. */
 export type FittedText = {
 	text: string;
 	fontSize: number;
-	estimatedWidth: number;
 };
 
 /**
@@ -347,29 +340,24 @@ export type FittedText = {
  * deterministic: same text, budget and ladder always fit identically.
  */
 export function fitTextLadder(text: string, maxWidth: number, sizes: readonly number[], options?: TextFitOptions): FittedText {
-	const display = options?.uppercase === true ? text.toUpperCase() : text;
-	if (display === "") {
-		return { text: "", fontSize: sizes[0] as number, estimatedWidth: 0 };
+	if (text === "") {
+		return { text: "", fontSize: sizes[0] as number };
 	}
 	const budget = maxWidth - (options?.minimumSlack ?? 0);
 	const floor = sizes[sizes.length - 1] as number;
 	for (const size of sizes) {
-		const width = estimateKeyTextWidth(display, size, options);
-		if (width <= budget) {
-			return { text: display, fontSize: size, estimatedWidth: width };
+		if (estimateKeyTextWidth(text, size, options) <= budget) {
+			return { text, fontSize: size };
 		}
 	}
-	const chars = Array.from(display);
-	let kept = 0;
+	const chars = Array.from(text);
 	for (let i = chars.length - 1; i > 0; i--) {
 		const candidate = `${chars.slice(0, i).join("").trimEnd()}…`;
 		if (estimateKeyTextWidth(candidate, floor, options) <= budget) {
-			kept = i;
-			break;
+			return { text: candidate, fontSize: floor };
 		}
 	}
-	const fitted = kept === 0 ? "…" : `${chars.slice(0, kept).join("").trimEnd()}…`;
-	return { text: fitted, fontSize: floor, estimatedWidth: estimateKeyTextWidth(fitted, floor, options) };
+	return { text: "…", fontSize: floor };
 }
 
 /**

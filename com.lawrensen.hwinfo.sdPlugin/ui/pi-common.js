@@ -707,14 +707,13 @@
 		const displayItemEl = document.getElementById("display-item");
 		// quadLabel3 doubles as the triple's third-row label: full length
 		// there, first 4 characters in the quad grid. Swap the placeholder
-		// with the mode (display only, never a settings write). The sdpi
-		// textfield can't be driven through its own placeholder property
-		// (it wants a localized-message object; a plain string throws inside
-		// its update cycle and wedges the whole panel) and its attribute
-		// observer never repaints a changed value, so write the rendered
-		// input directly; the 400 ms layout poll re-asserts it if the
-		// component re-renders over it. The host attribute is kept in sync
-		// so the markup stays truthful.
+		// with the mode. The sdpi textfield can't be driven through its own
+		// placeholder property (it wants a localized-message object; a plain
+		// string throws inside its update cycle and wedges the whole panel)
+		// and its attribute observer never repaints a changed value, so
+		// write the rendered input directly; the 400 ms layout poll
+		// re-asserts it if the component re-renders over it. The host
+		// attribute is kept in sync so the markup stays truthful.
 		const thirdLabelHint = (quad) => {
 			if (thirdLabelEl === null) return;
 			const hint = quad ? "Short name; 4 characters show" : "Custom label (default: sensor name)";

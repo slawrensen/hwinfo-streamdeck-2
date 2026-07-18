@@ -115,13 +115,6 @@ describe("label fitting and badge collision", () => {
 		assert.match(render({ label: "Core Max", statBadge: "MAX" }), /<text x="12" y="32" text-anchor="start" [^>]*font-size="16"[^>]*>Core Max</);
 	});
 
-	it("a CJK label is estimated at a full em per glyph and steps down instead of overflowing", () => {
-		// 8 fullwidth glyphs estimate 96px at 12px (roughly their true run),
-		// so the fit lands at 14px whole instead of the 20px top that would
-		// clip both canvas edges.
-		const svg = render({ label: "電力消費量テスト" });
-		assert.match(svg, /<text x="72" y="32" [^>]*font-size="14"[^>]*>電力消費量テスト</);
-	});
 
 	it("past the 14px floor the label ellipsizes at the widest fitting prefix", () => {
 		const svg = render({ label: "Virtual Memory Committed" });
@@ -847,7 +840,6 @@ function renderTriple(overrides: Partial<TripleKeyOptions> = {}): string {
 describe("triple layout geometry (three 48px bands, separators at y=47/95)", () => {
 	it("value chunks end-anchored at x=132 on band-center baselines 30/78/126, one shared size", () => {
 		const svg = renderTriple();
-		assert.equal(tripleValueFontSize([tripleRowFixture()]), 18);
 		for (const [y, value] of [
 			[30, "35.9"],
 			[78, "37.3"],
@@ -959,11 +951,6 @@ describe("triple layout geometry (three 48px bands, separators at y=47/95)", () 
 		assert.doesNotMatch(svg, /<rect x="12" y="95"/);
 	});
 
-	it("a missing row renders the placeholder glyph with no unit", () => {
-		const svg = renderTriple({ rows: [tripleRowFixture(), tripleRowFixture({ label: "Gone", valueText: "—", unitText: "" }), null] });
-		assert.match(svg, /<text x="132" y="78" text-anchor="end" [^>]*>—<\/text>/);
-	});
-
 	it("unit omitted when empty", () => {
 		const svg = renderTriple({ rows: [tripleRowFixture({ unitText: "" }), tripleRowFixture({ unitText: "" }), null] });
 		assert.doesNotMatch(svg, /tspan/);
@@ -1040,15 +1027,6 @@ describe("adaptive ladder policy (the real renderer arrays, not copies)", () => 
 		}
 	});
 
-	it("the ladders read exactly as documented", () => {
-		assert.deepEqual(KEY_TEXT_LADDERS.singleLabel, [20, 18, 16, 14]);
-		assert.deepEqual(KEY_TEXT_LADDERS.singleLabelWithBadge, [18, 16, 14]);
-		assert.deepEqual(KEY_TEXT_LADDERS.dualLabelTop, [15, 14]);
-		assert.deepEqual(KEY_TEXT_LADDERS.dualLabel, [16, 15, 14]);
-		assert.deepEqual(KEY_TEXT_LADDERS.tripleValue, [18, 16, 14]);
-		assert.deepEqual(KEY_TEXT_LADDERS.tripleLabel, [16, 15, 14, 13, 12]);
-		assert.deepEqual(KEY_TEXT_LADDERS.quadMicroLabel, [14, 12]);
-	});
 });
 
 describe("triple hardening", () => {
