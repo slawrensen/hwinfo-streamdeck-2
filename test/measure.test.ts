@@ -292,8 +292,9 @@ describe("formatStat and isDataUnit", () => {
 
 describe("estimateKeyTextWidth (the key faces' glyph-class estimator)", () => {
 	it("scales linearly from the 12px calibration", () => {
+		// C 7.15 ×2 + D 8.65 + "1" 4.85 = 27.8, minus the 1.5 terminal credit.
 		const at12 = estimateKeyTextWidth("CCD1", 12);
-		assert.ok(Math.abs(at12 - 29.1) < 1e-9, `CCD1 at 12px: ${at12}`);
+		assert.ok(Math.abs(at12 - 26.3) < 1e-9, `CCD1 at 12px: ${at12}`);
 		assert.ok(Math.abs(estimateKeyTextWidth("CCD1", 24) - at12 * 2) < 1e-9, "24px is exactly double 12px");
 	});
 
@@ -306,15 +307,19 @@ describe("estimateKeyTextWidth (the key faces' glyph-class estimator)", () => {
 		assert.ok(estimateKeyTextWidth("...", 12) < estimateKeyTextWidth("…", 12) * 2, "punctuation narrow, ellipsis wide");
 	});
 
-	it("unknown glyphs take the widest common budget (overestimate keeps text inside)", () => {
-		assert.equal(estimateKeyTextWidth("°", 12), 7);
+	it("unknown glyphs take a near-worst measured advance (overestimate keeps text inside)", () => {
+		// µ is unmapped: default 9.1 minus the 1.5 terminal credit. ° is now a
+		// MEASURED narrow glyph (4.55), no longer priced at an average.
+		assert.ok(Math.abs(estimateKeyTextWidth("µ", 12) - 7.6) < 1e-9);
+		assert.ok(Math.abs(estimateKeyTextWidth("°", 12) - 3.05) < 1e-9);
 	});
 
-	it("East Asian wide glyphs cost a full em", () => {
-		// A 7px default here undercounts fullwidth glyphs by ~40% and lets a
-		// CJK sensor name overflow the face at the ladder's top size.
+	it("East Asian wide glyphs advance a full em", () => {
+		// A default-width pricing here undercounts fullwidth glyphs by ~25% and
+		// lets a CJK sensor name overflow the face at the ladder's top size.
+		// Differencing cancels the terminal credit: each glyph adds exactly 12.
 		for (const glyph of ["水", "電", "テ", "한", "！", "😀"]) {
-			assert.equal(estimateKeyTextWidth(glyph, 12), 12, glyph);
+			assert.equal(estimateKeyTextWidth(glyph.repeat(2), 12) - estimateKeyTextWidth(glyph, 12), 12, glyph);
 		}
 	});
 
@@ -322,7 +327,8 @@ describe("estimateKeyTextWidth (the key faces' glyph-class estimator)", () => {
 		const base = estimateKeyTextWidth("MAX", 12);
 		assert.ok(estimateKeyTextWidth("MAX", 12, { fontWeight: 700 }) > base);
 		assert.equal(estimateKeyTextWidth("MAX", 12, { letterSpacing: 0.5 }), base + 1);
-		assert.equal(estimateKeyTextWidth("M", 12, { letterSpacing: 0.5 }), 10.4);
+		// Single glyph, no gaps: measured M advance 11.1 minus the 1.5 credit.
+		assert.ok(Math.abs(estimateKeyTextWidth("M", 12, { letterSpacing: 0.5 }) - 9.6) < 1e-9);
 	});
 });
 
@@ -369,8 +375,9 @@ describe("fitTextLadder (largest safe size, ellipsis only at the floor)", () => 
 	});
 
 	it("the ellipsis is budgeted at its real label advance, not the footer's", () => {
-		// Overpricing "…" retreats the floor fit one character too far and
-		// leaves dead space beside the cut ("SoC Po…" where "SoC Pow…" fits).
-		assert.equal(estimateKeyTextWidth("…", 12), 7);
+		// The old class table priced "…" at 7px against a measured 9.8 advance:
+		// floor cuts could poke ~3px past their budget. Now 9.8 minus the 1.5
+		// terminal credit; mispricing either way misplaces the cut point.
+		assert.ok(Math.abs(estimateKeyTextWidth("…", 12) - 8.3) < 1e-9);
 	});
 });

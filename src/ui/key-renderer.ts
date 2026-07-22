@@ -3,8 +3,9 @@
  * Stream Deck's renderer is not a browser: explicit x/y + text-anchor only,
  * no CSS blocks, no dominant-baseline, local fonts only).
  *
- * Geometry is locked by the display spec: anchors never move; only the value
- * glyph size flexes with character count.
+ * Geometry is locked by the display spec: anchors move only when the spec
+ * does (the unit baseline lifted 118→112 in the 2026-07 bottom-zone fix);
+ * value and label glyph sizes flex with content.
  */
 import { estimateKeyTextWidth, fitTextLadder, truncateLabel, type FittedText } from "./format";
 import { themeTextColors, type TextColors } from "./text-colors";
@@ -71,21 +72,17 @@ export function ringValueFontSize(text: string): number {
 	return count >= 9 ? 16 : (RING_VALUE_SIZES[count] as number);
 }
 
-/** Label fitting: a size ladder against the pixel budget the label band
- * actually owns, so a short label ("CCD1") renders large and a long one
- * ("Virtual Memory Committed") ellipsizes at the floor. Centered labels own
- * x=12..132 (the lens-safe span both dual rows and the badge mask already
- * respect); a badge-sharing label owns x=12 to the badge mask at x=92. Both
- * ladders FLOOR at the pre-adaptive fixed 16: sizes only ever grow (the
- * issue #3 ask), never shrink an existing profile's label — a name too wide
- * for 16 is cut there, pixel-safe, where the old 16-char rule overflowed. */
+/** Label fitting: a size ladder against the 120 px band every label owns
+ * (x=12..132, the lens-safe span), so a short label ("CCD1") renders large
+ * and a long one ellipsizes at the floor — which stays the pre-adaptive 16:
+ * sizes only ever grow (the issue #3 ask), never shrink an existing
+ * profile's label. */
 const LABEL_BUDGET = 120;
 const LABEL_SIZES = [20, 18, 16] as const;
-const LABEL_BUDGET_WITH_BADGE = 80;
-const LABEL_SIZES_WITH_BADGE = [18, 16] as const;
-/** Estimation slack for every label fit: the estimator cannot ask the engine
- * for real glyph metrics, so a few px stay unspent on purpose. */
-const LABEL_FIT_SLACK = 4;
+/** The stat badge's shared-badge rows: gap 38..52, caps on baseline 48 —
+ * between the label band and the widest value's digit tops (y≈56.6). */
+const BADGE_GAP_Y = 38;
+const BADGE_TEXT_Y = 48;
 
 export function escapeXml(text: string): string {
 	return text.replace(/[<>&'"]/g, (c) => {
@@ -254,32 +251,27 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 	const { valueText, unitText, statBadge, history, gauge, palette } = opts;
 	const text = opts.text ?? themeTextColors(palette);
 	const ring = gauge?.kind === "ring";
-	const hasBadge = statBadge !== "";
-	const label = hasBadge
-		? fitTextLadder(opts.label, LABEL_BUDGET_WITH_BADGE, LABEL_SIZES_WITH_BADGE, { minimumSlack: LABEL_FIT_SLACK })
-		: fitTextLadder(opts.label, LABEL_BUDGET, LABEL_SIZES, { minimumSlack: LABEL_FIT_SLACK });
+	const label = fitTextLadder(opts.label, LABEL_BUDGET, LABEL_SIZES);
 	const parts: string[] = svgOpen(144, 144, palette.bg);
 	if (ring && gauge !== undefined) {
-		// The ring draws first so the value and unit paint over its field.
+		// The ring draws first so the value, unit and badge paint over its field.
 		parts.push(...keyRingSvg(gauge, palette));
 	}
-	if (hasBadge) {
-		// Left-anchored label hard-clipped at x=92 (max 80 px) so it can never
-		// reach the end-anchored badge, which owns x≥96. The clip is an opaque
-		// bg-colored rect over the label band — clipPath is a reference-based
-		// SVG feature the Stream Deck engine isn't proven to honor; a solid
-		// fill is renderer-proof by construction.
-		parts.push(
-			`<text x="12" y="32" text-anchor="start" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`,
-			`<rect x="92" y="14" width="52" height="24" fill="${palette.bg}"/>`,
-			`<text x="132" y="32" text-anchor="end" font-family="${FONT}" font-size="12" font-weight="700" letter-spacing="0.5" fill="${text.badge}">${escapeXml(statBadge.toUpperCase())}</text>`
-		);
-	} else {
-		parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`);
+	parts.push(`<text x="72" y="32" text-anchor="middle" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`);
+	if (statBadge !== "") {
+		// The stat reads as part of the whole "title / stat / number" stack, in
+		// the family's shared-badge gap idiom: the bg rect notches the Ring
+		// crown the way the dual gap notches its divider, and the label keeps
+		// its full band — a stat must never cost title width.
+		parts.push(...sharedBadgeSvg(statBadge, palette, text.badge, BADGE_GAP_Y, BADGE_TEXT_Y));
 	}
 	parts.push(`<text x="72" y="94" text-anchor="middle" font-family="${FONT}" font-size="${ring ? ringValueFontSize(valueText) : valueFontSize(valueText)}" font-weight="700" fill="${text.value}">${escapeXml(valueText)}</text>`);
 	if (unitText !== "") {
-		parts.push(`<text x="72" y="118" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${text.unit}">${escapeXml(unitText)}</text>`);
+		// Baseline 112/18: the spark/bar band draws LATER and paints over what
+		// it reaches (spark ink tops at y=118 whenever the line rides its
+		// session max), so the unit clears it — measured 4.8 px up to the
+		// value, 5.8 px down to worst-case spark ink.
+		parts.push(`<text x="72" y="112" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="600" fill="${text.unit}">${escapeXml(unitText)}</text>`);
 	}
 	if (gauge !== undefined && gauge.kind === "bar") {
 		parts.push(...keyBarSvg(gauge, palette));
@@ -315,10 +307,10 @@ const DUAL_VALUE_MAX = 14;
 /** The divider gap that hosts the shared badge: centered on x=72. */
 const DUAL_BADGE_GAP = { x: 47, y: 63, w: 50, h: 14 } as const;
 
-/** Gap first (opaque bg over the divider or cross arms), then the badge into
- * it: solid fills, the only clipping primitive proven on this engine. The
- * default gap/text rows are the dual divider's; the triple layout passes its
- * own separator's rows and everything else stays identical. */
+/** Gap first (opaque bg over whatever lies beneath — divider, cross arms or
+ * the single key's ring crown), then the badge into it: solid fills, the
+ * only clipping primitive proven on this engine. The default gap/text rows
+ * are the dual divider's; the triple and single layouts pass their own. */
 function sharedBadgeSvg(badge: string, palette: Palette, badgeColor: string, gapY: number = DUAL_BADGE_GAP.y, textY = 76): [string, string] {
 	return [
 		`<rect x="${DUAL_BADGE_GAP.x}" y="${gapY}" width="${DUAL_BADGE_GAP.w}" height="${DUAL_BADGE_GAP.h}" fill="${palette.bg}"/>`,
@@ -376,7 +368,7 @@ export function renderDualKey(opts: DualKeyOptions): string {
 	[opts.top, opts.bottom].forEach((row, i) => {
 		const labelY = DUAL.labelY + i * DUAL.rowPitch;
 		const valueY = DUAL.valueY + i * DUAL.rowPitch;
-		const label = fitTextLadder(row.label, LABEL_BUDGET, i === 0 ? DUAL_LABEL_SIZES_TOP : DUAL_LABEL_SIZES, { minimumSlack: LABEL_FIT_SLACK });
+		const label = fitTextLadder(row.label, LABEL_BUDGET, i === 0 ? DUAL_LABEL_SIZES_TOP : DUAL_LABEL_SIZES);
 		parts.push(`<text x="72" y="${labelY}" text-anchor="middle" font-family="${FONT}" font-size="${label.fontSize}" font-weight="600" fill="${text.label}">${escapeXml(label.text)}</text>`);
 		const valueText = truncateLabel(row.valueText, DUAL_VALUE_MAX);
 		const badged = row.statBadge !== "";
@@ -661,8 +653,9 @@ export function renderQuadKey(opts: QuadKeyOptions): string {
 			const micro = Array.from(cell.label.trim().toUpperCase()).slice(0, QUAD_LABEL_MAX).join("").trimEnd();
 			if (micro !== "") {
 				// The 4-code-point cut above keeps the identity budget; the fit
-				// only picks the size (4 glyphs never ellipsize inside 50 px).
-				const fit = fitTextLadder(micro, QUAD_LABEL_BUDGET, QUAD_LABEL_SIZES, { fontWeight: 700, letterSpacing: 0.5, minimumSlack: 2 });
+				// only picks the size (four bold W's price 48.2, inside 50 —
+				// any slack here would push WWWW into an ellipsis).
+				const fit = fitTextLadder(micro, QUAD_LABEL_BUDGET, QUAD_LABEL_SIZES, { fontWeight: 700, letterSpacing: 0.5 });
 				parts.push(`<text x="${cx}" y="${top + 20}" text-anchor="middle" font-family="${FONT}" font-size="${fit.fontSize}" font-weight="700" letter-spacing="0.5" fill="${cell.color}">${escapeXml(fit.text)}</text>`);
 			}
 		}
@@ -690,7 +683,6 @@ export function renderQuadKey(opts: QuadKeyOptions): string {
  * instead of copies that drift. */
 export const KEY_TEXT_LADDERS = {
 	singleLabel: LABEL_SIZES,
-	singleLabelWithBadge: LABEL_SIZES_WITH_BADGE,
 	dualLabelTop: DUAL_LABEL_SIZES_TOP,
 	dualLabel: DUAL_LABEL_SIZES,
 	tripleValue: TRIPLE_VALUE_SIZES,

@@ -253,54 +253,50 @@ function isWideGlyph(code: number): boolean {
 }
 
 /**
- * Estimated pixel width of one glyph at 12 px, by class. The key layouts'
- * generalization of the footer table above: same calibration and classes,
- * plus a wide class for M/W (and their lowercase) and a full-em class for
- * East Asian wide glyphs, so a four-cap quad micro-label, an all-caps key
- * label or a CJK sensor name can't slip past its budget on the
- * average-width assumption. The footer keeps its own table untouched — dial
- * fitting is locked output and must not shift under a key-side refinement.
- * Unknown glyphs take the widest common budget: overestimating keeps text
- * inside the face, underestimating overflows it.
+ * Measured Segoe UI Semibold advances at the 12 px basis (2026-07-21,
+ * rasterized string differencing at 8× density), each value rounded UP to
+ * 0.05 so a sum only over-prices. Replaces the glyph-class averages, which
+ * erred both ways: narrow glyphs over-priced (t 6.1 vs 4.35) cut names that
+ * fit ("Total CPU Usage"), and M/W/… under-priced (… 7 vs 9.8) let floor
+ * cuts poke past their budget.
  */
+const KEY_GLYPH_ADVANCE_12: Readonly<Record<string, number>> = {
+	A: 8.1, B: 7.25, C: 7.15, D: 8.65, E: 6.25, F: 6.05, G: 8.4, H: 8.85, I: 3.5, J: 4.45, K: 7.35, L: 5.9, M: 11.1,
+	N: 9.25, O: 9.1, P: 7.05, Q: 9.1, R: 7.5, S: 6.55, T: 6.9, U: 8.45, V: 7.7, W: 11.6, X: 7.45, Y: 6.95, Z: 7.05,
+	a: 6.3, b: 7.25, c: 5.65, d: 7.25, e: 6.4, f: 4.15, g: 7.25, h: 7.0, i: 3.15, j: 3.35, k: 6.3, l: 3.15, m: 10.65,
+	n: 7.0, o: 7.2, p: 7.25, q: 7.25, r: 4.45, s: 5.2, t: 4.35, u: 7.0, v: 6.1, w: 9.1, x: 6.05, y: 6.1, z: 5.6,
+	"0": 6.7, "1": 4.85, "2": 6.7, "3": 6.7, "4": 6.95, "5": 6.7, "6": 6.7, "7": 6.45, "8": 6.7, "9": 6.7,
+	" ": 3.3, "(": 4.0, ")": 4.0, "/": 5.0, ".": 2.9, ",": 2.9, "'": 3.1, ":": 2.9, ";": 2.9, "!": 3.65, "|": 3.35,
+	"%": 10.1, "°": 4.55, "…": 9.8, "#": 7.1, "+": 8.35, "-": 4.85, _: 5.0, "&": 8.6, "=": 8.35, "~": 8.35, "*": 5.25,
+	"[": 4.0, "]": 4.0, "<": 8.35, ">": 8.35, '"': 5.25, "?": 5.35, "@": 11.5
+};
+
+/** Unmapped non-wide glyphs (µ, Ω, §, …) take a near-worst measured advance:
+ * overestimating keeps an odd custom name inside the face. */
+const KEY_GLYPH_DEFAULT_12 = 9.1;
+
+/** The table sums advance boxes; the face constraint is on INK, which sits
+ * inside the box by the terminal side bearings. This credit (12 px basis,
+ * scales with size) makes estimates track rasterized ink within +4/−2.5 px
+ * at 16 px on the measured corpus — without it, "Total CPU Usage" (ink
+ * 118.4, inside the 120 band) prices at 121 and wrongly ellipsizes. */
+const TERMINAL_BEARING_CREDIT_12 = 1.5;
+
 function keyGlyphWidth12(ch: string): number {
-	if (ch === " ") {
-		return 3.4;
+	const mapped = KEY_GLYPH_ADVANCE_12[ch];
+	if (mapped !== undefined) {
+		return mapped;
 	}
+	// East Asian wide and fullwidth glyphs advance a full em.
 	if (isWideGlyph(ch.codePointAt(0) as number)) {
 		return 12;
 	}
-	if (ch === "i" || ch === "j" || ch === "l" || ch === "." || ch === "," || ch === "'" || ch === ":" || ch === ";" || ch === "!" || ch === "|") {
-		return 3.2;
-	}
-	// Parens and the slash are narrow in Segoe UI (~4.7 px at 12): HWiNFO's
-	// own names use them constantly ("CPU (Tctl/Tdie)"), and pricing them at
-	// the 7 px default costs those names a whole ladder step.
-	if (ch === "(" || ch === ")" || ch === "/") {
-		return 4.7;
-	}
-	if (ch >= "0" && ch <= "9") {
-		return 6.3;
-	}
-	if (ch === "M" || ch === "W" || ch === "%") {
-		return 10.4;
-	}
-	if (ch === "m" || ch === "w") {
-		return 9.6;
-	}
-	if (ch >= "A" && ch <= "Z") {
-		return 7.6;
-	}
-	if (ch >= "a" && ch <= "z") {
-		return 6.1;
-	}
-	// Also the label ellipsis' real advance (the footer budgets its own 10;
-	// overpricing the ellipsis retreats a floor fit one character too far).
-	return 7;
+	return KEY_GLYPH_DEFAULT_12;
 }
 
 /** Bold strokes (weight 700) run a touch wider than the 600 the table is
- * calibrated for; a flat few percent keeps the estimate on the safe side. */
+ * calibrated for; measured 1.0413 on a mixed corpus string, kept at a flat
+ * 1.04 (the credit above absorbs the hairline). */
 const BOLD_WIDTH_FACTOR = 1.04;
 
 export type TextFitOptions = {
@@ -313,10 +309,12 @@ export type TextFitOptions = {
 };
 
 /**
- * Estimated pixel width of a string as a key face renders it: the glyph-class
- * table above scaled linearly from its 12 px calibration, a flat widening for
- * weight 700, and the caller's letter-spacing per gap. Estimation only (the
- * Stream Deck engine cannot be asked to measure), so callers budget slack.
+ * Estimated ink width of a string as a key face renders it: the measured
+ * advance table scaled linearly from its 12 px calibration, minus the
+ * terminal-bearing credit, a flat widening for weight 700, and the caller's
+ * letter-spacing per gap. Estimation only (the Stream Deck engine cannot be
+ * asked to measure), but calibrated against rasterized ink, so callers can
+ * spend their whole pixel budget.
  */
 export function estimateKeyTextWidth(text: string, fontSize: number, options?: TextFitOptions): number {
 	let width = 0;
@@ -324,6 +322,9 @@ export function estimateKeyTextWidth(text: string, fontSize: number, options?: T
 	for (const ch of text) {
 		width += keyGlyphWidth12(ch);
 		count++;
+	}
+	if (count > 0) {
+		width -= TERMINAL_BEARING_CREDIT_12;
 	}
 	width = (width * fontSize) / 12;
 	if (options?.fontWeight === 700) {

@@ -76,18 +76,20 @@ describe("value shrink ramp (digits+dot+sign; unit excluded)", () => {
 describe("anchors never move", () => {
 	for (const history of [undefined, [50, 60, 55, 70]]) {
 		const name = history === undefined ? "without sparkline" : "with sparkline";
-		it(`value y=94, unit y=118, label y=32 ${name}`, () => {
+		it(`value y=94, unit y=112, label y=32 ${name}`, () => {
 			const svg = render({ history });
 			assert.match(svg, /<text x="72" y="94" /);
-			assert.match(svg, /<text x="72" y="118" [^>]*font-size="16" font-weight="600"/);
-			// The label anchor is fixed; its size adapts ("CPU Package" fits 18).
-			assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="18" font-weight="600"/);
+			// Unit baseline 112/18px clears the spark band, whose ink tops out
+			// at y=118 and paints over anything it reaches (drawn later).
+			assert.match(svg, /<text x="72" y="112" [^>]*font-size="18" font-weight="600"/);
+			// The label anchor is fixed; its size adapts ("CPU Package" fits 20).
+			assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="20" font-weight="600"/);
 		});
 	}
 
 	it("unit omitted when empty, anchors unchanged", () => {
 		const svg = render({ unitText: "" });
-		assert.doesNotMatch(svg, /y="118"/);
+		assert.doesNotMatch(svg, /y="112"/);
 		assert.match(svg, /<text x="72" y="94" /);
 	});
 });
@@ -98,12 +100,19 @@ describe("label fitting and badge collision", () => {
 		assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="20" font-weight="600"[^>]*>CCD1</);
 	});
 
-	it("the ladder floors at the pre-adaptive 16: a wide name is cut there, never drawn smaller", () => {
-		// "Total CPU Usage" rendered whole at 16 under the old 16-char rule by
-		// overflowing the lens-safe band; the pixel fit keeps the SIZE and
-		// trades the overflow for an ellipsis.
+	it("a name whose ink fits the band renders whole at the 16 floor", () => {
+		// "Total CPU Usage" measures 118.4px of ink at 16px, inside the 120px
+		// band; the old class-averaged table priced it at 121 and wrongly
+		// ellipsized it. The measured table admits it whole, as 1.3.0 drew it.
 		const svg = render({ label: "Total CPU Usage" });
-		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>Total CPU Usa…</);
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>Total CPU Usage</);
+	});
+
+	it("the ladder floors at the pre-adaptive 16: a truly wide name is cut there, never drawn smaller", () => {
+		// "CPU Die (average)" measures 129.6px of ink at 16px, genuinely past
+		// the band (the old 16-char rule let it bleed into the lens crop).
+		const svg = render({ label: "CPU Die (average)" });
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>CPU Die \(avera…</);
 	});
 
 	it("a parenthesized HWiNFO name renders whole at 16 (narrow-punct glyph class)", () => {
@@ -112,21 +121,23 @@ describe("label fitting and badge collision", () => {
 	});
 
 	it("a mid-width label lands on the ladder's interior 16px step", () => {
-		// "CPU Core Clock" estimates 84.6px at 12px: past 18's 77.3px window,
-		// inside 16's 87px window. Locks the interior step against removal.
+		// "CPU Core Clock" estimates 82.4px at 12px: past 18's 81.5px window
+		// ((120×12/18)+credit), inside 16's 91.5px. Locks the interior step.
 		const svg = render({ label: "CPU Core Clock" });
 		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>CPU Core Clock</);
 	});
 
-	it("a badged short label takes the badge ladder's 18px top; a medium one its interior 16", () => {
-		assert.match(render({ label: "CCD1", statBadge: "MAX" }), /<text x="12" y="32" text-anchor="start" [^>]*font-size="18"[^>]*>CCD1</);
-		assert.match(render({ label: "Core Max", statBadge: "MAX" }), /<text x="12" y="32" text-anchor="start" [^>]*font-size="16"[^>]*>Core Max</);
+	it("a stat badge never costs title width: the label renders exactly as on the live face", () => {
+		const labelElement = (svg: string) => (svg.match(/<text x="72" y="32" [^>]*>[^<]*<\/text>/) as RegExpMatchArray)[0];
+		for (const label of ["Core2 (CCD1)", "Virtual Memory Committed"]) {
+			assert.equal(labelElement(render({ label, statBadge: "MAX" })), labelElement(render({ label })));
+		}
 	});
 
 
 	it("past the floor the label ellipsizes at the widest fitting prefix", () => {
 		const svg = render({ label: "Virtual Memory Committed" });
-		assert.match(svg, /font-size="16"[^>]*>Virtual Memo…</);
+		assert.match(svg, /font-size="16"[^>]*>Virtual Memor…</);
 	});
 
 	it("a wide 16-char label no longer overflows the 120px band: it ellipsizes", () => {
@@ -136,23 +147,21 @@ describe("label fitting and badge collision", () => {
 		assert.match(svg, /font-size="16"[^>]*>0123456789AB…</);
 	});
 
-	it("badge switches the label to left x=12, pixel-fit to the x=92 clip", () => {
+	it("badge sits in the shared-badge gap between title and number: bg rect 47,38 50x14, caps on 48", () => {
 		const svg = render({ label: "Virtual Memory Committed", statBadge: "AVG" });
-		const label = textElement(svg, "Virtual…");
-		assert.match(label, /x="12" y="32" text-anchor="start"/);
-		assert.match(label, /font-size="16"/);
-		// The 80px clip is an opaque bg rect between label and badge — a solid
-		// fill, the only clipping primitive proven on the Stream Deck engine.
-		const mask = svg.indexOf(`<rect x="92" y="14" width="52" height="24" fill="${VOID.bg}"/>`);
-		assert.ok(mask !== -1, "bg mask rect missing");
-		assert.ok(svg.indexOf(label) < mask && mask < svg.indexOf(">AVG<"), "mask must draw after the label and before the badge");
-		assert.doesNotMatch(svg, /<text x="72" y="32"/);
+		// The gap rect is invisible on a plain face and notches the Ring crown
+		// — solid fills, the only clipping primitive proven on this engine.
+		const gap = svg.indexOf(`<rect x="47" y="38" width="50" height="14" fill="${VOID.bg}"/>`);
+		assert.ok(gap !== -1, "badge gap rect missing");
+		const label = textElement(svg, "Virtual Memor…");
+		assert.match(label, /x="72" y="32" text-anchor="middle"/);
+		assert.ok(svg.indexOf(label) < gap && gap < svg.indexOf(">AVG<"), "gap must draw after the label and before the badge");
 	});
 
-	it("badge is 12/700 CAPS end-anchored at x=132, accent fill, +0.5 tracking", () => {
+	it("badge is 12/700 CAPS centered at x=72 y=48, accent fill, +0.5 tracking", () => {
 		const svg = render({ statBadge: "min" });
 		const badge = textElement(svg, "MIN");
-		assert.match(badge, /x="132" y="32" text-anchor="end"/);
+		assert.match(badge, /x="72" y="48" text-anchor="middle"/);
 		assert.match(badge, /font-size="12" font-weight="700"/);
 		assert.match(badge, /letter-spacing="0.5"/);
 		assert.match(badge, new RegExp(`fill="${VOID.accent}"`));
@@ -204,7 +213,7 @@ describe("alert pass recolors the whole key", () => {
 		assert.match(svg, /<rect width="144" height="144" fill="#E8940D"\/>/);
 		assert.match(svg, /y="94"[^>]*fill="#1C1200"/);
 		assert.match(svg, /y="32"[^>]*fill="#402C00"/); // label
-		assert.match(svg, /y="118"[^>]*fill="#553C00"/); // unit
+		assert.match(svg, /y="112"[^>]*fill="#553C00"/); // unit
 		assert.match(svg, /<polyline [^>]*stroke="#402C00"/); // accent, not themed
 		assert.match(svg, /<path [^>]*fill="#C67A06"/); // track, not themed
 	});
@@ -313,7 +322,7 @@ describe("key Bar gauge", () => {
 	it("value, unit and label anchors stay locked; no sparkline alongside", () => {
 		const svg = render({ gauge: barGauge({}), history: [1, 2, 3] });
 		assert.match(svg, /<text x="72" y="94" /);
-		assert.match(svg, /<text x="72" y="118" /);
+		assert.match(svg, /<text x="72" y="112" /);
 		assert.match(svg, /<text x="72" y="32" /);
 		assert.doesNotMatch(svg, /polyline/);
 	});
@@ -449,15 +458,15 @@ describe("key text colors", () => {
 	it("custom without secondary dim: label, unit and badge take the exact color", () => {
 		const svg = render({ text: custom, statBadge: "MAX" });
 		assert.match(svg, /y="32"[^>]*fill="#660000"/);
-		assert.match(svg, /y="118"[^>]*fill="#660000"/);
+		assert.match(svg, /y="112"[^>]*fill="#660000"/);
 		assert.match(svg, />MAX<\/text>/);
-		assert.match(svg, /x="132" y="32"[^>]*fill="#660000"/);
+		assert.match(svg, /x="72" y="48"[^>]*fill="#660000"/);
 	});
 
 	it("custom with secondary dim: value exact, secondary stepped toward bg", () => {
 		const svg = render({ text: customDim, statBadge: "MAX" });
 		assert.match(svg, /y="94"[^>]*fill="#660000"/);
-		assert.match(svg, new RegExp(`y="118"[^>]*fill="${customDim.unit}"`));
+		assert.match(svg, new RegExp(`y="112"[^>]*fill="${customDim.unit}"`));
 		assert.notEqual(customDim.unit, "#660000");
 	});
 
@@ -529,9 +538,9 @@ describe("dual layout geometry (row B = row A + 72, divider at the midline)", ()
 	});
 
 	it("a mid-width bottom label lands on the ladder's interior 15px step", () => {
-		// "System Agent V" estimates 88px at 12px: past the 16px step's 87px
-		// window, inside 15's 92.8px window.
-		const svg = renderDual({ bottom: dualRow({ label: "System Agent V" }) });
+		// "Memory Junction" estimates 93.5px at 12px: past the 16px step's
+		// 90px window (120×12/16), inside 15's 96px window.
+		const svg = renderDual({ bottom: dualRow({ label: "Memory Junction" }) });
 		assert.match(svg, /<text x="72" y="94" text-anchor="middle" [^>]*font-size="15" font-weight="600"/);
 	});
 
@@ -868,28 +877,28 @@ describe("triple layout geometry (three 48px bands, separators at y=47/95)", () 
 	});
 
 	it("a medium label steps down the ladder but renders whole beside its value", () => {
-		// "Core Max" beside "53.9 °C": the 12px floor holds the whole name
-		// instead of ellipsizing two sizes up — identity beats size here.
-		assert.match(renderTriple(), new RegExp(`<text x="12" y="126" text-anchor="start" [^>]*font-size="12" font-weight="600" fill="${VOID.label}">Core Max</text>`));
+		// "Core Max" beside "53.9 °C": the 13px step holds the whole name
+		// instead of ellipsizing sizes up — identity beats size here.
+		assert.match(renderTriple(), new RegExp(`<text x="12" y="126" text-anchor="start" [^>]*font-size="13" font-weight="600" fill="${VOID.label}">Core Max</text>`));
 	});
 
 	it("peer labels stay within one visible step: short labels cap at the smallest fitted peer + 2", () => {
-		// The default face fits CCD1/CCD2 at 16 but "Core Max" needs the 12px
-		// floor; a 16-beside-12 face reads as an accidental hierarchy, so the
-		// short labels render at 14 (12 + the spread cap).
+		// The default face fits CCD1/CCD2 at 16 but "Core Max" needs the 13px
+		// step; a 16-beside-13 face reads as an accidental hierarchy, so the
+		// short labels render at 15 (13 + the spread cap).
 		const svg = renderTriple();
-		assert.match(svg, new RegExp(`<text x="12" y="30" text-anchor="start" [^>]*font-size="14" font-weight="600" fill="${VOID.label}">CCD1</text>`));
-		assert.match(svg, new RegExp(`<text x="12" y="78" text-anchor="start" [^>]*font-size="14" font-weight="600" fill="${VOID.label}">CCD2</text>`));
+		assert.match(svg, new RegExp(`<text x="12" y="30" text-anchor="start" [^>]*font-size="15" font-weight="600" fill="${VOID.label}">CCD1</text>`));
+		assert.match(svg, new RegExp(`<text x="12" y="78" text-anchor="start" [^>]*font-size="15" font-weight="600" fill="${VOID.label}">CCD2</text>`));
 	});
 
 	it("interior ladder steps hold: a single-row face lands on 15, 14 and 13", () => {
 		// Single-row faces so the spread cap cannot mask a missing step.
-		// Estimated widths at 12px against the 52.5px budget beside "35.9 °C":
-		// "VRM 12" 41.7 → 15; "MAX T1" 42.9 → 14; "CPU Fan" 46.0 → 13.
+		// Estimated widths at 12px against the 58.6px budget beside "35.9 °C":
+		// "T Sensor" 45.5 → 15; "CPU VDD" 49.5 → 14; "GPU VRM" 52.0 → 13.
 		for (const [label, size] of [
-			["VRM 12", 15],
-			["MAX T1", 14],
-			["CPU Fan", 13]
+			["T Sensor", 15],
+			["CPU VDD", 14],
+			["GPU VRM", 13]
 		] as const) {
 			const svg = renderTripleKey({ rows: [tripleRowFixture({ label }), null, null], palette: VOID });
 			assert.match(svg, new RegExp(`<text x="12" y="30" text-anchor="start" [^>]*font-size="${size}" font-weight="600"[^>]*>${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</text>`), label);
@@ -921,7 +930,7 @@ describe("triple layout geometry (three 48px bands, separators at y=47/95)", () 
 	it("a bg mask draws after the label and before the chunk (paint-order clipping)", () => {
 		const svg = renderTriple();
 		const label = svg.indexOf(">CCD1<");
-		const mask = svg.indexOf(`<rect x="70.5" y="0" width="69.5" height="47" fill="${VOID.bg}"/>`);
+		const mask = svg.indexOf(`<rect x="76.6" y="0" width="63.4" height="47" fill="${VOID.bg}"/>`);
 		const chunk = svg.indexOf(">35.9<");
 		assert.ok(mask !== -1, "chunk under-mask missing");
 		assert.ok(label < mask && mask < chunk, "mask must draw between label and chunk");
