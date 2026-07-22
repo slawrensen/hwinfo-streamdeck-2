@@ -5,9 +5,15 @@
 #   git tag -a v1.1.7 -m "HWiNFO Sensors 1.1.7.0"
 #   git push origin main --follow-tags
 #
-# The e2e suites need a live HWiNFO mapping (+ Win32 named objects / HKCU), so
-# they stay local (`npm run suite:full`); CI runs the static + unit gate only,
-# same as ci.yml. v1.1.6 and earlier were released by hand; this automates 1.1.7+.
+# The UI e2e suites need a live plugin against a mock Stream Deck socket, so
+# they stay local (`npm run suite:full`); this gate runs the static + unit +
+# native-integration checks, same as ci.yml. The runner label and Node 20
+# build headers are pinned deliberately — see ci.yml for the reasoning.
+#
+# Each release publishes two verifiable facts: the outer package SHA-256 and
+# release-native-manifest.json (the exact hwsm.node hash, PE hardening,
+# imports, and toolchain). A double clean build proves the native binary is
+# reproducible in this pinned environment before anything is published.
 name: release
 
 on:
@@ -19,7 +25,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
 
@@ -29,12 +35,41 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - name: Print toolchain versions
+        shell: pwsh
+        run: |
+          node --version; npm --version; python --version
+          npx node-gyp --version
+          $cl = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\cl.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          if ($cl) {
+            & $cl.FullName 2>&1 | Select-Object -First 1
+            "HWSM_CL_VERSION=$((& $cl.FullName 2>&1 | Select-Object -First 1) -replace '.*Version ','' -replace ' for.*','')" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      # windows-latest ships the MSVC toolset node-gyp expects.
       - run: npm run build:native
+
+      - name: Reproducibility check (second clean build must be byte-identical)
+        shell: pwsh
+        run: |
+          $first = (Get-FileHash native/hwsm/build/Release/hwsm.node -Algorithm SHA256).Hash
+          npm run build:native
+          $second = (Get-FileHash native/hwsm/build/Release/hwsm.node -Algorithm SHA256).Hash
+          if ($first -ne $second) {
+            Write-Error "native build is not reproducible: $first != $second"
+            exit 1
+          }
+          Write-Output "reproducible: $first"
+
       - run: npm run build
+      - name: Native integration suite
+        run: npm run test:native
+
+      - name: Native manifest + packaging gate
+        run: |
+          node scripts/native-manifest.mjs
+          node scripts/validate-native.mjs
 
       # The pack script shells out to the Elgato CLI (`streamdeck pack`); it is a
       # global tool, not a project dependency, so install it here (pinned major).
@@ -65,20 +100,26 @@ jobs:
           $f = "release/com.lawrensen.hwinfo.streamDeckPlugin"
           $sha = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
           $size = (Get-Item $f).Length
+          $native = Get-Content release-native-manifest.json -Raw | ConvertFrom-Json
           "sha=$sha"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "size=$size" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Output "SHA-256 $sha ($size bytes)"
+          "nativesha=$($native.sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "pack SHA-256 $sha ($size bytes); hwsm.node SHA-256 $($native.sha256)"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: HWiNFO Sensors ${{ steps.verify.outputs.ver }}
-          files: release/com.lawrensen.hwinfo.streamDeckPlugin
+          files: |
+            release/com.lawrensen.hwinfo.streamDeckPlugin
+            release-native-manifest.json
+            native/hwsm/build/Release/hwsm.pdb
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
             Built and published automatically from `${{ github.ref_name }}`.
 
             **Pack SHA-256:** `${{ steps.hash.outputs.sha }}` (${{ steps.hash.outputs.size }} bytes)
+            **Native hwsm.node SHA-256:** `${{ steps.hash.outputs.nativesha }}` (full build facts in `release-native-manifest.json`)
 
             Install: download the `.streamDeckPlugin` below and double-click it, or install from the Elgato Marketplace once approved. See the [documentation](https://docs.slawrensen.com/hwinfo-streamdeck/) for setup and troubleshooting.

@@ -40,5 +40,9 @@ com.lawrensen.hwinfo.sdPlugin/logs/
 *.log
 .DS_Store
 
-# node-gyp build output for the hwsm native bridge
+# node-gyp build output for the hwsm native bridge, plus the generated
+# source-id header (scripts/native-source-id.mjs) and native build manifest
+# (scripts/native-manifest.mjs)
 native/hwsm/build/
+native/hwsm/source-id.h
+/release-native-manifest.json

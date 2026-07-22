@@ -4,7 +4,11 @@
 //   alive   valid magic, pollTime + values advancing every 400 ms
 //   freeze  stop advancing (pollTime frozen)
 //   dead    write the "DEAD" magic (shared-memory support disabled)
+//   mutex   create the consistency mutex now (pairs with --no-mutex)
+//   grow    append a third reading (the published layout grows mid-run)
 //   exit    unmap, close handles, quit — the mapping disappears with us
+// `--no-mutex` starts WITHOUT the mutex: the reader must treat the mapping
+// as still starting up (never an unguarded read) until "mutex" creates it.
 // Prints "READY <mappingName>" once the mapping exists.
 import { createRequire } from "node:module";
 import readline from "node:readline";
@@ -17,7 +21,11 @@ const MUTEX_NAME = process.env.HWINFO_SM2_MUTEX_NAME ?? `${MAPPING_NAME}_MUTEX`;
 
 const k32 = koffi.load("kernel32.dll");
 const CreateFileMappingW = k32.func("__stdcall", "CreateFileMappingW", "void*", ["int64", "void*", "uint32", "uint32", "uint32", "str16"]);
-const CreateMutexW = k32.func("__stdcall", "CreateMutexW", "void*", ["void*", "bool", "str16"]);
+// bInitialOwner is a Win32 BOOL (32-bit int). Declaring it "bool" (1 byte)
+// lets stale register bits read as TRUE once other FFI calls have run, which
+// creates the mutex OWNED and leaks that base ownership forever. int32 + an
+// explicit 0 is unambiguous.
+const CreateMutexW = k32.func("__stdcall", "CreateMutexW", "void*", ["void*", "int32", "str16"]);
 const MapViewOfFile = k32.func("__stdcall", "MapViewOfFile", "void*", ["void*", "uint32", "uint32", "uint32", "size_t"]);
 const UnmapViewOfFile = k32.func("__stdcall", "UnmapViewOfFile", "bool", ["void*"]);
 const CloseHandle = k32.func("__stdcall", "CloseHandle", "bool", ["void*"]);
@@ -42,7 +50,7 @@ if (hMap === null) {
 	console.error("CreateFileMappingW failed");
 	process.exit(1);
 }
-const hMutex = CreateMutexW(null, false, MUTEX_NAME);
+let hMutex = process.argv.includes("--no-mutex") ? null : CreateMutexW(null, 0, MUTEX_NAME);
 const view = MapViewOfFile(hMap, FILE_MAP_WRITE, 0, 0, 0);
 if (view === null) {
 	console.error("MapViewOfFile failed");
@@ -52,6 +60,7 @@ if (view === null) {
 const buf = Buffer.alloc(SIZE);
 let value = 50;
 let mode = "alive"; // alive | freeze | dead
+let entryCount = 2;
 
 function cstr(offset, width, text) {
 	buf.fill(0, offset, offset + width);
@@ -69,7 +78,7 @@ function compose() {
 	buf.writeUInt32LE(1, 28);
 	buf.writeUInt32LE(HEADER_SIZE + SENSOR_SIZE, 32); // entry section offset
 	buf.writeUInt32LE(ENTRY_SIZE, 36);
-	buf.writeUInt32LE(2, 40);
+	buf.writeUInt32LE(entryCount, 40);
 
 	// sensor[0]
 	const s = HEADER_SIZE;
@@ -103,14 +112,29 @@ function compose() {
 	buf.writeDoubleLE(800, e + 292);
 	buf.writeDoubleLE(2000, e + 300);
 	buf.writeDoubleLE(1250, e + 308);
+
+	if (entryCount >= 3) {
+		// entry[2]: voltage, present only after "grow"
+		e += ENTRY_SIZE;
+		buf.writeUInt32LE(2, e); // Voltage
+		buf.writeUInt32LE(0, e + 4);
+		buf.writeUInt32LE(0x1000003, e + 8);
+		cstr(e + 12, 128, "Test Volt");
+		cstr(e + 140, 128, "Test Volt");
+		cstr(e + 268, 16, "V");
+		buf.writeDoubleLE(12.1, e + 284);
+		buf.writeDoubleLE(11.9, e + 292);
+		buf.writeDoubleLE(12.3, e + 300);
+		buf.writeDoubleLE(12.1, e + 308);
+	}
 }
 
 function publish() {
-	WaitForSingleObject(hMutex, 1000);
+	if (hMutex !== null) WaitForSingleObject(hMutex, 1000);
 	try {
 		RtlMoveMemory(view, buf, SIZE);
 	} finally {
-		ReleaseMutex(hMutex);
+		if (hMutex !== null) ReleaseMutex(hMutex);
 	}
 }
 
@@ -134,6 +158,16 @@ rl.on("line", (line) => {
 		compose();
 		publish();
 		console.log(`MODE ${mode}`);
+	} else if (cmd === "mutex") {
+		if (hMutex === null) {
+			hMutex = CreateMutexW(null, 0, MUTEX_NAME);
+		}
+		console.log("MUTEX CREATED");
+	} else if (cmd === "grow") {
+		entryCount = 3;
+		compose();
+		publish();
+		console.log("GROWN");
 	} else if (cmd === "exit") {
 		clearInterval(timer);
 		UnmapViewOfFile(view);

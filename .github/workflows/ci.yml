@@ -1,6 +1,13 @@
-# Static + unit verification on every push/PR. The e2e suites need a live
-# HWiNFO shared-memory mapping (and the resilience/gadget fakes need real
-# Win32 named objects + HKCU), so they stay local: `npm run suite:full`.
+# Static + unit + native verification on every push/PR. The UI e2e suites
+# need a live plugin process against a mock Stream Deck socket, so they stay
+# local (`npm run suite:full`); the native integration suite creates its own
+# Win32 named objects (Local\ namespace + a synthetic HKCU key) and runs
+# fine on hosted runners.
+#
+# The runner label is pinned (not windows-latest) so a compiler-generation
+# change is a reviewed diff here, never a silent image migration. The
+# toolchain-versions step prints what actually compiled the addon;
+# release-native-manifest.json records the same facts per release.
 name: ci
 
 on:
@@ -10,17 +17,62 @@ on:
 
 jobs:
   verify:
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
+          # Node 20 is the host contract: the Stream Deck app bundles Node 20,
+          # and build:native pins its headers to 20.20.0 to match.
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Print toolchain versions
+        shell: pwsh
+        run: |
+          node --version; npm --version; python --version
+          npx node-gyp --version
+          $cl = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\cl.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          if ($cl) { & $cl.FullName 2>&1 | Select-Object -First 1 }
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      # windows-latest ships the MSVC toolset node-gyp expects.
       - run: npm run build:native
       - run: npm run build
+      - name: Native integration suite
+        run: npm run test:native
+      - name: Native packaging gate
+        run: node scripts/validate-native.mjs
+      - name: Upload built addon for the ABI matrix
+        uses: actions/upload-artifact@v4
+        with:
+          name: hwsm-node20-build
+          path: native/hwsm/build/Release/hwsm.node
+          if-no-files-found: error
+
+  # The SAME bytes built above (Node 20 headers) must load and complete a
+  # full open/read/close under every Node major a Stream Deck update could
+  # plausibly bundle. No rebuild happens here: the artifact is byte-identical
+  # across the matrix, which is the whole point.
+  abi-matrix:
+    needs: verify
+    runs-on: windows-2025
+    strategy:
+      matrix:
+        node-version: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: hwsm-node20-build
+          path: abi-artifact
+      - name: Load the exact Node-20-built binary
+        shell: pwsh
+        run: |
+          Write-Output "artifact sha256: $((Get-FileHash abi-artifact/hwsm.node -Algorithm SHA256).Hash.ToLower())"
+          node scripts/abi-check.mjs abi-artifact/hwsm.node
