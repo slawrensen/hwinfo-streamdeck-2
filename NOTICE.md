@@ -13,8 +13,8 @@ This plugin is free software (MIT licensed) with **no ads and no telemetry**.
 - UX inspiration: **shayne/hwinfo-streamdeck** (archived Oct 2024), the original
   Go-based HWiNFO Stream Deck plugin, <https://github.com/shayne/hwinfo-streamdeck>.
   This project is a ground-up rewrite on the official Elgato SDK and shares no code with it.
-- Built with the official **Elgato Stream Deck SDK** (`@elgato/streamdeck`),
-  **koffi** (FFI, MIT, <https://koffi.dev>; the vendored `@koromix/koffi-win32-x64`
-  native binary is part of the same MIT-licensed project) and
-  **sdpi-components** (MIT, Elgato, <https://sdpi-components.dev>; vendored as
-  `ui/sdpi-components.js` from the official distribution).
+- Built with the official **Elgato Stream Deck SDK** (`@elgato/streamdeck`)
+  and **sdpi-components** (MIT, Elgato, <https://sdpi-components.dev>;
+  vendored as `ui/sdpi-components.js` from the official distribution). The
+  HWiNFO bridge (`bin/hwsm.node`) is this project's own N-API addon, built
+  from `native/hwsm` and covered by the same MIT license.

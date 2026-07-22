@@ -9,7 +9,7 @@ parse-path microbenchmark against the **live** HWiNFO mapping
 
 Metric notes:
 
-- **tick** = one production poll: mutex acquire + `RtlMoveMemory` copy +
+- **tick** = one production poll: mutex acquire + native region copy +
   decode to `SensorSnapshot`. `raw copy` is the copy alone, so
   `tick − raw copy` ≈ pure parse cost.
 - **alloc/tick** = sum of positive `heapUsed` deltas per iteration (allocation
@@ -402,3 +402,38 @@ disappear, clean self-exit. computeGauge is O(zones) arithmetic and
 resolveTextColors a palette lookup, both per-render not per-tick, and the
 load numbers show no measurable cost. Ruling: no CPU or RSS regression;
 pack growth accepted and staged to shrink ~380 KB at the hwsm swap.
+
+### 2026-07-22 04:32: hwsm bridge lands (koffi out), adaptive labels + bottom-zone + badge fixes
+
+| Artifact | Bytes | gzip |
+| --- | ---: | ---: |
+| .streamDeckPlugin pack | 191,087 B | 186,160 B |
+| bin/plugin.js | 157,823 B | 47,956 B |
+| bin/node_modules (total) | 0 B (0.0 KB) | |
+| bin/hwsm.node | 113,664 B (111.0 KB) | |
+| ui/ | 145,075 B (141.7 KB) | |
+| imgs/ | 33,750 B (33.0 KB) | |
+| layouts/ + manifest + themes | 5,031 B (4.9 KB) | |
+
+| Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| PID 11960 | 46.8 MB | 59.8 MB | 0.8 s | 4 min | 0.33% |
+
+Parse bench (1000 iters, live mapping, region 238.5 KB):
+
+| Path | mean µs | p50 µs | p95 µs | alloc/tick | retained |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| raw copy (session.read) | 3 | 2.6 | 5.2 | | |
+| shared-memory tick (513 readings) | 6.7 | 5.2 | 10.9 | 469 B | 3,512 B |
+| gadget tick | n/a: HwinfoError: HWiNFO Gadget registry key HKCU\Software\HWiNFO64\VSB is not present (Win32 error 2): enable Gadget reporting in HWiNFO, or start HWiNFO. | | | | |
+
+Reading: the koffi FFI (1,045,504 B raw, 443,817 B in the pack) is replaced
+by hwsm, a purpose-built 113,664 B N-API addon exposing the plugin's exact
+11-call Win32 surface (native/hwsm, design/KOFFI-REPLACEMENT.md). Pack lands
+at 191,087 B against the 500,000 B target. The raw copy path holds at ~3 us
+(readInto copies into the same reusable scratch RtlMoveMemory filled), so
+the swap costs the hot path nothing; ui/ grew with the sdpi vendor and the
+four PI panels since v1.0, and bin/node_modules is now empty. The quality
+review re-verified the bridge (error-5, quarantine and dlopen paths), added
+the bridge-failed status screen and unified the loader's two load paths;
+sizes above are the post-review build. VirusTotal on this hwsm.node: 0/70.

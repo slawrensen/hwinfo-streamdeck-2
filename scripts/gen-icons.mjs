@@ -9,7 +9,7 @@ const source = path.join(repoRoot, "assets", "marketplace.svg");
 const outDir = path.join(repoRoot, "com.lawrensen.hwinfo.sdPlugin", "imgs", "plugin");
 
 // Max zlib effort: same pixels, ~18% smaller files, and these two PNGs are
-// the third-largest item in the pack after koffi and plugin.js. Palette
+// among the largest items in the pack after plugin.js and hwsm.node. Palette
 // quantization would halve them again but visibly fringes the icon's
 // anti-aliased edges; adaptive filtering also measured larger. Level 9 alone
 // is the only encode that shrinks the files with byte-identical pixels.

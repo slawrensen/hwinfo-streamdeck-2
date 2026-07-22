@@ -204,17 +204,17 @@ regenerates every number (sizes, live process, parse bench) in one command.
 Dev loop: `streamdeck dev` once, `streamdeck link com.lawrensen.hwinfo.sdPlugin`,
 then `npm run watch` (rebuilds and restarts the plugin on save).
 
-Native access uses [koffi](https://koffi.dev) (prebuilt FFI, no node-gyp) to call
-`OpenFileMappingW`/`MapViewOfFile` on `Global\HWiNFO_SENS_SM2` under HWiNFO's
-consistency mutex; strides and offsets are read from the live header, never
-hardcoded, so newer HWiNFO layouts (e.g. the UTF-8 label extensions) decode
-correctly.
+Native access goes through `hwsm` (`native/hwsm`), a small N-API addon this
+project builds with node-gyp, calling `OpenFileMappingW`/`MapViewOfFile` on
+`Global\HWiNFO_SENS_SM2` under HWiNFO's consistency mutex; strides and offsets
+are read from the live header, never hardcoded, so newer HWiNFO layouts (e.g.
+the UTF-8 label extensions) decode correctly.
 
 ## License
 
 [MIT](LICENSE): free software, no ads, no telemetry. Credits in
 [NOTICE.md](NOTICE.md): HWiNFO (REALiX), the original plugin by
-[@shayne](https://github.com/shayne/hwinfo-streamdeck), koffi, sdpi-components.
+[@shayne](https://github.com/shayne/hwinfo-streamdeck), sdpi-components.
 
 Not affiliated with, endorsed by, or sponsored by REALiX, s.r.o. or Elgato.
 "HWiNFO" is a trademark of REALiX, s.r.o.; "Stream Deck" and "Elgato" are

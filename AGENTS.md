@@ -5,9 +5,9 @@ sensor readings on keys and Stream Deck + / + XL dials (single or dual key
 readouts, a three-row dial overview, rotation sets with named groups,
 Legacy/Elite/Custom control presets, themes, alert thresholds, an HWiNFO
 Control key action). TypeScript on the Elgato Stream Deck SDK
-(`@elgato/streamdeck` v2), `koffi` FFI for the shared-memory reader,
-dual data source (Shared Memory preferred, Gadget registry fallback). Solo
-project, MIT, no ads, no telemetry.
+(`@elgato/streamdeck` v2), the `hwsm` N-API addon (`native/hwsm`) for the
+shared-memory reader, dual data source (Shared Memory preferred, Gadget
+registry fallback). Solo project, MIT, no ads, no telemetry.
 
 This is the canonical guide for anyone, human or AI agent, working in the repo.
 
@@ -21,7 +21,7 @@ This is the canonical guide for anyone, human or AI agent, working in the repo.
 
 | Command | What it does |
 | --- | --- |
-| `npm run build` | Bundle `src/plugin.ts` to `com.lawrensen.hwinfo.sdPlugin/bin/plugin.js` (rollup) and stage koffi + legal files |
+| `npm run build` | Bundle `src/plugin.ts` to `com.lawrensen.hwinfo.sdPlugin/bin/plugin.js` (rollup) and vendor `hwsm.node` + legal files (`npm run build:native` builds the addon first) |
 | `npm run lint` / `npm run typecheck` | ESLint (zero warnings) / `tsc --noEmit` |
 | `npm test` | Unit suites (node:test via tsx): themes, key/dial renderers, shared-memory decode, status screens, series, rotation and groups, gestures, control schemes, devices, stats, diagnostics, density, and replayed gesture traces |
 | `npm run e2e` | Drive the built plugin over a mock Stream Deck WebSocket |
