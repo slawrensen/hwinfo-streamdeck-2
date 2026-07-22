@@ -1,15 +1,12 @@
 /**
- * Low-level access to HWiNFO's shared memory via koffi FFI (kernel32 only).
- *
- * This module owns every koffi/Win32 call in the plugin. It opens the
- * read-only file mapping once, holds the view, and produces one consistent
- * byte snapshot per {@link SharedMemorySession.read} by copying the used
- * region into a reusable Buffer while holding HWiNFO's consistency mutex.
- * Everything above this layer works on plain Buffers.
+ * Low-level access to HWiNFO's shared memory via the hwsm native bridge
+ * (kernel32 only). It opens the read-only file mapping once, holds the view,
+ * and produces one consistent byte snapshot per
+ * {@link SharedMemorySession.read} by copying the used region into a
+ * reusable Buffer while holding HWiNFO's consistency mutex. Everything
+ * above this layer works on plain Buffers.
  */
-import type { KoffiFunc } from "koffi";
-
-import { getKoffi } from "./koffi-loader";
+import { getHwsm, type HwsmBridge } from "./hwsm-loader";
 import { HEADER, HEADER_SIZE, MAGIC_ACTIVE, MAGIC_DEAD, MAPPING_NAME, MAX_ELEMENT_COUNT, MAX_REGION_BYTES, MUTEX_NAME } from "./layout";
 import { HwinfoError } from "./types";
 
@@ -27,46 +24,6 @@ const MUTEX_TIMEOUT_MS = 150;
 // mapping it controls (scripts/fake-hwinfo.mjs). Production uses the defaults.
 const EFFECTIVE_MAPPING_NAME = process.env.HWINFO_SM2_NAME ?? MAPPING_NAME;
 const EFFECTIVE_MUTEX_NAME = process.env.HWINFO_SM2_MUTEX_NAME ?? MUTEX_NAME;
-
-/** Opaque native pointer/handle as surfaced by koffi (bigint, or null for NULL). */
-type NativePtr = unknown;
-
-interface Win32 {
-	openFileMappingW: KoffiFunc<(desiredAccess: number, inheritHandle: boolean, name: string) => NativePtr>;
-	mapViewOfFile: KoffiFunc<(hMap: NativePtr, desiredAccess: number, offsetHigh: number, offsetLow: number, bytesToMap: number) => NativePtr>;
-	unmapViewOfFile: KoffiFunc<(view: NativePtr) => boolean>;
-	closeHandle: KoffiFunc<(handle: NativePtr) => boolean>;
-	openMutexW: KoffiFunc<(desiredAccess: number, inheritHandle: boolean, name: string) => NativePtr>;
-	waitForSingleObject: KoffiFunc<(handle: NativePtr, timeoutMs: number) => number>;
-	releaseMutex: KoffiFunc<(handle: NativePtr) => boolean>;
-	rtlMoveMemory: KoffiFunc<(dest: Buffer, src: NativePtr, bytes: number) => void>;
-	getLastError: KoffiFunc<() => number>;
-}
-
-let win32: Win32 | null = null;
-
-/** Lazily binds kernel32 so importing this module is safe off-Windows. */
-function getWin32(): Win32 {
-	if (win32 === null) {
-		const k32 = getKoffi().load("kernel32.dll");
-		win32 = {
-			openFileMappingW: k32.func("__stdcall", "OpenFileMappingW", "void*", ["uint32", "bool", "str16"]) as Win32["openFileMappingW"],
-			mapViewOfFile: k32.func("__stdcall", "MapViewOfFile", "void*", ["void*", "uint32", "uint32", "uint32", "size_t"]) as Win32["mapViewOfFile"],
-			unmapViewOfFile: k32.func("__stdcall", "UnmapViewOfFile", "bool", ["void*"]) as Win32["unmapViewOfFile"],
-			closeHandle: k32.func("__stdcall", "CloseHandle", "bool", ["void*"]) as Win32["closeHandle"],
-			openMutexW: k32.func("__stdcall", "OpenMutexW", "void*", ["uint32", "bool", "str16"]) as Win32["openMutexW"],
-			waitForSingleObject: k32.func("__stdcall", "WaitForSingleObject", "uint32", ["void*", "uint32"]) as Win32["waitForSingleObject"],
-			releaseMutex: k32.func("__stdcall", "ReleaseMutex", "bool", ["void*"]) as Win32["releaseMutex"],
-			rtlMoveMemory: k32.func("__stdcall", "RtlMoveMemory", "void", ["_Out_ uint8*", "void*", "size_t"]) as Win32["rtlMoveMemory"],
-			getLastError: k32.func("__stdcall", "GetLastError", "uint32", []) as Win32["getLastError"]
-		};
-	}
-	return win32;
-}
-
-function isNullPtr(ptr: NativePtr): boolean {
-	return ptr === null || ptr === undefined || ptr === 0n || ptr === 0;
-}
 
 /**
  * Validates the header magic, throwing the status-appropriate {@link HwinfoError}.
@@ -94,10 +51,10 @@ export class SharedMemorySession {
 	private readonly headerBuf = Buffer.alloc(HEADER_SIZE);
 
 	private constructor(
-		private readonly w: Win32,
-		private readonly hMap: NativePtr,
-		private readonly view: NativePtr,
-		private hMutex: NativePtr
+		private readonly w: HwsmBridge,
+		private readonly hMap: bigint,
+		private readonly view: bigint,
+		private hMutex: bigint | null
 	) {}
 
 	/**
@@ -108,27 +65,25 @@ export class SharedMemorySession {
 		if (process.platform !== "win32") {
 			throw new HwinfoError("unsupported-platform", "HWiNFO shared memory only exists on Windows.");
 		}
-		const w = getWin32();
+		const w = getHwsm();
 
 		const hMap = w.openFileMappingW(FILE_MAP_READ, false, EFFECTIVE_MAPPING_NAME);
-		if (isNullPtr(hMap)) {
-			const err = w.getLastError();
-			if (err === ERROR_ACCESS_DENIED) {
-				throw new HwinfoError("access-denied", `Opening ${EFFECTIVE_MAPPING_NAME} was denied (Win32 error 5) — HWiNFO and Stream Deck are likely running at different privilege levels.`);
+		if (hMap.value === 0n) {
+			if (hMap.lastError === ERROR_ACCESS_DENIED) {
+				throw new HwinfoError("access-denied", `Opening ${EFFECTIVE_MAPPING_NAME} was denied (Win32 error 5): HWiNFO and Stream Deck are likely running at different privilege levels.`);
 			}
-			throw new HwinfoError("not-running", `HWiNFO shared memory not found (Win32 error ${err}) — HWiNFO is not running, or Shared Memory Support is disabled.`);
+			throw new HwinfoError("not-running", `HWiNFO shared memory not found (Win32 error ${hMap.lastError}): HWiNFO is not running, or Shared Memory Support is disabled.`);
 		}
 
-		const view = w.mapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
-		if (isNullPtr(view)) {
-			const err = w.getLastError();
-			w.closeHandle(hMap);
-			throw new HwinfoError("not-running", `MapViewOfFile failed (Win32 error ${err}).`);
+		const view = w.mapViewOfFile(hMap.value, FILE_MAP_READ, 0, 0, 0);
+		if (view.value === 0n) {
+			w.closeHandle(hMap.value);
+			throw new HwinfoError("not-running", `MapViewOfFile failed (Win32 error ${view.lastError}).`);
 		}
 
 		// The consistency mutex is optional — read unguarded if it is absent.
 		const hMutex = w.openMutexW(SYNCHRONIZE, false, EFFECTIVE_MUTEX_NAME);
-		const session = new SharedMemorySession(w, hMap, view, isNullPtr(hMutex) ? null : hMutex);
+		const session = new SharedMemorySession(w, hMap.value, view.value, hMutex.value === 0n ? null : hMutex.value);
 		// Validate the magic NOW, not just on the first read(). A present-but-
 		// "DEAD" mapping (free HWiNFO after the 12 h limit leaves the named
 		// section behind — see layout.ts) otherwise opens successfully and only
@@ -146,11 +101,12 @@ export class SharedMemorySession {
 	}
 
 	/**
-	 * Reads the header once (unguarded — the magic is a stable, atomically
-	 * written 32-bit field) and asserts it, for open()-time validation.
+	 * Reads the header into headerBuf and asserts the magic. Called at
+	 * open() time without the mutex (the magic is a stable, atomically
+	 * written 32-bit field) and by every read() under it.
 	 */
 	private validateHeaderMagic(): void {
-		this.w.rtlMoveMemory(this.headerBuf, this.view, HEADER_SIZE);
+		this.w.readInto(this.view, this.headerBuf, HEADER_SIZE);
 		assertMagicActive(this.headerBuf);
 	}
 
@@ -172,9 +128,7 @@ export class SharedMemorySession {
 			return null;
 		}
 		try {
-			this.w.rtlMoveMemory(this.headerBuf, this.view, HEADER_SIZE);
-
-			assertMagicActive(this.headerBuf);
+			this.validateHeaderMagic();
 
 			const sensorSectionOffset = this.headerBuf.readUInt32LE(HEADER.sensorSectionOffset);
 			const sensorElementSize = this.headerBuf.readUInt32LE(HEADER.sensorElementSize);
@@ -201,7 +155,7 @@ export class SharedMemorySession {
 			if (this.scratchView.length !== total || this.scratchView.buffer !== this.scratch.buffer) {
 				this.scratchView = this.scratch.subarray(0, total);
 			}
-			this.w.rtlMoveMemory(this.scratch, this.view, total);
+			this.w.readInto(this.view, this.scratch, total);
 			return this.scratchView;
 		} finally {
 			this.unlock();

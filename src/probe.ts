@@ -24,7 +24,8 @@ const GUIDANCE: Record<string, string> = {
 	"gadget-empty": "The Gadget registry exists but is empty. In HWiNFO's sensor window, tick 'Report value in Gadget' for the sensors you need.",
 	"access-denied": "HWiNFO and this process run at different privilege levels. Run both elevated or both non-elevated.",
 	disabled: "Shared Memory Support is switched off in HWiNFO. Re-enable it in Settings; the free version auto-disables it after 12 hours and HWiNFO Pro removes that limit.",
-	invalid: "The shared-memory contents did not validate; HWiNFO may be mid-restart or an incompatible version. Try again in a few seconds."
+	invalid: "The shared-memory contents did not validate; HWiNFO may be mid-restart or an incompatible version. Try again in a few seconds.",
+	"bridge-failed": "The native bridge (hwsm.node) failed to load. Run `npm run build:native` to build it, or reinstall the plugin."
 };
 
 function bail(err: HwinfoError): never {

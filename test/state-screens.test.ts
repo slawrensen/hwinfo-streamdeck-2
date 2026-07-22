@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { SensorSnapshot } from "../src/hwinfo/types";
+import type { HwinfoUnavailableReason, SensorSnapshot } from "../src/hwinfo/types";
 import type { PollerStatus } from "../src/poller";
 import { keyLabel, statusDialText, statusScreen, statusSentence } from "../src/ui/state-screens";
 
@@ -44,6 +44,31 @@ describe("state-screens: stale recovery hint follows the source", () => {
 	it("PI sentence already branches on source", () => {
 		assert.match(statusSentence(stale("gadget")), /Gadget/);
 		assert.match(statusSentence(stale("shared-memory")), /Shared Memory/);
+	});
+});
+
+describe("state-screens: every unavailable reason has its own guidance", () => {
+	const unavailable = (reason: HwinfoUnavailableReason): PollerStatus => ({ state: "unavailable", reason, message: "" });
+	const REASONS: readonly HwinfoUnavailableReason[] = ["unsupported-platform", "not-running", "gadget-empty", "access-denied", "disabled", "invalid", "bridge-failed"];
+
+	it("key, dial and PI sentence cover all reasons", () => {
+		for (const reason of REASONS) {
+			const status = unavailable(reason);
+			assert.equal(statusScreen(status)?.lines.length, 2, reason);
+			assert.ok((statusDialText(status)?.title ?? "") !== "", reason);
+			assert.ok(statusSentence(status).length > 20, reason);
+		}
+	});
+
+	it("a bridge load failure says reinstall, never restart HWiNFO", () => {
+		// An AV-quarantined or missing bin/hwsm.node cannot be fixed by
+		// restarting HWiNFO; the screens must not borrow "invalid"'s advice.
+		const status = unavailable("bridge-failed");
+		assert.deepEqual(statusScreen(status)?.lines, ["Plugin damaged", "reinstall"]);
+		assert.equal(statusDialText(status)?.value, "reinstall it");
+		assert.match(statusSentence(status), /[Rr]einstall/);
+		assert.match(statusSentence(status), /antivirus/);
+		assert.doesNotMatch(statusSentence(status), /restart HWiNFO/);
 	});
 });
 

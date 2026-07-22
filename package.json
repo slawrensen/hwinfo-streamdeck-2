@@ -10,7 +10,8 @@
 		"node": ">=20"
 	},
 	"scripts": {
-		"build": "rollup -c && node scripts/copy-koffi.mjs",
+		"build": "rollup -c && node scripts/copy-hwsm.mjs",
+		"build:native": "cd native/hwsm && node-gyp rebuild",
 		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.lawrensen.hwinfo\"",
 		"lint": "eslint src scripts test --max-warnings 0",
 		"typecheck": "tsc --noEmit",
@@ -31,8 +32,7 @@
 	},
 	"dependencies": {
 		"@elgato/streamdeck": "^2.1.0",
-		"@elgato/utils": "^0.4.5",
-		"koffi": "^3.1.0"
+		"@elgato/utils": "^0.4.5"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -43,6 +43,8 @@
 		"@types/node": "^26.1.0",
 		"eslint": "^10.6.0",
 		"globals": "^17.7.0",
+		"koffi": "^3.1.0",
+		"node-gyp": "^11.4.2",
 		"rollup": "^4.62.2",
 		"sharp": "^0.35.3",
 		"tslib": "^2.8.1",

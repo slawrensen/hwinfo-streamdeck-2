@@ -21,9 +21,10 @@ const config = {
 			return url.pathToFileURL(path.resolve(path.dirname(sourcemapPath), relativeSourcePath)).href;
 		}
 	},
-	// koffi is a native module — it cannot be bundled; scripts/copy-koffi.mjs vendors it
-	// into the .sdPlugin's bin/node_modules so the import resolves at runtime.
-	external: ["koffi"],
+	// The hwsm native bridge is loaded via createRequire("./hwsm.node") at
+	// runtime (scripts/copy-hwsm.mjs vendors it beside the bundle); nothing
+	// here imports a native module statically, so no externals.
+	external: [],
 	// @elgato/utils declares no sideEffects, so rollup keeps its barrel's
 	// Option/OptionGroup modules for their top-level z.object() calls even
 	// though nothing imports a binding from them — dragging all of zod

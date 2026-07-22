@@ -21,4 +21,6 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # windows-latest ships the MSVC toolset node-gyp expects.
+      - run: npm run build:native
       - run: npm run build

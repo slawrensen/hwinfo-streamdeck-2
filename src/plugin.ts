@@ -5,7 +5,7 @@ import { SensorDialAction } from "./actions/sensor-dial";
 import { SensorReadingAction } from "./actions/sensor-reading";
 import { deviceCapabilities } from "./devices";
 import { registerDiagnostics } from "./diagnostics";
-import { initKoffi } from "./hwinfo/koffi-loader";
+import { initHwsm } from "./hwinfo/hwsm-loader";
 import { parsePollInterval, parseSourceMode, poller } from "./poller";
 import { traceEnabled } from "./recorder";
 import { applyGlobalThemeSettings, decideLegacyDefault } from "./ui/theme-store";
@@ -55,11 +55,11 @@ process.on("unhandledRejection", (reason) => {
 	streamDeck.logger.error("Unhandled rejection", reason);
 });
 
-// Load the FFI runtime before anything can poll: on machines without a
-// koffi binary (e.g. Windows-on-ARM) this records the failure so the poller
+// Load the native bridge before anything can poll: on machines without an
+// hwsm build (e.g. Windows-on-ARM) this records the failure so the poller
 // shows the "unsupported" status screen instead of the process dying on a
 // top-level import.
-await initKoffi();
+initHwsm();
 
 // The Stream Deck app reaps plugin processes through its job object, but if
 // it ever dies without that teardown (hard crash), the poller's interval

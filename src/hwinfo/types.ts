@@ -77,7 +77,11 @@ export type HwinfoUnavailableReason =
 	/** Header magic is "DEAD": shared-memory support was turned off (or the free-version 12 h timer expired). */
 	| "disabled"
 	/** Header failed validation — unrecognized or corrupt layout. */
-	| "invalid";
+	| "invalid"
+	/** The hwsm native bridge would not load on a supported machine (missing
+	 * or blocked bin/hwsm.node, e.g. an antivirus quarantine): permanent until
+	 * the install is repaired, unlike the transient "invalid". */
+	| "bridge-failed";
 
 export class HwinfoError extends Error {
 	constructor(
