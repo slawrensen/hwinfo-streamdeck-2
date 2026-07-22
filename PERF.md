@@ -370,7 +370,7 @@ delta is the gauge/measure/text-color modules in plugin.js, 144,189 →
 154,964 B raw, and the sectioned settings panels in ui/; repacked after
 a one-line PI help-string sync, 583,072 → 583,133 B). koffi stays
 aboard at 1,021 KB; the hwsm swap is staged for the next release
-(design/KOFFI-REPLACEMENT.md).
+(internal design note).
 
 | Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -429,7 +429,7 @@ Parse bench (1000 iters, live mapping, region 238.5 KB):
 
 Reading: the koffi FFI (1,045,504 B raw, 443,817 B in the pack) is replaced
 by hwsm, a purpose-built 113,664 B N-API addon exposing the plugin's exact
-11-call Win32 surface (native/hwsm, design/KOFFI-REPLACEMENT.md). Pack lands
+11-call Win32 surface (native/hwsm, internal design note). Pack lands
 at 191,087 B against the 500,000 B target. The raw copy path holds at ~3 us
 (readInto copies into the same reusable scratch RtlMoveMemory filled), so
 the swap costs the hot path nothing; ui/ grew with the sdpi vendor and the
@@ -437,3 +437,45 @@ four PI panels since v1.0, and bin/node_modules is now empty. The quality
 review re-verified the bridge (error-5, quarantine and dlopen paths), added
 the bridge-failed status screen and unified the loader's two load paths;
 sizes above are the post-review build. VirusTotal on this hwsm.node: 0/70.
+
+### 2026-07-22 19:56: hwsm becomes a capability API (opaque sessions, mandatory mutex)
+
+| Artifact | Bytes | gzip |
+| --- | ---: | ---: |
+| .streamDeckPlugin pack | 215,713 B | 210,842 B |
+| bin/plugin.js | 157,680 B | 47,812 B |
+| bin/node_modules (total) | 0 B (0.0 KB) | |
+| bin/hwsm.node | 156,160 B (152.5 KB) | |
+| ui/ | 145,075 B (141.7 KB) | |
+| imgs/ | 33,750 B (33.0 KB) | |
+| layouts/ + manifest + themes | 5,031 B (4.9 KB) | |
+
+| Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| PID 74428 | 39.1 MB | 52.1 MB | 0.3 s | 1 min | 0.64% |
+
+Parse bench (1000 iters, live mapping, region 239.4 KB):
+
+| Path | mean µs | p50 µs | p95 µs | alloc/tick | retained |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| raw copy (session.read) | 3 | 2.8 | 3.7 | | |
+| shared-memory tick (515 readings) | 5.9 | 4.9 | 10.5 | 395 B | 3,584 B |
+| gadget tick | n/a: HKCU\Software\HWiNFO64\VSB absent on this machine (covered by e2e:gadget's synthetic key) | | | | |
+
+Reading: the 11-generic-call export surface is replaced by three capability
+calls (getBuildInfo, openSharedMemory, openGadgetKey) returning opaque
+type-tagged sessions; no handle, address, or BigInt crosses the boundary
+anymore. Every read is now one native transaction: 0 ms mutex attempt,
+header re-validation against the session's exact mapped length (checked
+arithmetic, 64 MiB bound), copy, release; the mutex became mandatory and
+WAIT_ABANDONED/WAIT_FAILED poison the session instead of degrading to an
+unguarded read. Cost of all that guarding: none measurable. Raw copy holds
+at 3.0 us mean (was 3.0-3.6 across prior entries) because the old path
+already took the mutex per read; the new path only adds a 44-byte header
+memcpy + integer checks under it. Tick mean 5.9 us vs 6.7 at the previous
+entry (noise class), alloc/tick down 469 -> 395 B. The addon grows
+113,664 -> 156,160 B for the session/validation logic, a version resource,
+CFG + CET, and /Brepro deterministic linking (two clean builds hash
+identical: ff72a2ab878f5bfa...); pack lands at 215,713 B, still well under
+the 500,000 B target. Gadget reads now reuse one native WCHAR buffer per
+provider instead of allocating a Node Buffer per registry value.

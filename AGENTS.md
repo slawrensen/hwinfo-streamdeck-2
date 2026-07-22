@@ -21,19 +21,57 @@ This is the canonical guide for anyone, human or AI agent, working in the repo.
 
 | Command | What it does |
 | --- | --- |
-| `npm run build` | Bundle `src/plugin.ts` to `com.lawrensen.hwinfo.sdPlugin/bin/plugin.js` (rollup) and vendor `hwsm.node` + legal files (`npm run build:native` builds the addon first) |
+| `npm run build` | Bundle `src/plugin.ts` to `com.lawrensen.hwinfo.sdPlugin/bin/plugin.js` (rollup) and vendor `hwsm.node` + legal files (`npm run build:native` builds the addon first; a loaded `bin/hwsm.node` fails the vendor step cleanly with a stop-the-plugin hint) |
+| `npm run build:native` | Build the hwsm addon (Node 20 headers, `/W4 /WX`, CFG/CET, reproducible link) plus its test-only variants; see `native/hwsm/TESTING.md` |
 | `npm run lint` / `npm run typecheck` | ESLint (zero warnings) / `tsc --noEmit` |
 | `npm test` | Unit suites (node:test via tsx): themes, key/dial renderers, shared-memory decode, status screens, series, rotation and groups, gestures, control schemes, devices, stats, diagnostics, density, and replayed gesture traces |
+| `npm run test:native` | Windows-only native integration suite: real named mappings/mutexes/registry keys, every wait result, bounds, contract, hygiene soak, loaded-file locking |
 | `npm run e2e` | Drive the built plugin over a mock Stream Deck WebSocket |
-| `e2e:resilience` / `e2e:gadget` / `e2e:dead-fallback` / `e2e:load` | Force failure states, the Gadget fallback, the free-version 12h DEAD-mapping fallback, and a soak |
+| `e2e:resilience` / `e2e:gadget` / `e2e:dead-fallback` / `e2e:native-edge` / `e2e:load` | Force failure states, the Gadget fallback, the free-version 12h DEAD-mapping fallback, native-boundary edges (missing mutex, layout growth, protocol mismatch), and a soak |
 | `npm run suite:full` | Every suite plus the screenshot pipeline; fails on any leftover process |
 | `npm run probe` | Standalone reader smoke test against live HWiNFO (`-- --gadget` forces the registry backend) |
 | `npm run changelog:page` | Regenerate the docs-site Changelog page from `CHANGELOG.md` (a committed derived file) |
 | `npm run release:validate` | lint + typecheck + unit + the release-copy validator; the validator needs internal release docs, so it passes only on the maintainer's full checkout |
 | `npm run pack` | Emit `release/com.lawrensen.hwinfo.streamDeckPlugin` (Elgato CLI) |
 
-The e2e suites need live Win32 named objects / HKCU, so they run locally, not in
-CI. CI runs lint + typecheck + unit + build.
+The UI e2e suites need a live plugin process against a mock Stream Deck
+socket, so they run locally (`npm run suite:full`). CI (pinned windows-2025
+runner) runs lint + typecheck + unit + build + the native integration suite,
+plus an ABI matrix that loads the same Node-20-built `hwsm.node` under Node
+20, 22, and 24 without rebuilding.
+
+## Native addon (hwsm)
+
+`native/hwsm` is a first-party stable Node-API (version 8, pinned) C addon
+with a capability API: `getBuildInfo()`, `openSharedMemory(mapping, mutex)`
+returning an opaque session (`byteLength`, `readInto(Buffer)`, `close()`),
+and `openGadgetKey(subkey)` returning an opaque HKCU query-only key
+(`queryString(name)`, `close()`). No handle, pointer, address, or generic
+Win32 call crosses the JavaScript boundary; sessions are type-tagged
+`napi_wrap` objects JavaScript cannot forge. Failures carry a stable
+`code` (`HWSM_*`), the failing `operation`, and `win32Error`.
+
+Rules that keep it sound:
+
+- The JS/native contract is `HWSM_PROTOCOL_VERSION`, defined in
+  `native/hwsm/hwsm-version.h` and mirrored in `src/hwinfo/hwsm-loader.ts`.
+  The loader refuses a mismatched addon (fails closed as "bridge-failed").
+  Bump BOTH on any API shape/meaning change.
+- The native version (`HWSM_NATIVE_VERSION_*`, also the version resource)
+  changes only when native source behavior changes, so TypeScript-only
+  releases ship byte-identical native bytes.
+- The consistency mutex is mandatory; there is no unguarded read path. The
+  header is re-validated under the mutex on every read against the
+  session's exact mapped length (checked arithmetic, 64 MiB bound).
+- `hwsm_test.node` (fault-injection hooks) and `hwsm_protomm.node`
+  (deliberate protocol mismatch) build alongside for tests and must never
+  ship; `scripts/validate-native.mjs` enforces that plus protocol/hash
+  consistency in the pack.
+- `node scripts/native-manifest.mjs` writes `release-native-manifest.json`
+  (hash, size, PE hardening, imports, versions); the release workflow
+  attaches it next to the pack and re-proves build reproducibility.
+- Manual host-condition coverage (elevation, sessions, RDP, sleep) lives in
+  `native/hwsm/TESTING.md`.
 
 Dev loop: `streamdeck link com.lawrensen.hwinfo.sdPlugin` once, then
 `npm run watch` (rebuilds and restarts the plugin on save).
