@@ -14,6 +14,22 @@ hand.
 One entry per version. Tagged versions are published as GitHub releases; the
 Elgato Marketplace listing is a separate track.
 
+## 1.3.90.0 - 2026-07-23
+
+- Preview build for the issue #3 testers, published as the GitHub
+  pre-release `pre-1.4-issue3-2` only; nothing was submitted to the
+  Marketplace. It carries the 1.4 branch as of this date: adaptive
+  label sizes, the three-reading key layout, the stat badge under the
+  title, the balanced unit corridor, the hwsm native bridge,
+  reopen-in-place on HWiNFO layout changes, and sparkline history that
+  collects for the plugin lifetime.
+- Preview builds now version in the 1.3.9x band. The first preview
+  reported 1.3.0.0, and Stream Deck keeps the installed copy when a
+  plugin file's version is not higher than what is installed, so
+  installing that preview over 1.3.0 changed nothing (caught by
+  @FattSlice in issue #3). `npm run pack` now refuses any package
+  whose manifest version does not clear the newest released tag.
+
 ## 1.3.0.0 - 2026-07-16
 
 - A Display select for keys: None, Sparkline (recent history), Bar, or
