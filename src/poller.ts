@@ -50,9 +50,6 @@ const STALE_AFTER_MS = Number(process.env.HWINFO_STALE_AFTER_MS ?? "") || 15_000
 const REOPEN_PROBE_MS = Number(process.env.HWINFO_REOPEN_PROBE_MS ?? "") || 5_000;
 /** While on the gadget fallback in auto mode, probe shared memory this often. */
 const UPGRADE_PROBE_MS = Number(process.env.HWINFO_UPGRADE_PROBE_MS ?? "") || 15_000;
-/** Keep a sparkline ring for this long after its last subscriber disappears,
- *  so a page-nav away and back (or an SDK reconnect) does not lose the line. */
-const SERIES_GRACE_MS = Number(process.env.HWINFO_SERIES_GRACE_MS ?? "") || 60_000;
 
 export function parsePollInterval(raw: unknown): number {
 	const n = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : Number.NaN;
@@ -83,10 +80,13 @@ class HwinfoPoller extends EventEmitter {
 	// Per-reading recent-value ring backing the key sparkline. It lives here,
 	// not in per-key action state, so it outlives every willAppear (the action
 	// wiped its own history on each appear — page-nav / reconnect / wake all
-	// reset the sparkline). Native values; converted only at render.
+	// reset the sparkline). Once tracked, a ring is fed on every fresh
+	// snapshot and lives for the process: paging away for any length of time
+	// returns to a complete, current line. A ring only exists for readings a
+	// visible key or dial row asked for at least once, and holds at most the
+	// sparkline's sample cap, so the whole map stays kilobytes-small. Native
+	// values; converted only at render.
 	private readonly series = new Map<string, number[]>();
-	private readonly seriesRefs = new Map<string, number>();
-	private readonly seriesEvict = new Map<string, NodeJS.Timeout>();
 
 	/** Latest status; safe to read at any time (e.g. right after willAppear). */
 	getStatus(): PollerStatus {
@@ -110,37 +110,15 @@ class HwinfoPoller extends EventEmitter {
 		this.on("tick", listener);
 	}
 
-	/** An action subscribes a reading so the poller keeps that sparkline's
-	 *  history alive across the action's own appear/disappear churn. Keys
-	 *  subscribe their selection; dials subscribe the two-row view's visible
-	 *  rows. */
+	/** An action subscribes a reading so the poller collects that sparkline's
+	 *  history. Keys subscribe their selection; dials subscribe the two-row
+	 *  view's visible rows. The ring then lives for the process lifetime;
+	 *  there is no unsubscribe, so the line is complete whenever the reading
+	 *  comes back on screen. */
 	subscribeSeries(key: string): void {
-		const evict = this.seriesEvict.get(key);
-		if (evict !== undefined) {
-			clearTimeout(evict);
-			this.seriesEvict.delete(key);
+		if (!this.series.has(key)) {
+			this.series.set(key, []);
 		}
-		this.seriesRefs.set(key, (this.seriesRefs.get(key) ?? 0) + 1);
-	}
-
-	/** Releases one subscription; the ring is evicted only after a grace window,
-	 *  so a quick nav away and back keeps the line. */
-	unsubscribeSeries(key: string): void {
-		const refs = (this.seriesRefs.get(key) ?? 0) - 1;
-		if (refs > 0) {
-			this.seriesRefs.set(key, refs);
-			return;
-		}
-		this.seriesRefs.delete(key);
-		if (this.seriesEvict.has(key)) {
-			return;
-		}
-		const timer = setTimeout(() => {
-			this.seriesEvict.delete(key);
-			this.series.delete(key);
-		}, SERIES_GRACE_MS);
-		timer.unref();
-		this.seriesEvict.set(key, timer);
 	}
 
 	/** The reading's recent NATIVE values (newest last), or undefined if none. */
@@ -276,21 +254,16 @@ class HwinfoPoller extends EventEmitter {
 			if (snapshot !== null && snapshot.pollTime !== this.lastPollTime) {
 				this.lastPollTime = snapshot.pollTime;
 				this.lastAdvanceAt = Date.now();
-				// Feed the sparkline rings only on a genuinely fresh snapshot: a
-				// frozen or stale source must never push duplicate points (that
-				// would flatten the line in place and churn setImage for no new
-				// data). Native values in; the key renderer self-normalizes.
-				for (const key of this.seriesRefs.keys()) {
+				// Feed every tracked ring, on-screen or not, but only on a
+				// genuinely fresh snapshot: a frozen or stale source must never
+				// push duplicate points (that would flatten the line in place
+				// and churn setImage for no new data). Native values in; the
+				// key renderer self-normalizes.
+				for (const [key, ring] of this.series) {
 					const reading = snapshot.byKey.get(key);
-					if (reading === undefined) {
-						continue;
+					if (reading !== undefined) {
+						pushSample(ring, reading.value);
 					}
-					let ring = this.series.get(key);
-					if (ring === undefined) {
-						ring = [];
-						this.series.set(key, ring);
-					}
-					pushSample(ring, reading.value);
 				}
 			}
 			// Freshness is judged even when the read was skipped (mutex busy) —

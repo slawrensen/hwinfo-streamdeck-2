@@ -168,7 +168,7 @@ The zones are **fixed landmarks**, drawn as muted shades so they read as markers
 Sparkline notes:
 
 - It holds the last **36 samples** and fills at **HWiNFO's own update rate** (default 2 s), not the plugin's poll rate: one new point per genuinely fresh HWiNFO snapshot.
-- History **persists across page changes** (1.1.6.0): switching Stream Deck pages, waking the machine, or the app reconnecting no longer wipes the line; the graph stays drawn. A graph on a page you haven't viewed in a long while (over a minute) does rebuild from scratch.
+- History **survives leaving the page entirely**: once a key has asked for a reading's history, the plugin keeps collecting it while the key is off screen, so switching pages, waking the machine, or the app reconnecting returns you to a complete, current line no matter how long you were away. (Before 1.4 a page unviewed for over a minute rebuilt its graphs from scratch.) History lives in plugin memory, so a plugin restart or Stream Deck app restart starts the lines fresh.
 - It **survives a °C/°F toggle** unchanged (same data, just relabelled), and a frozen HWiNFO holds the line's last real shape instead of flattening it.
 - The sparkline self-scales to its own visible min/max, so the shape reflects recent variation, not absolute magnitude.
 

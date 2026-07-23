@@ -252,11 +252,8 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 			return;
 		}
 		poller.release();
-		// Sparkline series go back to the poller's grace window; the rings
-		// stay warm for a quick return and evict on their own otherwise.
-		for (const key of state.rowSeries) {
-			poller.unsubscribeSeries(key);
-		}
+		// The rows' rings stay tracked in the poller: history keeps
+		// collecting off-screen, so the two-row view returns complete.
 		state.rowSeries.clear();
 		// A press cannot span a disappearance; drop any half-tracked gesture
 		// and its overlay timer, then park the state for the action's return.
@@ -597,7 +594,7 @@ export class SensorDialAction extends SingletonAction<DialSettings> {
 		}
 		for (const key of [...state.rowSeries]) {
 			if (!desired.has(key)) {
-				poller.unsubscribeSeries(key);
+				// Off the visible window now; its ring stays warm in the poller.
 				state.rowSeries.delete(key);
 			}
 		}

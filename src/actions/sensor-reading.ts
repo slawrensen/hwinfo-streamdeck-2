@@ -157,12 +157,9 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 			subscribedKey = key;
 		} else if (subscribedKey !== key) {
 			// A replayed willAppear can carry settings that changed while the
-			// action was out of sight — re-point the sparkline subscription
-			// exactly like onDidReceiveSettings, or the ring for the new key
-			// never fills and the sparkline goes permanently blank.
-			if (subscribedKey !== undefined) {
-				poller.unsubscribeSeries(subscribedKey);
-			}
+			// action was out of sight — track the new key's ring exactly like
+			// onDidReceiveSettings, or it never fills and the sparkline goes
+			// permanently blank. The old ring stays warm by design.
 			if (key !== undefined) {
 				poller.subscribeSeries(key);
 			}
@@ -177,12 +174,10 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<ReadingSettings>): void {
-		const state = this.instances.get(ev.action.id);
 		if (this.instances.delete(ev.action.id)) {
+			// The ring stays tracked: history keeps collecting off-screen, so
+			// paging back after any absence shows a complete, current line.
 			poller.release();
-			if (state?.subscribedKey !== undefined) {
-				poller.unsubscribeSeries(state.subscribedKey);
-			}
 		}
 	}
 
@@ -191,14 +186,12 @@ export class SensorReadingAction extends SingletonAction<ReadingSettings> {
 		if (state === undefined) {
 			return;
 		}
-		// Re-point the sparkline subscription when the sensor changes. A °C/°F
-		// change no longer resets anything: the poller stores native values, so
-		// the drawn shape is unit-invariant and the history carries across.
+		// Track the new reading's ring when the sensor changes; the old ring
+		// stays warm in the poller. A °C/°F change resets nothing: the poller
+		// stores native values, so the drawn shape is unit-invariant and the
+		// history carries across.
 		const nextSub = nonEmptyStringOf(ev.payload.settings.readingKey);
 		if (state.subscribedKey !== nextSub) {
-			if (state.subscribedKey !== undefined) {
-				poller.unsubscribeSeries(state.subscribedKey);
-			}
 			if (nextSub !== undefined) {
 				poller.subscribeSeries(nextSub);
 			}
