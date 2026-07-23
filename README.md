@@ -95,6 +95,15 @@ the current value.
 **Pressing the key** cycles what's shown: current → MIN → MAX → AVG (badge in the
 corner). The warn/critical colors always track the *live* value.
 
+<p align="center">
+  <img src="docs/assets/img/multi-readouts.png" width="900"
+       alt="Multi-readout key and dial faces rendered by the plugin: CPU and GPU temperature stacked on one key, the same sensor as a min and max pair, a press-cycled pair showing MAX, a three-row key with labels left and values right, a quad grid key with four color-coded readings, and the dial overview and two-row views">
+</p>
+
+<p align="center">
+  <em>One key, your call: two stacked readings · three rows · a 2x2 quad grid · dial overview and two-row views</em>
+</p>
+
 ## Sensor Dial (Stream Deck +)
 
 The touchscreen shows the label, live value, session ▼min/▲max and a range bar.
@@ -117,6 +126,15 @@ The touchscreen shows the label, live value, session ▼min/▲max and a range b
 Dials use the same themes as keys and take the same **Warn / Critical at**
 thresholds: the range bar's fill flips to the alert color while the rest of the
 face stays themed (the touchscreen slot is too small for a full field flip).
+
+<p align="center">
+  <img src="docs/assets/img/plusxl-dials.png" width="900"
+       alt="Six dial faces rendered at the Stream Deck + XL's encoder strip geometry: CPU temperature, GPU temperature, a pinned CPU fan, CPU power, CPU load, and a GPU hot spot at a forced critical value with a red range bar">
+</p>
+
+<p align="center">
+  <em>The Stream Deck + XL's six-dial strip: per-reading session ▼min/▲max, pin and pause, and a critical range bar</em>
+</p>
 
 ## Themes
 
