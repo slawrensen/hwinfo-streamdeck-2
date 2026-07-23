@@ -86,6 +86,7 @@ const PROSE_FILES = [
 	"MARKETPLACE.md",
 	"NOTICE.md",
 	"PERF.md",
+	"native/hwsm/TESTING.md",
 	...mdFilesUnder("docs").filter((f) => !f.replaceAll("\\", "/").endsWith(RULES_DOC.slice(5))),
 	"docs/_config.yml",
 	`${SD}/manifest.json`,

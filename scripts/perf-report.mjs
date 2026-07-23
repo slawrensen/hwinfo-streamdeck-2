@@ -111,7 +111,7 @@ const bytes = (b) => (b === null || b === undefined ? "n/a" : `${b.toLocaleStrin
 function renderMarkdown(report) {
 	const { sizes, proc, bench } = report;
 	const lines = [];
-	lines.push(`### ${report.date} — ${report.label}`);
+	lines.push(`### ${report.date}: ${report.label}`);
 	lines.push("");
 	lines.push("| Artifact | Bytes | gzip |");
 	lines.push("| --- | ---: | ---: |");
