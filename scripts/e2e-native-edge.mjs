@@ -143,10 +143,16 @@ try {
 	await expectFrame(frames, "mutex appears → live 'Test Temp' value", (svg) => svg.includes("Test Temp") && svg.includes("°C"), 8000);
 
 	// The published layout grows mid-session: the exact-length session must
-	// invalidate, and the poller must reopen at the new exact size.
+	// invalidate, and the poller must reopen at the new exact size WITHIN the
+	// same tick. The pre-hwsm builds mapped the whole section and absorbed
+	// growth invisibly; the in-place reopen must match, so no status screen
+	// may reach the deck during the transition.
+	const beforeGrow = frames.length;
 	fake.stdin.write("grow\n");
 	await sleep(300);
-	await expectFrame(frames, "layout grows → session reopens → live again", (svg) => svg.includes("Test Temp"), 10000);
+	await expectFrame(frames, "layout grows → live values continue (reopened in place)", (svg) => svg.includes("Test Temp"), 10000);
+	const flashed = frames.slice(beforeGrow).filter((svg) => svg.includes("HWiNFO error") || svg.includes("HWiNFO stalled") || svg.includes("Start HWiNFO"));
+	check("no status frame during the growth transition", flashed.length === 0, flashed.length > 0 ? `${flashed.length} status frame(s) reached the deck` : "");
 
 	// A plugin.js next to a wrong-protocol hwsm.node must fail closed.
 	await expectFrame(mismatchFrames, "protocol-mismatched addon → 'Plugin damaged'", (svg) => svg.includes("Plugin damaged"), 10000, { fromStart: true });

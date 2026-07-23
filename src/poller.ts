@@ -14,6 +14,15 @@
  *    └────────(pollTime advances)──────┘
  * `unavailable` re-attempts a full open every tick (cheap: one failing
  * OpenFileMappingW / RegOpenKeyExW), so recovery is automatic.
+ *
+ * A poisoned session (the hwsm bridge invalidates on any layout change; a
+ * game start adding GPU readings does it routinely) is reopened at the new
+ * exact size and re-read WITHIN the same tick, and a reopen failure rides
+ * on the last rendered status for up to STALE_AFTER_MS before surfacing.
+ * The pre-hwsm builds mapped the whole section and absorbed layout growth
+ * invisibly; this keeps that visible behavior without weakening the native
+ * exact-length contract. Diagnostic reasons (disabled, access-denied,
+ * bridge-failed) still surface immediately.
  */
 import streamDeck from "@elgato/streamdeck";
 import { EventEmitter } from "node:events";
@@ -68,6 +77,8 @@ class HwinfoPoller extends EventEmitter {
 	private lastAdvanceAt = 0;
 	private lastReopenProbeAt = 0;
 	private lastUpgradeProbeAt = 0;
+	/** Nonzero while a transient failure is being ridden out on held values. */
+	private holdingSince = 0;
 	private status: PollerStatus = { state: "unavailable", reason: "not-running", message: "Not polled yet." };
 	// Per-reading recent-value ring backing the key sparkline. It lives here,
 	// not in per-key action state, so it outlives every willAppear (the action
@@ -246,7 +257,22 @@ class HwinfoPoller extends EventEmitter {
 			}
 			this.maybeUpgradeToSharedMemory();
 
-			const snapshot = this.provider.read();
+			let snapshot: SensorSnapshot | null;
+			try {
+				snapshot = this.provider.read();
+			} catch (err) {
+				if (!(err instanceof HwinfoError) || err.reason !== "invalid") {
+					throw err;
+				}
+				// Poisoned session (layout changed): reopen at the new exact size
+				// and read again within the same tick, so live values never leave
+				// the keys. A failure here falls to the hold in the outer catch.
+				this.dropProvider();
+				this.provider = this.openProvider();
+				snapshot = this.provider.read();
+				this.logger.info(`Data source layout changed; reopened in place (${this.provider.source})`);
+			}
+			this.holdingSince = 0;
 			if (snapshot !== null && snapshot.pollTime !== this.lastPollTime) {
 				this.lastPollTime = snapshot.pollTime;
 				this.lastAdvanceAt = Date.now();
@@ -286,11 +312,26 @@ class HwinfoPoller extends EventEmitter {
 		} catch (err) {
 			this.dropProvider();
 			if (err instanceof HwinfoError) {
-				if (this.status.state !== "unavailable" || this.status.reason !== err.reason) {
-					this.logger.warn(`HWiNFO unavailable [${err.reason}]: ${err.message}`);
+				// Transient classes (a poisoned session whose reopen has not
+				// landed yet, or a source mid-recreate) ride on the last rendered
+				// status; anything else, or anything outliving the same freshness
+				// window that gates staleness, surfaces immediately. A held
+				// status always postdates an advance, so lastAdvanceAt is set.
+				const transient = err.reason === "invalid" || err.reason === "not-running";
+				if (transient && this.status.state !== "unavailable" && Date.now() - this.lastAdvanceAt <= STALE_AFTER_MS) {
+					if (this.holdingSince === 0) {
+						this.holdingSince = Date.now();
+						this.logger.info(`Holding last values while the data source reopens [${err.reason}]: ${err.message}`);
+					}
+				} else {
+					this.holdingSince = 0;
+					if (this.status.state !== "unavailable" || this.status.reason !== err.reason) {
+						this.logger.warn(`HWiNFO unavailable [${err.reason}]: ${err.message}`);
+					}
+					this.status = { state: "unavailable", reason: err.reason, message: err.message };
 				}
-				this.status = { state: "unavailable", reason: err.reason, message: err.message };
 			} else {
+				this.holdingSince = 0;
 				this.logger.error("Unexpected poll failure", err);
 				this.status = { state: "unavailable", reason: "invalid", message: String(err) };
 			}
