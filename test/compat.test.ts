@@ -5,10 +5,12 @@
  * faces and the quad key are the untouched 1.2.0 capture; the single and
  * dual key entries were re-baselined for the adaptive label typography
  * (issue #3), and the three single-key entries again for the measured
- * advance table, the unit baseline lift to 112/18px (bottom-zone fix) and
- * the stat badge's move into the title/number gap — label/unit/badge
- * geometry changed intentionally there, and these fixtures pin everything
- * else (anchors, values, sparkline) against drift. A theme-mode text
+ * advance table, the unit baseline lift to 112/18px (bottom-zone fix), the
+ * stat badge's move into the title/number gap, and once more for the
+ * balanced unit corridor (unit 114, spark span inset to pin stroke ink at
+ * y=120) — label/unit/badge geometry changed intentionally there, and
+ * these fixtures pin everything else (anchors, values, sparkline) against
+ * drift. A theme-mode text
  * resolution must also be byte-identical to passing no text at all.
  */
 import assert from "node:assert/strict";

@@ -4,7 +4,8 @@
  * no CSS blocks, no dominant-baseline, local fonts only).
  *
  * Geometry is locked by the display spec: anchors move only when the spec
- * does (the unit baseline lifted 118→112 in the 2026-07 bottom-zone fix);
+ * does (the unit baseline lifted 118→112 in the 2026-07 bottom-zone fix,
+ * then settled at 114 when the spark span was inset for its stroke);
  * value and label glyph sizes flex with content.
  */
 import { estimateKeyTextWidth, fitTextLadder, truncateLabel, type FittedText } from "./format";
@@ -34,10 +35,14 @@ export function svgOpen(w: number, h: number, bg: string): string[] {
 	];
 }
 
-/** Spark strip box: x 8–136, y 120–134. Sits above a bottom margin so the
- * line at a session low and the r=5 end dot (down to y≈139) never clip the
- * 144 key edge. */
-const SPARK = { x: 8, y: 120, w: 128, h: 14 } as const;
+/** Spark strip box: x 8–136, line span y 122–134 (underfill bottom stays
+ * 134). The polyline tops out 2 px above its span (stroke 4), so the top
+ * inset pins worst-case spark ink at exactly the y=120 band edge instead
+ * of overshooting to 118; that reclaimed air is what lets the unit sit at
+ * 114 with an even corridor. Sits above a bottom margin so the line at a
+ * session low and the r=5 end dot (down to y≈139) never clip the 144 key
+ * edge. */
+const SPARK = { x: 8, y: 122, w: 128, h: 12 } as const;
 /** Accent polyline stroke; the spec's absolute minimum is 3. */
 const SPARK_STROKE = 4;
 const SPARK_SAMPLES = 36;
@@ -267,11 +272,12 @@ export function renderReadingKey(opts: ReadingKeyOptions): string {
 	}
 	parts.push(`<text x="72" y="94" text-anchor="middle" font-family="${FONT}" font-size="${ring ? ringValueFontSize(valueText) : valueFontSize(valueText)}" font-weight="700" fill="${text.value}">${escapeXml(valueText)}</text>`);
 	if (unitText !== "") {
-		// Baseline 112/18: the spark/bar band draws LATER and paints over what
-		// it reaches (spark ink tops at y=118 whenever the line rides its
-		// session max), so the unit clears it — measured 4.8 px up to the
-		// value, 5.8 px down to worst-case spark ink.
-		parts.push(`<text x="72" y="112" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="600" fill="${text.unit}">${escapeXml(unitText)}</text>`);
+		// Baseline 114/18: worst-case spark/bar ink starts at y=120 (the spark
+		// span is inset for its stroke), so the corridor is optically balanced
+		// with the larger gap against the heavier neighbor — measured ink air
+		// 6.5–7.0 up to the value vs 5.9 down to the band, and descender units
+		// (Mbps) keep the same ≥1.9 px band clearance the 112 baseline had.
+		parts.push(`<text x="72" y="114" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="600" fill="${text.unit}">${escapeXml(unitText)}</text>`);
 	}
 	if (gauge !== undefined && gauge.kind === "bar") {
 		parts.push(...keyBarSvg(gauge, palette));

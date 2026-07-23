@@ -76,12 +76,13 @@ describe("value shrink ramp (digits+dot+sign; unit excluded)", () => {
 describe("anchors never move", () => {
 	for (const history of [undefined, [50, 60, 55, 70]]) {
 		const name = history === undefined ? "without sparkline" : "with sparkline";
-		it(`value y=94, unit y=112, label y=32 ${name}`, () => {
+		it(`value y=94, unit y=114, label y=32 ${name}`, () => {
 			const svg = render({ history });
 			assert.match(svg, /<text x="72" y="94" /);
-			// Unit baseline 112/18px clears the spark band, whose ink tops out
-			// at y=118 and paints over anything it reaches (drawn later).
-			assert.match(svg, /<text x="72" y="112" [^>]*font-size="18" font-weight="600"/);
+			// Unit baseline 114/18px: worst-case spark ink starts at y=120 (the
+			// line span is inset for its stroke), so the corridor is balanced
+			// with the larger air against the heavier value block above.
+			assert.match(svg, /<text x="72" y="114" [^>]*font-size="18" font-weight="600"/);
 			// The label anchor is fixed; its size adapts ("CPU Package" fits 20).
 			assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="20" font-weight="600"/);
 		});
@@ -89,7 +90,7 @@ describe("anchors never move", () => {
 
 	it("unit omitted when empty, anchors unchanged", () => {
 		const svg = render({ unitText: "" });
-		assert.doesNotMatch(svg, /y="112"/);
+		assert.doesNotMatch(svg, /y="114"/);
 		assert.match(svg, /<text x="72" y="94" /);
 	});
 });
@@ -171,14 +172,14 @@ describe("label fitting and badge collision", () => {
 describe("sparkline strip", () => {
 	const history = Array.from({ length: 40 }, (_, i) => 50 + Math.sin(i) * 10);
 
-	it("caps at 36 samples inside x8–136, y120–134", () => {
+	it("caps at 36 samples inside x8–136, y122–134 (stroke ink stays at 120)", () => {
 		const svg = render({ history });
 		const points = (svg.match(/<polyline points="([^"]+)"/) as RegExpMatchArray)[1] as string;
 		const pairs = points.split(" ").map((p) => p.split(",").map(Number) as [number, number]);
 		assert.equal(pairs.length, 36);
 		for (const [x, y] of pairs) {
 			assert.ok(x >= 8 && x <= 136, `x ${x}`);
-			assert.ok(y >= 120 && y <= 134, `y ${y}`);
+			assert.ok(y >= 122 && y <= 134, `y ${y}`);
 		}
 	});
 
@@ -197,7 +198,7 @@ describe("sparkline strip", () => {
 
 	it("end dot r=5 in accent at the last sample", () => {
 		const svg = render({ history: [10, 20, 30] }); // last = max → top of strip
-		assert.match(svg, new RegExp(`<circle cx="136\\.0" cy="120\\.0" r="5" fill="${VOID.accent}"/>`));
+		assert.match(svg, new RegExp(`<circle cx="136\\.0" cy="122\\.0" r="5" fill="${VOID.accent}"/>`));
 	});
 
 	it("no sparkline without 2+ samples", () => {
@@ -213,7 +214,7 @@ describe("alert pass recolors the whole key", () => {
 		assert.match(svg, /<rect width="144" height="144" fill="#E8940D"\/>/);
 		assert.match(svg, /y="94"[^>]*fill="#1C1200"/);
 		assert.match(svg, /y="32"[^>]*fill="#402C00"/); // label
-		assert.match(svg, /y="112"[^>]*fill="#553C00"/); // unit
+		assert.match(svg, /y="114"[^>]*fill="#553C00"/); // unit
 		assert.match(svg, /<polyline [^>]*stroke="#402C00"/); // accent, not themed
 		assert.match(svg, /<path [^>]*fill="#C67A06"/); // track, not themed
 	});
@@ -322,7 +323,7 @@ describe("key Bar gauge", () => {
 	it("value, unit and label anchors stay locked; no sparkline alongside", () => {
 		const svg = render({ gauge: barGauge({}), history: [1, 2, 3] });
 		assert.match(svg, /<text x="72" y="94" /);
-		assert.match(svg, /<text x="72" y="112" /);
+		assert.match(svg, /<text x="72" y="114" /);
 		assert.match(svg, /<text x="72" y="32" /);
 		assert.doesNotMatch(svg, /polyline/);
 	});
@@ -458,7 +459,7 @@ describe("key text colors", () => {
 	it("custom without secondary dim: label, unit and badge take the exact color", () => {
 		const svg = render({ text: custom, statBadge: "MAX" });
 		assert.match(svg, /y="32"[^>]*fill="#660000"/);
-		assert.match(svg, /y="112"[^>]*fill="#660000"/);
+		assert.match(svg, /y="114"[^>]*fill="#660000"/);
 		assert.match(svg, />MAX<\/text>/);
 		assert.match(svg, /x="72" y="48"[^>]*fill="#660000"/);
 	});
@@ -466,7 +467,7 @@ describe("key text colors", () => {
 	it("custom with secondary dim: value exact, secondary stepped toward bg", () => {
 		const svg = render({ text: customDim, statBadge: "MAX" });
 		assert.match(svg, /y="94"[^>]*fill="#660000"/);
-		assert.match(svg, new RegExp(`y="112"[^>]*fill="${customDim.unit}"`));
+		assert.match(svg, new RegExp(`y="114"[^>]*fill="${customDim.unit}"`));
 		assert.notEqual(customDim.unit, "#660000");
 	});
 
