@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://docs.slawrensen.com/hwinfo-streamdeck/"><img alt="Documentation" src="https://img.shields.io/badge/docs-live-2ea44f?style=flat-square"></a>
   <a href="https://github.com/slawrensen/hwinfo-streamdeck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/slawrensen/hwinfo-streamdeck?style=flat-square&color=blue"></a>
-  <a href="https://marketplace.elgato.com/product/hwinfo-sensors-82436166-3d61-4527-9034-8fdf16d92c54"><img alt="Elgato Marketplace downloads" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmp-gateway.elgato.com%2Fproducts%3Fname%3DHWiNFO%2520Sensors&query=results%5B0%5D.download_count&logo=elgato&label=Marketplace&style=flat-square"></a>
+  <a href="https://marketplace.elgato.com/product/hwinfo-sensors-82436166-3d61-4527-9034-8fdf16d92c54"><img alt="Elgato Marketplace downloads" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmp-gateway.elgato.com%2Fproducts%3Fname%3DHWiNFO%2520Sensors&query=results%5B0%5D.download_count&suffix=%20downloads&logo=elgato&label=Marketplace&style=flat-square"></a>
   <a href="https://docs.slawrensen.com/hwinfo-streamdeck/getting-started.html"><img alt="Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-0078d6?style=flat-square"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/slawrensen/hwinfo-streamdeck?style=flat-square"></a>
   <a href="https://docs.slawrensen.com/hwinfo-streamdeck/faq.html#privacy"><img alt="No ads, no telemetry" src="https://img.shields.io/badge/ads%20%C2%B7%20telemetry-none-brightgreen?style=flat-square"></a>
