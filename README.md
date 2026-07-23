@@ -88,7 +88,7 @@ the current value.
 | **Layout** | One reading (default), two stacked readings with their own labels and stats, three compact rows with labels left and values right, or four in a 2x2 quad grid with per-cell colors or labels. |
 | **Decimals** | Auto (magnitude-based, compacts through k/M/G/T: 48 700 → `48.7k`) or fixed 0–3. Bytes and rates re-tier by the deck-wide **Data units** (decimal KB/MB/GB with Mbps rates, or binary KiB/MiB/GiB with MiB/s). |
 | **Unit** | Show temperatures in °F instead of °C. |
-| **Display** | Recent history as a sparkline, or the value in its range as a bar or ring, with amber/red threshold zones. |
+| **Display** | Recent history as a sparkline, or the value in its range as a bar or ring, with amber/red threshold zones. History keeps collecting while a key is off screen, so lines return complete after any absence. |
 | **Warn / Critical at** | Key turns amber / red at these values (in the displayed unit). |
 | **Direction** | "Alert when below" flips the comparison, for fan RPM, free space, etc. |
 

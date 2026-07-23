@@ -85,12 +85,11 @@ They're two different things:
 
 ## Sparklines
 
-### Why do my sparklines look different / fill in slowly after switching pages?
+### Why do my sparklines fill in slowly when a graph starts from empty?
 
-As of **1.1.6**, sparkline history lives with the poller and persists across page changes, wake, and app reconnects; switching away and back keeps the line drawn. But there are two things worth knowing:
+Sparkline history lives with the poller and keeps **collecting while a key is off screen** (as of 1.4; between 1.1.6 and 1.3 a page unviewed for over a minute rebuilt from empty). Switching pages, waking the machine, or the app reconnecting returns you to a complete, current line. A graph only builds from empty the first time a reading is shown, after a plugin or Stream Deck restart (history is plugin memory), or after a poll-interval change.
 
-1. **A graph on a page you haven't viewed in a while rebuilds from empty.** History is kept for a grace window after a key leaves the screen; past that, an unseen key's ring is dropped, so when you return it starts filling again.
-2. **It fills at HWiNFO's own update rate, not the plugin's poll rate.** The sparkline only gains a new point when HWiNFO produces a genuinely fresh reading; a frozen source never pushes duplicate points (that would flatten the line). HWiNFO's default sensor polling period is 2 seconds, and the sparkline holds 36 samples, so a full graph takes ~72 seconds to build from scratch. To fill faster, lower HWiNFO's polling period in **HWiNFO → Settings → Polling period**.
+When it does build from empty: **it fills at HWiNFO's own update rate, not the plugin's poll rate.** The sparkline only gains a new point when HWiNFO produces a genuinely fresh reading; a frozen source never pushes duplicate points (that would flatten the line). HWiNFO's default sensor polling period is 2 seconds, and the sparkline holds 36 samples, so a full graph takes ~72 seconds to build from scratch. To fill faster, lower HWiNFO's polling period in **HWiNFO → Settings → Polling period**.
 
 Two more sparkline behaviors:
 

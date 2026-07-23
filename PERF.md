@@ -479,3 +479,18 @@ CFG + CET, and /Brepro deterministic linking (two clean builds hash
 identical: ff72a2ab878f5bfa...); pack lands at 215,713 B, still well under
 the 500,000 B target. Gadget reads now reuse one native WCHAR buffer per
 provider instead of allocating a Node Buffer per registry value.
+
+### 2026-07-23 03:45: sparkline rings collect for the process lifetime
+
+The 60 s series eviction (shipped since 1.1.6.0) is gone: the poller now
+feeds every tracked ring on every fresh snapshot, on screen or not, so a
+page returns to a complete, current line after any absence. Cost at full
+saturation, measured with a 520-ring feed loop over the production
+pushSample shape (20,000 iterations, Node 24): 12.2 µs per tick, 0.0012 %
+of one core at the 1 s poll and 0.0049 % at the 250 ms floor. Ring count
+is bounded by distinct readings ever shown, never by pages or keys
+(about 515 publishable on this machine, roughly 150 KB of rings at total
+saturation), and the ceiling case equals the standing e2e:load scenario
+(520 contexts at 250 ms), green in the same gate. Rings stay
+index-spaced: a poll-cadence change still clears them, and history stays
+process memory, so a plugin restart starts lines fresh on purpose.
