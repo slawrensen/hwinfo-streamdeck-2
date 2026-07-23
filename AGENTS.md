@@ -128,6 +128,11 @@ the poller, the property-inspector protocol, or the data sources: run the
 matching e2e suite. Before calling it done, `npm run suite:full` should be green
 with zero orphaned processes.
 
+For release soaks, `node scripts/soak-monitor.mjs` watches the live plugin
+from outside the process (kernel-level sampling plus a log tail, nothing
+in-process, so the soaked build stays the exact shipping configuration) and
+prints a PERF.md-ready summary: RSS/handle slopes, restarts, and gaps.
+
 ## Distribution
 
 - **GitHub Releases** (un-DRM'd, direct download): push a `vX.Y.Z` tag and

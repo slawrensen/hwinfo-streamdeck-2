@@ -31,6 +31,11 @@ Record for each executed row: date, Windows/Stream Deck/HWiNFO versions,
 session and elevation relationship, observed error code. Never mark an
 unexecuted row as passed.
 
+`node scripts/soak-monitor.mjs` records the soak evidence for rows 11 to 13:
+external process sampling only (RSS and handle slopes, timestamped restarts,
+absences, and sampling gaps), never in-process instrumentation, so the
+soaked bytes are exactly the shipped bytes.
+
 | # | Condition | Expected | Status |
 | --- | --- | --- | --- |
 | 1 | Standard HWiNFO / standard Stream Deck | Live readings via shared memory | PASS 2026-07-22, Win 10.0.19044, SD dev-linked, HWiNFO SM v2.1: 21 sensors / 515 readings via probe + live deck |
