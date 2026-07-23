@@ -1,0 +1,33 @@
+// Conventional Windows version resource for hwsm.node. Raw numeric
+// FILEOS/FILETYPE values (VOS_NT_WINDOWS32 / VFT_DLL) keep this file free
+// of SDK header dependencies. The version numbers come from hwsm-version.h,
+// the single source of truth shared with the addon itself.
+#include "hwsm-version.h"
+
+1 VERSIONINFO
+ FILEVERSION HWSM_NATIVE_VERSION_COMMAS
+ PRODUCTVERSION HWSM_NATIVE_VERSION_COMMAS
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904b0"
+		BEGIN
+			VALUE "CompanyName", "Stephen Lawrensen"
+			VALUE "FileDescription", "HWiNFO shared-memory reader for the HWiNFO Sensors Stream Deck plugin"
+			VALUE "FileVersion", HWSM_NATIVE_VERSION_STR
+			VALUE "OriginalFilename", "hwsm.node"
+			VALUE "ProductName", "HWiNFO Sensors for Stream Deck"
+			VALUE "ProductVersion", HWSM_NATIVE_VERSION_STR
+			VALUE "LegalCopyright", "Copyright (c) 2026 Stephen Lawrensen. MIT license."
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x409, 1200
+	END
+END

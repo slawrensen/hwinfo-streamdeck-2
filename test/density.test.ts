@@ -10,7 +10,7 @@ import { describe, it } from "node:test";
 
 import { renderDial, renderDialOverview, renderDialTwoRow } from "../src/ui/dial-renderer";
 import { formatQuadValue, formatValue, type AlertLevel } from "../src/ui/format";
-import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey } from "../src/ui/key-renderer";
+import { QUAD_DEFAULT_COLORS, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, renderTripleKey } from "../src/ui/key-renderer";
 import { loadThemes, resolvePalette } from "../src/ui/themes";
 
 const config = loadThemes();
@@ -46,10 +46,17 @@ function assertRenderable(svg: string, canvasW: number, canvasH: number, what: s
 		assert.ok(!svg.includes(poison), `${what}: contains ${poison}`);
 	}
 	assert.doesNotThrow(() => encodeURIComponent(svg), `${what}: not URI-encodable`);
-	// Every drawn x coordinate stays inside the canvas.
+	// SVG features the Stream Deck engine is not proven to honor.
+	for (const feature of ["clipPath", "dominant-baseline", "<style", "<filter", "<mask", "textLength"]) {
+		assert.ok(!svg.includes(feature), `${what}: unsupported SVG feature ${feature}`);
+	}
+	// Every drawn x coordinate stays inside the canvas; no negative extents.
 	for (const match of svg.matchAll(/ x="(-?[\d.]+)"/g)) {
 		const x = Number(match[1]);
 		assert.ok(x >= 0 && x <= canvasW, `${what}: x=${x} outside canvas`);
+	}
+	for (const match of svg.matchAll(/ width="(-?[\d.]+)"/g)) {
+		assert.ok(Number(match[1]) >= 0, `${what}: negative width ${match[1]}`);
 	}
 	// Legibility floor: nothing below 12px logical (6px at the 0.5x target)
 	// and no stroke under 3px (1.5px at 0.5x).
@@ -110,6 +117,26 @@ describe("key faces at every density target", () => {
 						palette
 					});
 					assertRenderable(svg, 144, 144, `dual key ${themeId}/${level}/${extreme.label}`);
+				}
+			}
+		}
+	});
+
+	it("triple layout: every theme x alert level x content extreme renders in-bounds", () => {
+		for (const themeId of THEME_IDS) {
+			for (const level of LEVELS) {
+				for (const extreme of EXTREMES) {
+					const palette = resolvePalette(config, themeId, null, level);
+					// warn exercises a two-row face (an unconfigured third slot
+					// is a supported shape), crit the shared badge on the first
+					// separator, normal the badge-free three rows.
+					const row = { label: extreme.label, valueText: extreme.value, unitText: extreme.unit };
+					const svg = renderTripleKey({
+						rows: [row, row, level === "warn" ? null : row],
+						sharedBadge: level === "crit" ? "AVG" : "",
+						palette
+					});
+					assertRenderable(svg, 144, 144, `triple key ${themeId}/${level}/${extreme.label}`);
 				}
 			}
 		}

@@ -227,6 +227,147 @@ export function estimateFooterWidth(text: string): number {
 }
 
 /**
+ * East Asian wide and fullwidth code points advance a full em (Segoe UI
+ * falls back to the system CJK fonts): CJK ideographs (base and extensions),
+ * kana, hangul, CJK punctuation/compatibility, fullwidth forms, and the
+ * supplementary ideographic planes. Estimating them at the 7 px default
+ * would undercount by ~40% and overflow the face.
+ */
+function isWideGlyph(code: number): boolean {
+	return (
+		(code >= 0x1100 && code <= 0x115f) ||
+		(code >= 0x2e80 && code <= 0x303e) ||
+		(code >= 0x3041 && code <= 0x33ff) ||
+		(code >= 0x3400 && code <= 0x4dbf) ||
+		(code >= 0x4e00 && code <= 0x9fff) ||
+		(code >= 0xa000 && code <= 0xa4cf) ||
+		(code >= 0xac00 && code <= 0xd7a3) ||
+		(code >= 0xf900 && code <= 0xfaff) ||
+		(code >= 0xfe30 && code <= 0xfe4f) ||
+		(code >= 0xff00 && code <= 0xff60) ||
+		(code >= 0xffe0 && code <= 0xffe6) ||
+		// Emoji and symbol planes plus the supplementary ideographs: all
+		// full-width-or-wider in every fallback font.
+		code >= 0x1f000
+	);
+}
+
+/**
+ * Measured Segoe UI Semibold advances at the 12 px basis (2026-07-21,
+ * rasterized string differencing at 8× density), each value rounded UP to
+ * 0.05 so a sum only over-prices. Replaces the glyph-class averages, which
+ * erred both ways: narrow glyphs over-priced (t 6.1 vs 4.35) cut names that
+ * fit ("Total CPU Usage"), and M/W/… under-priced (… 7 vs 9.8) let floor
+ * cuts poke past their budget.
+ */
+const KEY_GLYPH_ADVANCE_12: Readonly<Record<string, number>> = {
+	A: 8.1, B: 7.25, C: 7.15, D: 8.65, E: 6.25, F: 6.05, G: 8.4, H: 8.85, I: 3.5, J: 4.45, K: 7.35, L: 5.9, M: 11.1,
+	N: 9.25, O: 9.1, P: 7.05, Q: 9.1, R: 7.5, S: 6.55, T: 6.9, U: 8.45, V: 7.7, W: 11.6, X: 7.45, Y: 6.95, Z: 7.05,
+	a: 6.3, b: 7.25, c: 5.65, d: 7.25, e: 6.4, f: 4.15, g: 7.25, h: 7.0, i: 3.15, j: 3.35, k: 6.3, l: 3.15, m: 10.65,
+	n: 7.0, o: 7.2, p: 7.25, q: 7.25, r: 4.45, s: 5.2, t: 4.35, u: 7.0, v: 6.1, w: 9.1, x: 6.05, y: 6.1, z: 5.6,
+	"0": 6.7, "1": 4.85, "2": 6.7, "3": 6.7, "4": 6.95, "5": 6.7, "6": 6.7, "7": 6.45, "8": 6.7, "9": 6.7,
+	" ": 3.3, "(": 4.0, ")": 4.0, "/": 5.0, ".": 2.9, ",": 2.9, "'": 3.1, ":": 2.9, ";": 2.9, "!": 3.65, "|": 3.35,
+	"%": 10.1, "°": 4.55, "…": 9.8, "#": 7.1, "+": 8.35, "-": 4.85, _: 5.0, "&": 8.6, "=": 8.35, "~": 8.35, "*": 5.25,
+	"[": 4.0, "]": 4.0, "<": 8.35, ">": 8.35, '"': 5.25, "?": 5.35, "@": 11.5
+};
+
+/** Unmapped non-wide glyphs (µ, Ω, §, …) take a near-worst measured advance:
+ * overestimating keeps an odd custom name inside the face. */
+const KEY_GLYPH_DEFAULT_12 = 9.1;
+
+/** The table sums advance boxes; the face constraint is on INK, which sits
+ * inside the box by the terminal side bearings. This credit (12 px basis,
+ * scales with size) makes estimates track rasterized ink within +4/−2.5 px
+ * at 16 px on the measured corpus — without it, "Total CPU Usage" (ink
+ * 118.4, inside the 120 band) prices at 121 and wrongly ellipsizes. */
+const TERMINAL_BEARING_CREDIT_12 = 1.5;
+
+function keyGlyphWidth12(ch: string): number {
+	const mapped = KEY_GLYPH_ADVANCE_12[ch];
+	if (mapped !== undefined) {
+		return mapped;
+	}
+	// East Asian wide and fullwidth glyphs advance a full em.
+	if (isWideGlyph(ch.codePointAt(0) as number)) {
+		return 12;
+	}
+	return KEY_GLYPH_DEFAULT_12;
+}
+
+/** Bold strokes (weight 700) run a touch wider than the 600 the table is
+ * calibrated for; measured 1.0413 on a mixed corpus string, kept at a flat
+ * 1.04 (the credit above absorbs the hairline). */
+const BOLD_WIDTH_FACTOR = 1.04;
+
+export type TextFitOptions = {
+	/** Glyph weight the caller will render; the table assumes 600. */
+	fontWeight?: 600 | 700;
+	/** SVG letter-spacing in px, applied per inter-glyph gap at every size. */
+	letterSpacing?: number;
+	/** Extra px the fit must leave unused, on top of the caller's budget. */
+	minimumSlack?: number;
+};
+
+/**
+ * Estimated ink width of a string as a key face renders it: the measured
+ * advance table scaled linearly from its 12 px calibration, minus the
+ * terminal-bearing credit, a flat widening for weight 700, and the caller's
+ * letter-spacing per gap. Estimation only (the Stream Deck engine cannot be
+ * asked to measure), but calibrated against rasterized ink, so callers can
+ * spend their whole pixel budget.
+ */
+export function estimateKeyTextWidth(text: string, fontSize: number, options?: TextFitOptions): number {
+	let width = 0;
+	let count = 0;
+	for (const ch of text) {
+		width += keyGlyphWidth12(ch);
+		count++;
+	}
+	if (count > 0) {
+		width -= TERMINAL_BEARING_CREDIT_12;
+	}
+	width = (width * fontSize) / 12;
+	if (options?.fontWeight === 700) {
+		width *= BOLD_WIDTH_FACTOR;
+	}
+	return width + Math.max(0, count - 1) * (options?.letterSpacing ?? 0);
+}
+
+/** One fitted string: what to draw, at what size. */
+export type FittedText = {
+	text: string;
+	fontSize: number;
+};
+
+/**
+ * Fits text into a pixel budget down a font-size ladder: the largest size
+ * whose whole-string estimate fits wins; when even the smallest size cannot
+ * hold the whole string, the widest fitting prefix plus an ellipsis renders
+ * at that floor size. Code-point based (never splits a surrogate pair) and
+ * deterministic: same text, budget and ladder always fit identically.
+ */
+export function fitTextLadder(text: string, maxWidth: number, sizes: readonly number[], options?: TextFitOptions): FittedText {
+	if (text === "") {
+		return { text: "", fontSize: sizes[0] as number };
+	}
+	const budget = maxWidth - (options?.minimumSlack ?? 0);
+	const floor = sizes[sizes.length - 1] as number;
+	for (const size of sizes) {
+		if (estimateKeyTextWidth(text, size, options) <= budget) {
+			return { text, fontSize: size };
+		}
+	}
+	const chars = Array.from(text);
+	for (let i = chars.length - 1; i > 0; i--) {
+		const candidate = `${chars.slice(0, i).join("").trimEnd()}…`;
+		if (estimateKeyTextWidth(candidate, floor, options) <= budget) {
+			return { text: candidate, fontSize: floor };
+		}
+	}
+	return { text: "…", fontSize: floor };
+}
+
+/**
  * Fits text to a pixel budget at the footer's metrics: kept whole when the
  * estimate fits, else trimmed from the end with an ellipsis at the widest
  * fitting prefix. Estimation-based, so the budget should leave the caller's

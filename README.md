@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://docs.slawrensen.com/hwinfo-streamdeck/"><img alt="Documentation" src="https://img.shields.io/badge/docs-live-2ea44f?style=flat-square"></a>
   <a href="https://github.com/slawrensen/hwinfo-streamdeck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/slawrensen/hwinfo-streamdeck?style=flat-square&color=blue"></a>
-  <a href="https://marketplace.elgato.com/product/hwinfo-sensors-82436166-3d61-4527-9034-8fdf16d92c54"><img alt="Elgato Marketplace downloads" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmp-gateway.elgato.com%2Fproducts%3Fname%3DHWiNFO%2520Sensors&query=results%5B0%5D.download_count&logo=elgato&label=Marketplace&style=flat-square"></a>
+  <a href="https://marketplace.elgato.com/product/hwinfo-sensors-82436166-3d61-4527-9034-8fdf16d92c54"><img alt="Elgato Marketplace downloads" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmp-gateway.elgato.com%2Fproducts%3Fname%3DHWiNFO%2520Sensors&query=results%5B0%5D.download_count&suffix=%20downloads&logo=elgato&label=Marketplace&style=flat-square"></a>
   <a href="https://docs.slawrensen.com/hwinfo-streamdeck/getting-started.html"><img alt="Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-0078d6?style=flat-square"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/slawrensen/hwinfo-streamdeck?style=flat-square"></a>
   <a href="https://docs.slawrensen.com/hwinfo-streamdeck/faq.html#privacy"><img alt="No ads, no telemetry" src="https://img.shields.io/badge/ads%20%C2%B7%20telemetry-none-brightgreen?style=flat-square"></a>
@@ -81,19 +81,28 @@ the current value.
 | Setting | What it does |
 | --- | --- |
 | **Sensor** | Searchable picker over every reading HWiNFO publishes, with a live preview. |
-| **Label** | Custom key label; defaults to the sensor's (renamed) label. |
+| **Label** | Custom key label; defaults to the sensor's (renamed) label. Sizes itself to fit: short names render large, long names step down before they truncate. |
 | **Theme** | Preset gallery: this key only, or "Deck default" to follow the deck-wide theme. |
 | **Text** | Text intensity: deck default, theme, dim, or an exact custom color. |
 | **Show** | Current value, or HWiNFO's min / max / average since it started. |
-| **Layout** | One reading (default), two stacked readings with their own labels and stats, or four in a 2x2 quad grid with per-cell colors or labels. |
+| **Layout** | One reading (default), two stacked readings with their own labels and stats, three compact rows with labels left and values right, or four in a 2x2 quad grid with per-cell colors or labels. |
 | **Decimals** | Auto (magnitude-based, compacts through k/M/G/T: 48 700 → `48.7k`) or fixed 0–3. Bytes and rates re-tier by the deck-wide **Data units** (decimal KB/MB/GB with Mbps rates, or binary KiB/MiB/GiB with MiB/s). |
 | **Unit** | Show temperatures in °F instead of °C. |
-| **Display** | Recent history as a sparkline, or the value in its range as a bar or ring, with amber/red threshold zones. |
+| **Display** | Recent history as a sparkline, or the value in its range as a bar or ring, with amber/red threshold zones. History keeps collecting while a key is off screen, so lines return complete after any absence. |
 | **Warn / Critical at** | Key turns amber / red at these values (in the displayed unit). |
 | **Direction** | "Alert when below" flips the comparison, for fan RPM, free space, etc. |
 
 **Pressing the key** cycles what's shown: current → MIN → MAX → AVG (badge in the
 corner). The warn/critical colors always track the *live* value.
+
+<p align="center">
+  <img src="docs/assets/img/multi-readouts.png" width="900"
+       alt="Multi-readout key and dial faces rendered by the plugin: CPU and GPU temperature stacked on one key, the same sensor as a min and max pair, a press-cycled pair showing MAX, a three-row key with labels left and values right, a quad grid key with four color-coded readings, and the dial overview and two-row views">
+</p>
+
+<p align="center">
+  <em>One key, your call: two stacked readings · three rows · a 2x2 quad grid · dial overview and two-row views</em>
+</p>
 
 ## Sensor Dial (Stream Deck +)
 
@@ -117,6 +126,15 @@ The touchscreen shows the label, live value, session ▼min/▲max and a range b
 Dials use the same themes as keys and take the same **Warn / Critical at**
 thresholds: the range bar's fill flips to the alert color while the rest of the
 face stays themed (the touchscreen slot is too small for a full field flip).
+
+<p align="center">
+  <img src="docs/assets/img/plusxl-dials.png" width="900"
+       alt="Six dial faces rendered at the Stream Deck + XL's encoder strip geometry: CPU temperature, GPU temperature, a pinned CPU fan, CPU power, CPU load, and a GPU hot spot at a forced critical value with a red range bar">
+</p>
+
+<p align="center">
+  <em>The Stream Deck + XL's six-dial strip: per-reading session ▼min/▲max, pin and pause, and a critical range bar</em>
+</p>
 
 ## Themes
 
@@ -149,6 +167,34 @@ aviation-style master caution/warning (on dials, the range bar flips to the
 same alert colors). The two alert palettes are global, never tinted per
 theme, so warn and crit stay unmistakable on any theme and with any
 color-vision deficiency.
+
+## The display system
+
+The faces follow a written display spec, and its rules ship as measured
+facts rather than taste:
+
+- **True black is the instrument.** The default theme's background is
+  `#000000`: OLED pixels off, only the data glows. The six tinted presets
+  keep background luminance low enough to read as black with a cast at
+  arm's length.
+- **One bright element per key.** On the default theme the value sits at
+  21:1 contrast against the background, the label at 5.5:1, the unit at
+  4.2:1. The unit is the dimmest on purpose: position and magnitude
+  already say °C vs W, so it stays quiet and keeps the number's
+  silhouette crisp.
+- **The physics sets the sizes.** At a 60 cm desk distance a 15 mm key
+  subtends about 86 arc minutes, so one canvas pixel is roughly 0.6 of
+  one. Value digits (26 to 52 px by length) stay glanceable; the label is
+  sized for identification, not reading.
+- **Anchors never move.** Label baseline 32, value baseline 94, unit
+  baseline 114, sparkline ink capped at y=120, on every key, with or
+  without a sparkline: that is what makes a mixed wall read as one
+  instrument. The unit's corridor is measured, not eyeballed: 6.5 to
+  7.0 px of ink air up to the value and 5.9 down to the spark band, the
+  larger gap against the heavier neighbor.
+- **Real output only.** Every image in this README and the docs is drawn
+  by the production renderers and regenerated by scripts, never a mockup;
+  the geometry above is locked by the test suite.
 
 ## Key states you might see
 
@@ -204,17 +250,17 @@ regenerates every number (sizes, live process, parse bench) in one command.
 Dev loop: `streamdeck dev` once, `streamdeck link com.lawrensen.hwinfo.sdPlugin`,
 then `npm run watch` (rebuilds and restarts the plugin on save).
 
-Native access uses [koffi](https://koffi.dev) (prebuilt FFI, no node-gyp) to call
-`OpenFileMappingW`/`MapViewOfFile` on `Global\HWiNFO_SENS_SM2` under HWiNFO's
-consistency mutex; strides and offsets are read from the live header, never
-hardcoded, so newer HWiNFO layouts (e.g. the UTF-8 label extensions) decode
-correctly.
+Native access goes through `hwsm` (`native/hwsm`), a small N-API addon this
+project builds with node-gyp, calling `OpenFileMappingW`/`MapViewOfFile` on
+`Global\HWiNFO_SENS_SM2` under HWiNFO's consistency mutex; strides and offsets
+are read from the live header, never hardcoded, so newer HWiNFO layouts (e.g.
+the UTF-8 label extensions) decode correctly.
 
 ## License
 
 [MIT](LICENSE): free software, no ads, no telemetry. Credits in
 [NOTICE.md](NOTICE.md): HWiNFO (REALiX), the original plugin by
-[@shayne](https://github.com/shayne/hwinfo-streamdeck), koffi, sdpi-components.
+[@shayne](https://github.com/shayne/hwinfo-streamdeck), sdpi-components.
 
 Not affiliated with, endorsed by, or sponsored by REALiX, s.r.o. or Elgato.
 "HWiNFO" is a trademark of REALiX, s.r.o.; "Stream Deck" and "Elgato" are

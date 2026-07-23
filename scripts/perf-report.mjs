@@ -52,7 +52,7 @@ function collectSizes() {
 		bundleGzipB: fs.existsSync(bundle) ? gzipSize(bundle) : null,
 		components: {
 			"bin/node_modules (total)": duBytes(path.join(sdPlugin, "bin", "node_modules")),
-			"  koffi.node": duBytes(path.join(sdPlugin, "bin", "node_modules", "@koromix", "koffi-win32-x64", "win32_x64", "koffi.node")),
+			"bin/hwsm.node": duBytes(path.join(sdPlugin, "bin", "hwsm.node")),
 			"ui/": duBytes(path.join(sdPlugin, "ui")),
 			"imgs/": duBytes(path.join(sdPlugin, "imgs")),
 			"layouts/ + manifest + themes":
@@ -111,7 +111,7 @@ const bytes = (b) => (b === null || b === undefined ? "n/a" : `${b.toLocaleStrin
 function renderMarkdown(report) {
 	const { sizes, proc, bench } = report;
 	const lines = [];
-	lines.push(`### ${report.date} — ${report.label}`);
+	lines.push(`### ${report.date}: ${report.label}`);
 	lines.push("");
 	lines.push("| Artifact | Bytes | gzip |");
 	lines.push("| --- | ---: | ---: |");
@@ -160,7 +160,9 @@ function renderMarkdown(report) {
 						`| ${name} (${s.readings} readings) | ${s.tickUs.mean} | ${s.tickUs.p50} | ${s.tickUs.p95} | ${bytes(s.allocPerTickB)} | ${bytes(s.retainedB)} |`
 					);
 				} else if (bench[`${key}Error`]) {
-					lines.push(`| ${name} | n/a — ${bench[`${key}Error`]} | | | | |`);
+					// Plain "n/a:" joiner: this output gets pasted into PERF.md,
+					// which the release-copy validator holds to the no-em-dash rule.
+					lines.push(`| ${name} | n/a: ${bench[`${key}Error`]} | | | | |`);
 				}
 			}
 		}

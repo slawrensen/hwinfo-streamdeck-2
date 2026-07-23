@@ -1,9 +1,9 @@
 // Captures the property inspectors (served by scripts/pi-harness.mjs) in
 // headless Chrome over CDP with real-time waits, so live WebSocket data and
-// the theme gallery are present. Fourteen states: the key PI's settings view,
+// the theme gallery are present. Fifteen states: the key PI's settings view,
 // open picker (marketplace shot 3), Display selector on Bar, Text set to
-// Custom with the color well and dim checkbox, dual layout, and quad layout
-// with the cell-colors row; the dial PI's rotation-set picker with ticked
+// Custom with the color well and dim checkbox, dual, triple and quad layouts
+// (quad with the cell-colors row); the dial PI's rotation-set picker with ticked
 // rows and chips, the rotation-group editor (two named groups with the
 // collector radio), the Elite preset view, the Custom gesture rows with
 // touch zones, the overview view's Context line + Separators controls, and
@@ -242,23 +242,58 @@ try {
 	await capture("pi-key-dual.png");
 	await viewport(880);
 
-	// ---- key PI: quad layout (third/fourth pickers picked, cell colors row) ----
-	// The first two cells inherit the single and dual picks made above, so
-	// this shot shows all four slots filled the way a user reaches quad.
+	// ---- key PI: triple layout (third picker + full-length label, triple help) ----
+	// The first two rows inherit the single and dual picks made above, so
+	// this shot shows the panel the way a user reaches three rows.
+	await setSelect("keyLayout", "triple");
+	await sleep(900); // the layout poll reveals #third-slot within 400 ms
+	expectOk("third slot revealed", await evaluate(`document.getElementById("third-slot").hidden === false ? "ok" : "hidden"`));
+	expectOk("triple help revealed", await evaluate(`document.getElementById("triple-help").hidden === false ? "ok" : "hidden"`));
+	expectOk("dual-only stat pin hidden", await evaluate(`document.getElementById("dual-rows").hidden === true ? "ok" : "visible"`));
+	expectOk("display row hidden on triple", await evaluate(`document.getElementById("display-item").hidden === true ? "ok" : "visible"`));
+	expectOk("third label reads as a normal label in triple", await evaluate(`(() => {
+		const el = document.getElementById("third-label");
+		const input = (el.shadowRoot ?? el).querySelector("input");
+		if (!input) return "no rendered input";
+		return input.placeholder === "Custom label (default: sensor name)" ? "ok" : input.placeholder;
+	})()`));
+	await evaluate(`(() => { const el = document.getElementById("picker3-search"); el.focus(); el.value = "gpu clock"; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+	await sleep(700);
+	expectOk("third picker row", await evaluate(`(() => {
+		const row = document.querySelector("#picker3-list .hw-row");
+		if (!row) return "missing";
+		row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+		return "ok";
+	})()`));
+	await sleep(500);
+	const tripleHeight = await evaluate(`Math.ceil([...document.body.children].reduce((m, el) => Math.max(m, el.getBoundingClientRect().bottom), 0))`);
+	await viewport(Math.min(2400, Math.max(880, Number(tripleHeight.result?.value ?? 880) + 16)));
+	await sleep(300);
+	await capture("pi-key-triple.png");
+	await viewport(880);
+
+	// ---- key PI: quad layout (fourth picker picked, cell colors row) ----
+	// The first three cells inherit the picks made above, so this shot shows
+	// all four slots filled the way a user reaches quad.
 	await setSelect("keyLayout", "quad");
 	await sleep(900); // the layout poll reveals #quad-rows within 400 ms
 	expectOk("quad rows revealed", await evaluate(`document.getElementById("quad-rows").hidden === false ? "ok" : "hidden"`));
-	for (const [box, query] of [["picker3", "gpu clock"], ["picker4", "pump"]]) {
-		await evaluate(`(() => { const el = document.getElementById("${box}-search"); el.focus(); el.value = ${JSON.stringify(query)}; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
-		await sleep(700);
-		expectOk(`${box} row`, await evaluate(`(() => {
-			const row = document.querySelector("#${box}-list .hw-row");
-			if (!row) return "missing";
-			row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-			return "ok";
-		})()`));
-		await sleep(500);
-	}
+	expectOk("triple help hidden on quad", await evaluate(`document.getElementById("triple-help").hidden === true ? "ok" : "visible"`));
+	expectOk("third label reads as a micro-label in quad", await evaluate(`(() => {
+		const el = document.getElementById("third-label");
+		const input = (el.shadowRoot ?? el).querySelector("input");
+		if (!input) return "no rendered input";
+		return input.placeholder === "Short name; 4 characters show" ? "ok" : input.placeholder;
+	})()`));
+	await evaluate(`(() => { const el = document.getElementById("picker4-search"); el.focus(); el.value = "pump"; el.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+	await sleep(700);
+	expectOk("fourth picker row", await evaluate(`(() => {
+		const row = document.querySelector("#picker4-list .hw-row");
+		if (!row) return "missing";
+		row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+		return "ok";
+	})()`));
+	await sleep(500);
 	await evaluate(`document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))`);
 	await sleep(400);
 	const quadHeight = await evaluate(`Math.ceil([...document.body.children].reduce((m, el) => Math.max(m, el.getBoundingClientRect().bottom), 0))`);
@@ -429,7 +464,7 @@ try {
 	await sleep(300);
 	await capture("pi-control.png");
 
-	console.log(`captured 14 PI states to ${outDir}`);
+	console.log(`captured 15 PI states to ${outDir}`);
 } finally {
 	// The open CDP socket would otherwise hold the event loop until the
 	// watchdog fires — close it, then take the browser tree down.

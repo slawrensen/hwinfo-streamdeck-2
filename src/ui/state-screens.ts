@@ -30,6 +30,10 @@ export function statusScreen(status: PollerStatus): StatusKeyOptions | null {
 			return { icon: "lock", accent: RED, lines: ["Access denied", "un-elevate"] };
 		case "unsupported-platform":
 			return { icon: "warning", accent: RED, lines: ["Needs x64", "Windows"] };
+		case "bridge-failed":
+			// A missing or blocked bin/hwsm.node (antivirus quarantine, damaged
+			// install): restarting HWiNFO cannot fix it, reinstalling can.
+			return { icon: "warning", accent: RED, lines: ["Plugin damaged", "reinstall"] };
 		default:
 			return { icon: "warning", accent: RED, lines: ["HWiNFO error", "restart HWiNFO"] };
 	}
@@ -65,6 +69,8 @@ export function statusDialText(status: PollerStatus): { title: string; value: st
 			return { title: "Access denied", value: "un-elevate HWiNFO" };
 		case "unsupported-platform":
 			return { title: "Needs x64 Windows", value: "—" };
+		case "bridge-failed":
+			return { title: "Plugin damaged", value: "reinstall it" };
 		default:
 			return { title: "HWiNFO error", value: "restart HWiNFO" };
 	}
@@ -91,12 +97,17 @@ export function statusSentence(status: PollerStatus): string {
 			return "Windows denied access to HWiNFO's shared memory: HWiNFO is running elevated (\"Run as administrator\") while Stream Deck is not. Restart HWiNFO without elevation, or run both elevated. On the free version, Gadget reporting also works across privilege levels.";
 		case "unsupported-platform":
 			return "This plugin needs 64-bit (x64) Windows: HWiNFO's interfaces aren't readable on this system (macOS and Windows-on-ARM are unsupported).";
+		case "bridge-failed":
+			return "The plugin's native HWiNFO bridge (bin/hwsm.node) is missing or was blocked from loading, often an antivirus quarantine. Reinstall the plugin; if it happens again, restore or allow that file in your antivirus.";
 		default:
 			return "HWiNFO's shared memory did not validate; it may be mid-restart or an incompatible version. Usually clears on the next poll; if it persists, restart HWiNFO.";
 	}
 }
 
-/** Effective key label; spec truncation happens inside the renderer. */
-export function keyLabel(custom: string | undefined, fallback: string): string {
-	return custom !== undefined && custom.trim() !== "" ? custom.trim() : fallback;
+/** Effective key label; spec truncation happens inside the renderer.
+ * Settings are untyped JSON at runtime: a non-string custom label (a
+ * hand-edited profile, a future version's shape) degrades to the fallback
+ * instead of throwing mid-tick. */
+export function keyLabel(custom: unknown, fallback: string): string {
+	return typeof custom === "string" && custom.trim() !== "" ? custom.trim() : fallback;
 }

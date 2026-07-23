@@ -6,7 +6,28 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { formatQuadValue } from "../src/ui/format";
-import { dualValueFontSize, QUAD_DEFAULT_COLORS, quadValueFontSize, renderDualKey, renderQuadKey, renderReadingKey, renderStatusKey, ringValueFontSize, valueFontSize, type DualKeyOptions, type DualKeyRow, type KeyGauge, type QuadKeyCell, type QuadKeyOptions, type ReadingKeyOptions } from "../src/ui/key-renderer";
+import {
+	dualValueFontSize,
+	KEY_TEXT_LADDERS,
+	QUAD_DEFAULT_COLORS,
+	quadValueFontSize,
+	renderDualKey,
+	renderQuadKey,
+	renderReadingKey,
+	renderStatusKey,
+	renderTripleKey,
+	ringValueFontSize,
+	tripleValueFontSize,
+	valueFontSize,
+	type DualKeyOptions,
+	type DualKeyRow,
+	type KeyGauge,
+	type QuadKeyCell,
+	type QuadKeyOptions,
+	type ReadingKeyOptions,
+	type TripleKeyOptions,
+	type TripleKeyRow
+} from "../src/ui/key-renderer";
 import { resolveTextColors } from "../src/ui/text-colors";
 import { loadThemes, resolvePalette } from "../src/ui/themes";
 
@@ -55,48 +76,93 @@ describe("value shrink ramp (digits+dot+sign; unit excluded)", () => {
 describe("anchors never move", () => {
 	for (const history of [undefined, [50, 60, 55, 70]]) {
 		const name = history === undefined ? "without sparkline" : "with sparkline";
-		it(`value y=94, unit y=118, label y=32 ${name}`, () => {
+		it(`value y=94, unit y=114, label y=32 ${name}`, () => {
 			const svg = render({ history });
 			assert.match(svg, /<text x="72" y="94" /);
-			assert.match(svg, /<text x="72" y="118" [^>]*font-size="16" font-weight="600"/);
-			assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="16" font-weight="600"/);
+			// Unit baseline 114/18px: worst-case spark ink starts at y=120 (the
+			// line span is inset for its stroke), so the corridor is balanced
+			// with the larger air against the heavier value block above.
+			assert.match(svg, /<text x="72" y="114" [^>]*font-size="18" font-weight="600"/);
+			// The label anchor is fixed; its size adapts ("CPU Package" fits 20).
+			assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="20" font-weight="600"/);
 		});
 	}
 
 	it("unit omitted when empty, anchors unchanged", () => {
 		const svg = render({ unitText: "" });
-		assert.doesNotMatch(svg, /y="118"/);
+		assert.doesNotMatch(svg, /y="114"/);
 		assert.match(svg, /<text x="72" y="94" /);
 	});
 });
 
-describe("label truncation and badge collision", () => {
-	it("centered label allows 16 chars, then ellipsis", () => {
+describe("label fitting and badge collision", () => {
+	it("a short label takes the 20px top of the ladder", () => {
+		const svg = render({ label: "CCD1" });
+		assert.match(svg, /<text x="72" y="32" text-anchor="middle" [^>]*font-size="20" font-weight="600"[^>]*>CCD1</);
+	});
+
+	it("a name whose ink fits the band renders whole at the 16 floor", () => {
+		// "Total CPU Usage" measures 118.4px of ink at 16px, inside the 120px
+		// band; the old class-averaged table priced it at 121 and wrongly
+		// ellipsized it. The measured table admits it whole, as 1.3.0 drew it.
+		const svg = render({ label: "Total CPU Usage" });
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>Total CPU Usage</);
+	});
+
+	it("the ladder floors at the pre-adaptive 16: a truly wide name is cut there, never drawn smaller", () => {
+		// "CPU Die (average)" measures 129.6px of ink at 16px, genuinely past
+		// the band (the old 16-char rule let it bleed into the lens crop).
+		const svg = render({ label: "CPU Die (average)" });
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>CPU Die \(avera…</);
+	});
+
+	it("a parenthesized HWiNFO name renders whole at 16 (narrow-punct glyph class)", () => {
+		const svg = render({ label: "CPU (Tctl/Tdie)" });
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>CPU \(Tctl\/Tdie\)</);
+	});
+
+	it("a mid-width label lands on the ladder's interior 16px step", () => {
+		// "CPU Core Clock" estimates 82.4px at 12px: past 18's 81.5px window
+		// ((120×12/18)+credit), inside 16's 91.5px. Locks the interior step.
+		const svg = render({ label: "CPU Core Clock" });
+		assert.match(svg, /<text x="72" y="32" [^>]*font-size="16"[^>]*>CPU Core Clock</);
+	});
+
+	it("a stat badge never costs title width: the label renders exactly as on the live face", () => {
+		const labelElement = (svg: string) => (svg.match(/<text x="72" y="32" [^>]*>[^<]*<\/text>/) as RegExpMatchArray)[0];
+		for (const label of ["Core2 (CCD1)", "Virtual Memory Committed"]) {
+			assert.equal(labelElement(render({ label, statBadge: "MAX" })), labelElement(render({ label })));
+		}
+	});
+
+
+	it("past the floor the label ellipsizes at the widest fitting prefix", () => {
 		const svg = render({ label: "Virtual Memory Committed" });
-		assert.match(svg, />Virtual Memory …</);
+		assert.match(svg, /font-size="16"[^>]*>Virtual Memor…</);
 	});
 
-	it("a 16-char label is untouched", () => {
+	it("a wide 16-char label no longer overflows the 120px band: it ellipsizes", () => {
+		// Under the flat 16-char rule this rendered ~145px wide at 16px, past
+		// the lens-safe span; the pixel-aware fit keeps it inside the budget.
 		const svg = render({ label: "0123456789ABCDEF" });
-		assert.match(svg, />0123456789ABCDEF</);
+		assert.match(svg, /font-size="16"[^>]*>0123456789AB…</);
 	});
 
-	it("badge switches the label to left x=12, max 9 chars, hard-clipped at x=92", () => {
+	it("badge sits in the shared-badge gap between title and number: bg rect 47,38 50x14, caps on 48", () => {
 		const svg = render({ label: "Virtual Memory Committed", statBadge: "AVG" });
-		const label = textElement(svg, "Virtual …");
-		assert.match(label, /x="12" y="32" text-anchor="start"/);
-		// The 80px clip is an opaque bg rect between label and badge — a solid
-		// fill, the only clipping primitive proven on the Stream Deck engine.
-		const mask = svg.indexOf(`<rect x="92" y="14" width="52" height="24" fill="${VOID.bg}"/>`);
-		assert.ok(mask !== -1, "bg mask rect missing");
-		assert.ok(svg.indexOf(label) < mask && mask < svg.indexOf(">AVG<"), "mask must draw after the label and before the badge");
-		assert.doesNotMatch(svg, /<text x="72" y="32"/);
+		// The gap rect is invisible on a plain face and notches the Ring crown
+		// — solid fills, the only clipping primitive proven on this engine.
+		const gap = svg.indexOf(`<rect x="47" y="38" width="50" height="14" fill="${VOID.bg}"/>`);
+		assert.ok(gap !== -1, "badge gap rect missing");
+		const label = textElement(svg, "Virtual Memor…");
+		assert.match(label, /x="72" y="32" text-anchor="middle"/);
+		assert.ok(svg.indexOf(label) < gap && gap < svg.indexOf(">AVG<"), "gap must draw after the label and before the badge");
 	});
 
-	it("badge is 12/700 CAPS end-anchored at x=132, accent fill, +0.5 tracking", () => {
+	it("badge is 12/700 CAPS centered at x=72 y=48, accent fill, +0.5 tracking", () => {
 		const svg = render({ statBadge: "min" });
 		const badge = textElement(svg, "MIN");
-		assert.match(badge, /x="132" y="32" text-anchor="end"/);
+		assert.match(badge, /x="72" y="48" text-anchor="middle"/);
 		assert.match(badge, /font-size="12" font-weight="700"/);
 		assert.match(badge, /letter-spacing="0.5"/);
 		assert.match(badge, new RegExp(`fill="${VOID.accent}"`));
@@ -106,14 +172,14 @@ describe("label truncation and badge collision", () => {
 describe("sparkline strip", () => {
 	const history = Array.from({ length: 40 }, (_, i) => 50 + Math.sin(i) * 10);
 
-	it("caps at 36 samples inside x8–136, y120–134", () => {
+	it("caps at 36 samples inside x8–136, y122–134 (stroke ink stays at 120)", () => {
 		const svg = render({ history });
 		const points = (svg.match(/<polyline points="([^"]+)"/) as RegExpMatchArray)[1] as string;
 		const pairs = points.split(" ").map((p) => p.split(",").map(Number) as [number, number]);
 		assert.equal(pairs.length, 36);
 		for (const [x, y] of pairs) {
 			assert.ok(x >= 8 && x <= 136, `x ${x}`);
-			assert.ok(y >= 120 && y <= 134, `y ${y}`);
+			assert.ok(y >= 122 && y <= 134, `y ${y}`);
 		}
 	});
 
@@ -132,7 +198,7 @@ describe("sparkline strip", () => {
 
 	it("end dot r=5 in accent at the last sample", () => {
 		const svg = render({ history: [10, 20, 30] }); // last = max → top of strip
-		assert.match(svg, new RegExp(`<circle cx="136\\.0" cy="120\\.0" r="5" fill="${VOID.accent}"/>`));
+		assert.match(svg, new RegExp(`<circle cx="136\\.0" cy="122\\.0" r="5" fill="${VOID.accent}"/>`));
 	});
 
 	it("no sparkline without 2+ samples", () => {
@@ -148,7 +214,7 @@ describe("alert pass recolors the whole key", () => {
 		assert.match(svg, /<rect width="144" height="144" fill="#E8940D"\/>/);
 		assert.match(svg, /y="94"[^>]*fill="#1C1200"/);
 		assert.match(svg, /y="32"[^>]*fill="#402C00"/); // label
-		assert.match(svg, /y="118"[^>]*fill="#553C00"/); // unit
+		assert.match(svg, /y="114"[^>]*fill="#553C00"/); // unit
 		assert.match(svg, /<polyline [^>]*stroke="#402C00"/); // accent, not themed
 		assert.match(svg, /<path [^>]*fill="#C67A06"/); // track, not themed
 	});
@@ -257,7 +323,7 @@ describe("key Bar gauge", () => {
 	it("value, unit and label anchors stay locked; no sparkline alongside", () => {
 		const svg = render({ gauge: barGauge({}), history: [1, 2, 3] });
 		assert.match(svg, /<text x="72" y="94" /);
-		assert.match(svg, /<text x="72" y="118" /);
+		assert.match(svg, /<text x="72" y="114" /);
 		assert.match(svg, /<text x="72" y="32" /);
 		assert.doesNotMatch(svg, /polyline/);
 	});
@@ -393,15 +459,15 @@ describe("key text colors", () => {
 	it("custom without secondary dim: label, unit and badge take the exact color", () => {
 		const svg = render({ text: custom, statBadge: "MAX" });
 		assert.match(svg, /y="32"[^>]*fill="#660000"/);
-		assert.match(svg, /y="118"[^>]*fill="#660000"/);
+		assert.match(svg, /y="114"[^>]*fill="#660000"/);
 		assert.match(svg, />MAX<\/text>/);
-		assert.match(svg, /x="132" y="32"[^>]*fill="#660000"/);
+		assert.match(svg, /x="72" y="48"[^>]*fill="#660000"/);
 	});
 
 	it("custom with secondary dim: value exact, secondary stepped toward bg", () => {
 		const svg = render({ text: customDim, statBadge: "MAX" });
 		assert.match(svg, /y="94"[^>]*fill="#660000"/);
-		assert.match(svg, new RegExp(`y="118"[^>]*fill="${customDim.unit}"`));
+		assert.match(svg, new RegExp(`y="114"[^>]*fill="${customDim.unit}"`));
 		assert.notEqual(customDim.unit, "#660000");
 	});
 
@@ -463,10 +529,25 @@ function renderDual(overrides: Partial<DualKeyOptions>): string {
 }
 
 describe("dual layout geometry (row B = row A + 72, divider at the midline)", () => {
-	it("labels 14/600 centered at x=72, y=22 and y=94 (keys center, like single)", () => {
+	it("labels 600-weight centered at x=72, y=22 and y=94; the top row caps at 15 for the lens crop", () => {
 		const svg = renderDual({});
-		assert.match(svg, new RegExp(`<text x="72" y="22" text-anchor="middle" [^>]*font-size="14" font-weight="600" fill="${VOID.label}">CPU Package</text>`));
-		assert.match(svg, new RegExp(`<text x="72" y="94" text-anchor="middle" [^>]*font-size="14" font-weight="600" fill="${VOID.label}">GPU Temp</text>`));
+		// From the y=22 baseline a 16px cap top would graze the ~10px top
+		// lens crop, so the top ladder is [15,14]; the bottom row (y=94) has
+		// the full [16,15,14]. Anchors stay locked.
+		assert.match(svg, new RegExp(`<text x="72" y="22" text-anchor="middle" [^>]*font-size="15" font-weight="600" fill="${VOID.label}">CPU Package</text>`));
+		assert.match(svg, new RegExp(`<text x="72" y="94" text-anchor="middle" [^>]*font-size="16" font-weight="600" fill="${VOID.label}">GPU Temp</text>`));
+	});
+
+	it("a mid-width bottom label lands on the ladder's interior 15px step", () => {
+		// "Memory Junction" estimates 93.5px at 12px: past the 16px step's
+		// 90px window (120×12/16), inside 15's 96px window.
+		const svg = renderDual({ bottom: dualRow({ label: "Memory Junction" }) });
+		assert.match(svg, /<text x="72" y="94" text-anchor="middle" [^>]*font-size="15" font-weight="600"/);
+	});
+
+	it("a long row label steps down to the 14px floor at its locked anchor", () => {
+		const svg = renderDual({ top: dualRow({ label: "Virtual Memory Commit" }) });
+		assert.match(svg, /<text x="72" y="22" text-anchor="middle" [^>]*font-size="14" font-weight="600"/);
 	});
 
 	it("values 700 centered at x=72, y=56 and y=128, inline 14/600 unit in the chunk", () => {
@@ -513,9 +594,9 @@ describe("dual value shrink ramp", () => {
 });
 
 describe("dual labels and badges", () => {
-	it("a row label always allows 16 chars, badges or not, then ellipsis", () => {
-		assert.match(renderDual({ top: dualRow({ label: "Virtual Memory Committed" }) }), />Virtual Memory …</);
-		assert.match(renderDual({ top: dualRow({ label: "Virtual Memory Committed", statBadge: "AVG" }), sharedBadge: "" }), />Virtual Memory …</);
+	it("a row label keeps its full 120px band, badges or not, then ellipsizes at the floor", () => {
+		assert.match(renderDual({ top: dualRow({ label: "Virtual Memory Committed" }) }), /font-size="14"[^>]*>Virtual Memory…</);
+		assert.match(renderDual({ top: dualRow({ label: "Virtual Memory Committed", statBadge: "AVG" }), sharedBadge: "" }), /font-size="14"[^>]*>Virtual Memory…</);
 	});
 
 	it("a shared badge is 12/700 CAPS centered in a divider gap, drawn over the divider", () => {
@@ -632,13 +713,18 @@ describe("quad layout geometry (2x2 cells behind a hairline cross)", () => {
 });
 
 describe("quad micro-label variant", () => {
-	it("12/700 slot-colored micro-labels at top+20, values 24/700 in the theme value color at top+45, units at top+61", () => {
+	it("14/700 slot-colored micro-labels at top+20, values 24/700 in the theme value color at top+45, units at top+61", () => {
 		const svg = renderQuad({ labels: true });
-		assert.match(svg, /<text x="36" y="20" text-anchor="middle" [^>]*font-size="12" font-weight="700" letter-spacing="0.5" fill="#4CC2FF">CPU<\/text>/);
-		assert.match(svg, /<text x="36" y="92" text-anchor="middle" [^>]*font-size="12" font-weight="700" letter-spacing="0.5" fill="#38CD89">PUMP<\/text>/);
+		assert.match(svg, /<text x="36" y="20" text-anchor="middle" [^>]*font-size="14" font-weight="700" letter-spacing="0.5" fill="#4CC2FF">CPU<\/text>/);
+		assert.match(svg, /<text x="36" y="92" text-anchor="middle" [^>]*font-size="14" font-weight="700" letter-spacing="0.5" fill="#38CD89">PUMP<\/text>/);
 		assert.match(svg, new RegExp(`<text x="36" y="45" text-anchor="middle" [^>]*font-size="24" font-weight="700" fill="${VOID.value}">56\\.3</text>`));
 		assert.match(svg, new RegExp(`<text x="108" y="117" text-anchor="middle" [^>]*font-size="24" font-weight="700" fill="${VOID.value}">142</text>`));
 		assert.match(svg, new RegExp(`<text x="36" y="61" text-anchor="middle" [^>]*font-size="14" font-weight="600" fill="${VOID.unit}">°C</text>`));
+	});
+
+	it("four wide caps drop back to the old 12px so they clear the lens crop", () => {
+		const svg = renderQuad({ labels: true, cells: [quadCell({ label: "WWWW" }), null, null, null] });
+		assert.match(svg, /<text x="36" y="20" text-anchor="middle" [^>]*font-size="12" font-weight="700" letter-spacing="0.5"[^>]*>WWWW<\/text>/);
 	});
 
 	it("micro-labels uppercase and hard-cut to 4 code points, no ellipsis", () => {
@@ -752,6 +838,219 @@ describe("quad hardening", () => {
 	it("escapes XML in micro-labels, values and units", () => {
 		const svg = renderQuad({ labels: true, cells: [quadCell({ label: "A&B<", valueText: `1"2`, unitText: "'u" }), null, null, null] });
 		assert.match(svg, />A&amp;B&lt;</);
+		assert.match(svg, />1&quot;2</);
+		assert.match(svg, />&apos;u</);
+	});
+});
+
+function tripleRowFixture(overrides: Partial<TripleKeyRow> = {}): TripleKeyRow {
+	return { label: "CCD1", valueText: "35.9", unitText: "°C", ...overrides };
+}
+
+function renderTriple(overrides: Partial<TripleKeyOptions> = {}): string {
+	return renderTripleKey({
+		rows: [tripleRowFixture(), tripleRowFixture({ label: "CCD2", valueText: "37.3" }), tripleRowFixture({ label: "Core Max", valueText: "53.9" })],
+		palette: VOID,
+		...overrides
+	});
+}
+
+describe("triple layout geometry (three 48px bands, separators at y=47/95)", () => {
+	it("value chunks end-anchored at x=132 on band-center baselines 30/78/126, one shared size", () => {
+		const svg = renderTriple();
+		for (const [y, value] of [
+			[30, "35.9"],
+			[78, "37.3"],
+			[126, "53.9"]
+		] as const) {
+			assert.match(
+				svg,
+				new RegExp(`<text x="132" y="${y}" text-anchor="end" [^>]*font-size="18" font-weight="700" fill="${VOID.value}">${value.replace(".", "\\.")}<tspan dx="6" font-size="14" font-weight="600" fill="${VOID.unit}">°C</tspan></text>`)
+			);
+		}
+	});
+
+	it("labels start-anchored at x=12 on the same baselines; an all-short face takes 16px", () => {
+		const svg = renderTriple({ rows: [tripleRowFixture(), tripleRowFixture({ label: "CCD2", valueText: "37.3" }), tripleRowFixture({ label: "CCD3", valueText: "39.0" })] });
+		for (const y of [30, 78, 126]) {
+			assert.match(svg, new RegExp(`<text x="12" y="${y}" text-anchor="start" [^>]*font-size="16" font-weight="600" fill="${VOID.label}">CCD`));
+		}
+	});
+
+	it("a medium label steps down the ladder but renders whole beside its value", () => {
+		// "Core Max" beside "53.9 °C": the 13px step holds the whole name
+		// instead of ellipsizing sizes up — identity beats size here.
+		assert.match(renderTriple(), new RegExp(`<text x="12" y="126" text-anchor="start" [^>]*font-size="13" font-weight="600" fill="${VOID.label}">Core Max</text>`));
+	});
+
+	it("peer labels stay within one visible step: short labels cap at the smallest fitted peer + 2", () => {
+		// The default face fits CCD1/CCD2 at 16 but "Core Max" needs the 13px
+		// step; a 16-beside-13 face reads as an accidental hierarchy, so the
+		// short labels render at 15 (13 + the spread cap).
+		const svg = renderTriple();
+		assert.match(svg, new RegExp(`<text x="12" y="30" text-anchor="start" [^>]*font-size="15" font-weight="600" fill="${VOID.label}">CCD1</text>`));
+		assert.match(svg, new RegExp(`<text x="12" y="78" text-anchor="start" [^>]*font-size="15" font-weight="600" fill="${VOID.label}">CCD2</text>`));
+	});
+
+	it("interior ladder steps hold: a single-row face lands on 15, 14 and 13", () => {
+		// Single-row faces so the spread cap cannot mask a missing step.
+		// Estimated widths at 12px against the 58.6px budget beside "35.9 °C":
+		// "T Sensor" 45.5 → 15; "CPU VDD" 49.5 → 14; "GPU VRM" 52.0 → 13.
+		for (const [label, size] of [
+			["T Sensor", 15],
+			["CPU VDD", 14],
+			["GPU VRM", 13]
+		] as const) {
+			const svg = renderTripleKey({ rows: [tripleRowFixture({ label }), null, null], palette: VOID });
+			assert.match(svg, new RegExp(`<text x="12" y="30" text-anchor="start" [^>]*font-size="${size}" font-weight="600"[^>]*>${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</text>`), label);
+		}
+	});
+
+	it("the shared value ladder's interior 16px step holds", () => {
+		assert.equal(tripleValueFontSize([{ label: "", valueText: "1234.5", unitText: "MHz" }, null, null]), 16);
+	});
+
+	it("a long custom unit is cut to 5 code points so the value's digits never leave the canvas", () => {
+		const svg = renderTripleKey({ rows: [{ label: "API", valueText: "1234.5", unitText: "requests/sec" }, tripleRowFixture(), null], palette: VOID });
+		assert.match(svg, />requ…<\/tspan>/);
+		assert.doesNotMatch(svg, /requests/);
+	});
+
+	it("a long label yields to its own row's value chunk and ellipsizes", () => {
+		const svg = renderTriple({ rows: [tripleRowFixture({ label: "Core 0 Clock", valueText: "2385", unitText: "MHz" }), tripleRowFixture(), null] });
+		const label = textElement(svg, "Core…");
+		assert.match(label, /x="12" y="30" [^>]*font-size="12"/);
+	});
+
+	it("two track-color separators at x=12, 120x2", () => {
+		const svg = renderTriple();
+		assert.match(svg, new RegExp(`<rect x="12" y="47" width="120" height="2" fill="${VOID.track}"/>`));
+		assert.match(svg, new RegExp(`<rect x="12" y="95" width="120" height="2" fill="${VOID.track}"/>`));
+	});
+
+	it("a bg mask draws after the label and before the chunk (paint-order clipping)", () => {
+		const svg = renderTriple();
+		const label = svg.indexOf(">CCD1<");
+		const mask = svg.indexOf(`<rect x="76.6" y="0" width="63.4" height="47" fill="${VOID.bg}"/>`);
+		const chunk = svg.indexOf(">35.9<");
+		assert.ok(mask !== -1, "chunk under-mask missing");
+		assert.ok(label < mask && mask < chunk, "mask must draw between label and chunk");
+	});
+
+	it("the mask never repaints a separator (band interiors only)", () => {
+		const svg = renderTriple();
+		for (const match of svg.matchAll(/<rect x="[\d.]+" y="(\d+)" width="[\d.]+" height="(\d+)" fill="#000000"\/>/g)) {
+			const top = Number(match[1]);
+			const height = Number(match[2]);
+			const bands = [
+				{ top: 0, height: 47 },
+				{ top: 49, height: 46 },
+				{ top: 97, height: 47 }
+			];
+			assert.ok(
+				bands.some((b) => b.top === top && b.height === height),
+				`mask ${match[0]} escapes its band`
+			);
+		}
+	});
+
+	it("a null middle slot draws an empty band framed by both separators", () => {
+		const svg = renderTriple({ rows: [tripleRowFixture(), null, tripleRowFixture({ label: "Core Max", valueText: "53.9" })] });
+		assert.doesNotMatch(svg, /y="78"/);
+		assert.match(svg, /<rect x="12" y="47" width="120" height="2"/);
+		assert.match(svg, /<rect x="12" y="95" width="120" height="2"/);
+	});
+
+	it("an unpicked trailing slot drops its separator: no rule over plain whitespace", () => {
+		// A trailing rule above an empty band reads as a row that failed to
+		// load; separators draw only BETWEEN configured rows.
+		const svg = renderTriple({ rows: [tripleRowFixture(), tripleRowFixture({ label: "CCD2", valueText: "37.3" }), null] });
+		assert.match(svg, /<rect x="12" y="47" width="120" height="2"/);
+		assert.doesNotMatch(svg, /<rect x="12" y="95"/);
+	});
+
+	it("unit omitted when empty", () => {
+		const svg = renderTriple({ rows: [tripleRowFixture({ unitText: "" }), tripleRowFixture({ unitText: "" }), null] });
+		assert.doesNotMatch(svg, /tspan/);
+	});
+
+	it("no sparkline, no gauge, no display strip in the triple layout", () => {
+		const svg = renderTriple();
+		assert.doesNotMatch(svg, /polyline/);
+		assert.doesNotMatch(svg, /<path /);
+		assert.doesNotMatch(svg, /rx="5"/);
+	});
+
+	it("a long value drops the shared size to the 14px floor and still ellipsizes defensively", () => {
+		const rows = [tripleRowFixture({ valueText: "123456789012345", unitText: "" }), tripleRowFixture(), null];
+		assert.equal(tripleValueFontSize([{ label: "", valueText: "1234567890…", unitText: "" }, null, null]), 14);
+		const svg = renderTripleKey({ rows, palette: VOID });
+		assert.match(svg, /<text x="132" y="30" text-anchor="end" [^>]*font-size="14" font-weight="700"[^>]*>1234567890…</);
+		// The sibling row shares the floor size: one column, one size.
+		assert.match(svg, /<text x="132" y="78" text-anchor="end" [^>]*font-size="14"/);
+	});
+
+	it("a row whose chunk leaves no readable label budget draws value-only", () => {
+		const svg = renderTripleKey({ rows: [{ label: "CPU (Tctl/Tdie)", valueText: "12345678901", unitText: "MiB/s" }, tripleRowFixture(), null], palette: VOID });
+		assert.doesNotMatch(svg, /y="30"[^>]*font-weight="600"/);
+		assert.match(svg, /<text x="132" y="30" text-anchor="end" /);
+	});
+});
+
+describe("triple shared badge (the dual gap idiom on the first separator)", () => {
+	it("a badge is 12/700 CAPS centered at x=72 y=52 in an opaque gap over the separator", () => {
+		const svg = renderTriple({ sharedBadge: "max" });
+		const separator = svg.indexOf(`<rect x="12" y="47" width="120" height="2" fill="${VOID.track}"/>`);
+		const gap = svg.indexOf(`<rect x="47" y="39" width="50" height="14" fill="${VOID.bg}"/>`);
+		const badge = svg.match(new RegExp(`<text x="72" y="52" text-anchor="middle" [^>]*font-size="12" font-weight="700" letter-spacing="0.5" fill="${VOID.accent}">MAX</text>`));
+		assert.ok(separator !== -1, "first separator missing");
+		assert.ok(gap !== -1, "separator gap missing");
+		assert.ok(badge !== null, "centered badge missing");
+		assert.ok(separator < gap && gap < svg.indexOf(">MAX<"), "gap must draw after the separator and before the badge");
+	});
+
+	it("no gap and no badge for the live value", () => {
+		const svg = renderTriple();
+		assert.doesNotMatch(svg, /<rect x="47"/);
+		assert.doesNotMatch(svg, /y="52"/);
+	});
+});
+
+describe("triple alert recolor (whole key, from the primary thresholds)", () => {
+	it("crit: red field, white values on every row", () => {
+		const palette = resolvePalette(config, "void", null, "crit");
+		const svg = renderTriple({ palette });
+		assert.match(svg, /<rect width="144" height="144" fill="#CB2114"\/>/);
+		assert.match(svg, /y="30"[^>]*fill="#FFFFFF"/);
+		assert.match(svg, /y="126"[^>]*fill="#FFFFFF"/);
+	});
+});
+
+describe("triple text colors", () => {
+	it("rows take the resolved custom text", () => {
+		const custom = resolveTextColors(VOID, { mode: "custom", color: "#660000", dimSecondary: false }, "normal");
+		const svg = renderTriple({ text: custom });
+		assert.match(svg, /<text x="12" y="30" [^>]*fill="#660000">CCD1</);
+		assert.match(svg, /<text x="132" y="30" [^>]*fill="#660000">35\.9</);
+	});
+});
+
+describe("adaptive ladder policy (the real renderer arrays, not copies)", () => {
+	it("every ladder is largest-first and floors at or above the 12px legibility floor", () => {
+		for (const [name, ladder] of Object.entries(KEY_TEXT_LADDERS)) {
+			for (let i = 1; i < ladder.length; i++) {
+				assert.ok((ladder[i] as number) < (ladder[i - 1] as number), `${name} not descending`);
+			}
+			assert.ok((ladder[ladder.length - 1] as number) >= 12, `${name} floor below 12`);
+		}
+	});
+
+});
+
+describe("triple hardening", () => {
+	it("escapes XML in row labels, values and units", () => {
+		const svg = renderTripleKey({ rows: [{ label: "A&B<C>", valueText: `1"2`, unitText: "'u" }, tripleRowFixture(), null], palette: VOID });
+		assert.match(svg, />A&amp;B&lt;C&gt;</);
 		assert.match(svg, />1&quot;2</);
 		assert.match(svg, />&apos;u</);
 	});

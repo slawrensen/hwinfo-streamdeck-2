@@ -1,9 +1,17 @@
 /**
  * Compatibility proof: faces rendered from legacy-shaped inputs (no gauge, no
  * text overrides, no data-unit re-tiering in play) must stay byte-identical
- * to the 1.2.0 renderer output, captured in test/golden/legacy-faces.json
- * from the pre-change code. A theme-mode text resolution must also be
- * byte-identical to passing no text at all.
+ * to the captured renderer output in test/golden/legacy-faces.json. The dial
+ * faces and the quad key are the untouched 1.2.0 capture; the single and
+ * dual key entries were re-baselined for the adaptive label typography
+ * (issue #3), and the three single-key entries again for the measured
+ * advance table, the unit baseline lift to 112/18px (bottom-zone fix), the
+ * stat badge's move into the title/number gap, and once more for the
+ * balanced unit corridor (unit 114, spark span inset to pin stroke ink at
+ * y=120) — label/unit/badge geometry changed intentionally there, and
+ * these fixtures pin everything else (anchors, values, sparkline) against
+ * drift. A theme-mode text
+ * resolution must also be byte-identical to passing no text at all.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -53,6 +61,20 @@ describe("legacy faces stay byte-identical", () => {
 			palette: VOID
 		});
 		assert.equal(svg, golden.quad);
+	});
+
+	it("quad micro-label variant (pinned at the adaptive-label change)", () => {
+		const svg = renderQuadKey({
+			cells: [
+				{ label: "CPU", valueText: "56.3", unitText: "°C", color: "#4CC2FF" },
+				{ label: "GPU", valueText: "48.2", unitText: "°C", color: "#FF7E8E" },
+				{ label: "Pump", valueText: "2850", unitText: "RPM", color: "#38CD89" },
+				{ label: "Power", valueText: "142", unitText: "W", color: "#D4AB33" }
+			],
+			labels: true,
+			palette: VOID
+		});
+		assert.equal(svg, golden.quadLabeled);
 	});
 
 	it("dial with no thresholds: track and fill only, exactly as before", () => {

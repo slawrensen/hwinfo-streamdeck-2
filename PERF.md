@@ -9,7 +9,7 @@ parse-path microbenchmark against the **live** HWiNFO mapping
 
 Metric notes:
 
-- **tick** = one production poll: mutex acquire + `RtlMoveMemory` copy +
+- **tick** = one production poll: mutex acquire + native region copy +
   decode to `SensorSnapshot`. `raw copy` is the copy alone, so
   `tick − raw copy` ≈ pure parse cost.
 - **alloc/tick** = sum of positive `heapUsed` deltas per iteration (allocation
@@ -370,7 +370,7 @@ delta is the gauge/measure/text-color modules in plugin.js, 144,189 →
 154,964 B raw, and the sectioned settings panels in ui/; repacked after
 a one-line PI help-string sync, 583,072 → 583,133 B). koffi stays
 aboard at 1,021 KB; the hwsm swap is staged for the next release
-(design/KOFFI-REPLACEMENT.md).
+(internal design note).
 
 | Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -402,3 +402,95 @@ disappear, clean self-exit. computeGauge is O(zones) arithmetic and
 resolveTextColors a palette lookup, both per-render not per-tick, and the
 load numbers show no measurable cost. Ruling: no CPU or RSS regression;
 pack growth accepted and staged to shrink ~380 KB at the hwsm swap.
+
+### 2026-07-22 04:32: hwsm bridge lands (koffi out), adaptive labels + bottom-zone + badge fixes
+
+| Artifact | Bytes | gzip |
+| --- | ---: | ---: |
+| .streamDeckPlugin pack | 191,087 B | 186,160 B |
+| bin/plugin.js | 157,823 B | 47,956 B |
+| bin/node_modules (total) | 0 B (0.0 KB) | |
+| bin/hwsm.node | 113,664 B (111.0 KB) | |
+| ui/ | 145,075 B (141.7 KB) | |
+| imgs/ | 33,750 B (33.0 KB) | |
+| layouts/ + manifest + themes | 5,031 B (4.9 KB) | |
+
+| Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| PID 11960 | 46.8 MB | 59.8 MB | 0.8 s | 4 min | 0.33% |
+
+Parse bench (1000 iters, live mapping, region 238.5 KB):
+
+| Path | mean µs | p50 µs | p95 µs | alloc/tick | retained |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| raw copy (session.read) | 3 | 2.6 | 5.2 | | |
+| shared-memory tick (513 readings) | 6.7 | 5.2 | 10.9 | 469 B | 3,512 B |
+| gadget tick | n/a: HwinfoError: HWiNFO Gadget registry key HKCU\Software\HWiNFO64\VSB is not present (Win32 error 2): enable Gadget reporting in HWiNFO, or start HWiNFO. | | | | |
+
+Reading: the koffi FFI (1,045,504 B raw, 443,817 B in the pack) is replaced
+by hwsm, a purpose-built 113,664 B N-API addon exposing the plugin's exact
+11-call Win32 surface (native/hwsm, internal design note). Pack lands
+at 191,087 B against the 500,000 B target. The raw copy path holds at ~3 us
+(readInto copies into the same reusable scratch RtlMoveMemory filled), so
+the swap costs the hot path nothing; ui/ grew with the sdpi vendor and the
+four PI panels since v1.0, and bin/node_modules is now empty. The quality
+review re-verified the bridge (error-5, quarantine and dlopen paths), added
+the bridge-failed status screen and unified the loader's two load paths;
+sizes above are the post-review build. VirusTotal on this hwsm.node: 0/70.
+
+### 2026-07-22 19:56: hwsm becomes a capability API (opaque sessions, mandatory mutex)
+
+| Artifact | Bytes | gzip |
+| --- | ---: | ---: |
+| .streamDeckPlugin pack | 215,713 B | 210,842 B |
+| bin/plugin.js | 157,680 B | 47,812 B |
+| bin/node_modules (total) | 0 B (0.0 KB) | |
+| bin/hwsm.node | 156,160 B (152.5 KB) | |
+| ui/ | 145,075 B (141.7 KB) | |
+| imgs/ | 33,750 B (33.0 KB) | |
+| layouts/ + manifest + themes | 5,031 B (4.9 KB) | |
+
+| Plugin process | RSS | Private | CPU | Uptime | avg CPU % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| PID 74428 | 39.1 MB | 52.1 MB | 0.3 s | 1 min | 0.64% |
+
+Parse bench (1000 iters, live mapping, region 239.4 KB):
+
+| Path | mean µs | p50 µs | p95 µs | alloc/tick | retained |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| raw copy (session.read) | 3 | 2.8 | 3.7 | | |
+| shared-memory tick (515 readings) | 5.9 | 4.9 | 10.5 | 395 B | 3,584 B |
+| gadget tick | n/a: HKCU\Software\HWiNFO64\VSB absent on this machine (covered by e2e:gadget's synthetic key) | | | | |
+
+Reading: the 11-generic-call export surface is replaced by three capability
+calls (getBuildInfo, openSharedMemory, openGadgetKey) returning opaque
+type-tagged sessions; no handle, address, or BigInt crosses the boundary
+anymore. Every read is now one native transaction: 0 ms mutex attempt,
+header re-validation against the session's exact mapped length (checked
+arithmetic, 64 MiB bound), copy, release; the mutex became mandatory and
+WAIT_ABANDONED/WAIT_FAILED poison the session instead of degrading to an
+unguarded read. Cost of all that guarding: none measurable. Raw copy holds
+at 3.0 us mean (was 3.0-3.6 across prior entries) because the old path
+already took the mutex per read; the new path only adds a 44-byte header
+memcpy + integer checks under it. Tick mean 5.9 us vs 6.7 at the previous
+entry (noise class), alloc/tick down 469 -> 395 B. The addon grows
+113,664 -> 156,160 B for the session/validation logic, a version resource,
+CFG + CET, and /Brepro deterministic linking (two clean builds hash
+identical: ff72a2ab878f5bfa...); pack lands at 215,713 B, still well under
+the 500,000 B target. Gadget reads now reuse one native WCHAR buffer per
+provider instead of allocating a Node Buffer per registry value.
+
+### 2026-07-23 03:45: sparkline rings collect for the process lifetime
+
+The 60 s series eviction (shipped since 1.1.6.0) is gone: the poller now
+feeds every tracked ring on every fresh snapshot, on screen or not, so a
+page returns to a complete, current line after any absence. Cost at full
+saturation, measured with a 520-ring feed loop over the production
+pushSample shape (20,000 iterations, Node 24): 12.2 µs per tick, 0.0012 %
+of one core at the 1 s poll and 0.0049 % at the 250 ms floor. Ring count
+is bounded by distinct readings ever shown, never by pages or keys
+(about 515 publishable on this machine, roughly 150 KB of rings at total
+saturation), and the ceiling case equals the standing e2e:load scenario
+(520 contexts at 250 ms), green in the same gate. Rings stay
+index-spaced: a poll-cadence change still clears them, and history stays
+process memory, so a plugin restart starts lines fresh on purpose.

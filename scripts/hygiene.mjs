@@ -75,7 +75,11 @@ const steps = [
 	["e2e:resilience", () => run("e2e:resilience", ["scripts/e2e-resilience.mjs"])],
 	["e2e:gadget", () => run("e2e:gadget", ["scripts/e2e-gadget.mjs"])],
 	["e2e:dead-fallback", () => run("e2e:dead-fallback", ["scripts/e2e-dead-fallback.mjs"])],
+	["e2e:native-edge", () => run("e2e:native-edge", ["scripts/e2e-native-edge.mjs"])],
 	["e2e:load", () => run("e2e:load", ["scripts/e2e-load.mjs"], { env: { ...process.env, LOAD_SOAK_SEC: "45" } })],
+	// After the timing-sensitive UI suites: its 10k-read soak saturates a
+	// core, which can flake the frame-timing assertions above.
+	["test:native", () => run("test:native", ["--import", "tsx", "--test", "test/native-hwsm.test.ts"])],
 	["contact-sheet", () => run("contact-sheet", ["--import", "tsx", "scripts/contact-sheet.mjs", path.join(outRoot, "contact")])],
 	["marketplace-shots", () => run("marketplace-shots", ["--import", "tsx", "scripts/marketplace-shots.mjs", path.join(outRoot, "shots")])],
 	["pi-capture", runPiCapture]
