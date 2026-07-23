@@ -5,6 +5,8 @@ nav_order: 4
 
 The **Sensor Reading** action puts a live HWiNFO reading on a Stream Deck key: a value, its unit, a custom label, an optional [sparkline, bar, or ring display](#display-sparkline-bar-ring), and warn/critical coloring. A key can also [stack two readings](#layout-two-readings-on-one-key) as two compact rows, show [three readings as rows](#layout-three-readings-rows), or show [four readings in a quad grid](#layout-four-readings-the-quad-grid). Drag **HWiNFO Sensors → Sensor Reading** onto a key and pick a sensor to start.
 
+One face, one hierarchy: the value carries the light, the label identifies, and the unit stays deliberately quiet, with every element on the same fixed anchors as every other key, so a wall of mixed sensors reads as one instrument (the rules live in [the display system](themes.md#the-display-system)).
+
 This page documents every setting in the key's settings panel. For the Stream Deck + dial, see [Sensor Dial](sensor-dial.md).
 
 ![The full Sensor Reading settings panel in the Stream Deck property inspector, its rows grouped under flat Sensor, Format, Appearance, Layout and Alerts headers: the sensor picker with a live value and the label field, the stat, decimals and unit rows, the theme gallery with the Text select under it, the layout and Display selects, the threshold controls, and the expanded Advanced section headed Deck defaults (deck theme, Deck text, type accents, data units), Connection (data source, poll rate) and Support (the Copy support report button).]({{ '/assets/img/settings-panel.png' | relative_url }})
